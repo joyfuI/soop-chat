@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.test-dist/
+playwright-report/
+test-results/
+*.tgz
+captures.sqlite*
