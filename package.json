@@ -1,10 +1,25 @@
 {
   "name": "soop-chat",
   "version": "0.1.0",
-  "description": "Typed SOOP live chat client for Node.js and browsers",
+  "description": "Unofficial typed SOOP live chat reader for Node.js and browsers",
+  "keywords": [
+    "live-chat",
+    "soop",
+    "typescript",
+    "websocket"
+  ],
+  "bugs": {
+    "url": "https://github.com/joyfuI/soop-chat/issues"
+  },
   "license": "MIT",
+  "author": "joyfuI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joyfuI/soop-chat.git"
+  },
   "files": [
     "dist",
+    "docs",
     "README.md",
     "LICENSE"
   ],
