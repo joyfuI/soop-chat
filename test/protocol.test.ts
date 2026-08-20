@@ -875,6 +875,7 @@ void test("connects subscription item types to the official player product table
   );
   assert.equal(legacySubscription.type, "followItem");
   if (legacySubscription.type === "followItem") {
+    assert.equal(legacySubscription.data.subscriptionSource, "live");
     assert.partialDeepStrictEqual(legacySubscription.data.subscriptionProduct, {
       month: 3,
       isLegacy: true,
@@ -902,17 +903,29 @@ void test("connects subscription item types to the official player product table
   const vodSubscription = decodePacket(
     rawPacket(
       "0091",
-      `${separator}123${separator}receiver${separator}sender${separator}nickname${separator}92013${separator}ignored${separator}ignored${separator}2${separator}ignored${separator}ko_KR${separator}456`,
+      `${separator}123${separator}receiver${separator}sender${separator}nickname${separator}9200${separator}ignored${separator}ignored${separator}2${separator}ignored${separator}ko_KR${separator}456`,
     ),
   );
   assert.equal(vodSubscription.type, "followItem");
   if (vodSubscription.type === "followItem") {
+    assert.equal(vodSubscription.data.subscriptionSource, "vod");
     assert.partialDeepStrictEqual(vodSubscription.data.subscriptionProduct, {
-      itemType: 2013,
-      vodItemType: 92013,
+      itemType: 200,
+      vodItemType: 9200,
       subscriptionTier: "plus",
-      level: 1,
+      level: 2,
     });
+  }
+
+  const unknownSubscription = decodePacket(
+    rawPacket(
+      "0091",
+      `${separator}123${separator}receiver${separator}sender${separator}nickname${separator}999${separator}ignored${separator}ignored${separator}2`,
+    ),
+  );
+  assert.equal(unknownSubscription.type, "followItem");
+  if (unknownSubscription.type === "followItem") {
+    assert.equal(unknownSubscription.data.subscriptionSource, "unknown");
   }
 
   const unknown = decodePacket(

@@ -86,8 +86,8 @@ WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않�
 
 ## 구독과 미션
 
-- `0091`: 신규 구독권. chat number, receiver, sender, nickname, item type이 관찰된 레이아웃입니다. 구독 선물 수신자 30명 중 실제 선물권을 사용한 11명에게 `itemType=111, tier=1`이 왔고, 화면의 베이직 1개월 구독 완료와 일치했습니다.
-- `0093`: 연속 구독 효과. `tier=1`은 화면의 “베이직”, `tier=2`는 “플러스”와 각각 대조됐습니다. 원본 `tier`와 함께 `subscriptionTier`를 `basic`/`plus`/`unknown`으로 제공합니다. 화면의 “N개월째”는 `month`와 일치하며, `month=4`일 때 `accumulatedMonth=8`, `month=13`일 때 `accumulatedMonth=27`인 표본처럼 누적 개월은 별도 값입니다. `itemType=200`, `tier=2`, `month=3` 표본도 커스텀 플러스 티어명과 3개월째 구독 문구에 대조됐지만, 커스텀 티어명 자체는 패킷에 없습니다. 플레이어가 사용하는 `chatNo`, `itemType`, `senderLanguage`, `urlModify`도 구조화합니다.
+- `0091`: 신규 구독권. chat number, receiver, sender, nickname, item type이 관찰된 레이아웃입니다. 구독 선물 수신자 30명 중 실제 선물권을 사용한 11명에게 `itemType=111, tier=1`이 왔고, 화면의 베이직 1개월 구독 완료와 일치했습니다. `itemType=9200`은 공식 상품표의 `vodItemType=9200`과 화면의 “VOD에서 플러스 구독하였습니다” 문구가 일치해 `subscriptionSource="vod"`로 제공합니다. 일반 상품 번호는 `live`, 상품표에 없는 값은 `unknown`이며, `live`는 정확한 구매 화면이 아니라 비VOD 상품 번호라는 의미입니다.
+- `0093`: 연속 구독 효과. `tier=1`은 화면의 “베이직”, `tier=2`는 “플러스”와 각각 대조됐습니다. 원본 `tier`와 함께 `subscriptionTier`를 `basic`/`plus`/`unknown`으로 제공합니다. 화면의 “N개월째”는 `month`와 일치하며, `month=4`일 때 `accumulatedMonth=8`, `month=13`일 때 `accumulatedMonth=27`인 표본처럼 누적 개월은 별도 값입니다. 추가로 `itemType=100/101`의 베이직 9/12개월째 문구를 대조했습니다. 커스텀 티어명 자체는 패킷에 없습니다. 플레이어가 사용하는 `chatNo`, `itemType`, `senderLanguage`, `urlModify`도 구조화합니다.
 - `0108`: 구독 선물권 지급. 한 사용자가 베이직 1개월 선물권을 30명에게 보낸 화면과 수신자별 30개 패킷을 대조했습니다. 공식 플레이어 상품표와 실방송에서 `itemType=11`은 베이직 1개월이며, `subscription_id`와 `subscription_nickname`은 구독 대상 방송인과 일치했습니다. 전체 선물 개수는 단일 패킷에 없으므로 합성하지 않습니다.
 
 `LiveView.js`의 내부 상품표 57개 행을 `subscriptionProduct`로 연결합니다. 공식 UI에서 `0091`은 원본 값이 `itemType` 또는 `vodItemType`과 처음 일치하는 행을 사용하고, `0108`은 `itemType`이 일치하는 선물 행만 사용합니다. `0093`도 같은 상품표의 첫 일치 규칙으로 부가 정보를 제공합니다. 따라서 중복된 구형 `itemType=1/2/3`은 단일 패킷만으로 유일하게 구분하지 못하며 공식 표 순서의 첫 행을 반환합니다.
@@ -101,7 +101,7 @@ WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않�
 | 플러스 4 | `241` / `243` / `246` | `24` / `33` | `411`, `2413` | `500` |
 | 플러스 5 | `251` / `253` / `256` | `25` / `34` | `511`, `2513` | `600` |
 
-구형 베이직 선물은 `-1`(1개월·자동 결제), `13`(1개월), `1`(3개월), `2`(6개월), `3`(12개월)이고, 일반 구독은 `7`(1개월), `8`(3개월), `9`(6개월), 세리머니 일반 구독은 `1`(1개월), `2`(3개월), `3`(6개월)입니다. 이 표는 플레이어 코드 근거이며, 실방송에서 상품 의미까지 확인된 것은 현재 `0108 itemType=11`의 베이직 1개월 선물권, `0091 itemType=111`의 베이직 1개월 구독, `0091 itemType=103`의 베이직 3개월 정기구독권입니다. 상품표에 없는 값은 `subscriptionProduct=null`로 두고 원본을 보존합니다.
+구형 베이직 선물은 `-1`(1개월·자동 결제), `13`(1개월), `1`(3개월), `2`(6개월), `3`(12개월)이고, 일반 구독은 `7`(1개월), `8`(3개월), `9`(6개월), 세리머니 일반 구독은 `1`(1개월), `2`(3개월), `3`(6개월)입니다. 이 표는 플레이어 코드 근거이며, 실방송에서 상품 의미까지 확인된 것은 현재 `0108 itemType=11`의 베이직 1개월 선물권, `0091 itemType=111`의 베이직 1개월 구독, `0091 itemType=103`의 베이직 3개월 정기구독권, `0091 itemType=9200`의 VOD 플러스 구독입니다. 상품표에 없는 값은 `subscriptionProduct=null`로 두고 원본을 보존합니다.
 - `0121`: 도전미션 또는 대결미션 JSON. 공식 플레이어에서 도전미션은 `CHALLENGE_GIFT`, `CHALLENGE_NOTICE`, `CHALLENGE_SETTLE`, 대결미션은 접두사 없는 `GIFT`, `NOTICE`, `SETTLE`로 분기합니다. 이를 `missionKind`와 `action` 판별 유니온으로 노출하고 원본 객체도 보존합니다.
 - 도전미션 `GIFT`는 `missionKey`, `uuid`, 후원자·방송인, chat number, relay 여부, 이미지, 제목과 후원 개수를 제공합니다. 화면의 개별 후원 문구에는 제목이 표시되지 않지만 패킷에는 들어 있습니다. `NOTICE`는 같은 `missionKey`의 제목과 `mission_status=SUCCESS|FAIL`, `SETTLE`은 제목과 `settle_count`를 전달합니다.
 - 3시간 41분의 미션 집중 캡처에서 94개 `GIFT`, 85개 `NOTICE`, 78개 `SETTLE`을 관찰했습니다. 성공 78건은 모두 `SUCCESS → SETTLE → 0125`로 이어졌고, 실패 7건에는 정산이 없었습니다. 같은 사용자의 100+33+67개 후원은 동일 `missionKey`로 묶여 200개로 정산됐으며, 관찰한 모든 성공 미션에서 후원 합계와 `settle_count`가 일치했습니다.

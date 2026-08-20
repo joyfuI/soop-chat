@@ -405,6 +405,7 @@ export interface FollowItemData {
   subscriptionTier: SubscriptionTier;
   subscriptionMonth: number | null;
   subscriptionProduct: SubscriptionProduct | null;
+  subscriptionSource: "live" | "vod" | "unknown";
   senderLanguage: string;
   urlModify: string;
 }

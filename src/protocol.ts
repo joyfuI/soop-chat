@@ -585,6 +585,7 @@ function followItem(raw: RawPacket): FollowItemData {
     subscriptionTier: subscriptionTier(tier),
     subscriptionMonth: product?.month ?? null,
     subscriptionProduct: product,
+    subscriptionSource: product ? (itemType === product.vodItemType ? "vod" : "live") : "unknown",
     senderLanguage: fields[9] ?? "",
     urlModify: fields[10] ?? "",
   };
