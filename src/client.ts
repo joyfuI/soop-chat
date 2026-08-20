@@ -41,16 +41,21 @@ function reconnectOptions(value: SoopChatOptions["reconnect"]): Required<Reconne
   if (value === true || value === undefined) return { ...DEFAULT_RECONNECT };
   const merged = { ...DEFAULT_RECONNECT, ...value };
   if (merged.initialDelayMs < 0 || merged.maxDelayMs < merged.initialDelayMs) {
-    throw new RangeError("Reconnect delays must be non-negative and maxDelayMs must be >= initialDelayMs.");
+    throw new RangeError(
+      "Reconnect delays must be non-negative and maxDelayMs must be >= initialDelayMs.",
+    );
   }
   if (merged.factor < 1) throw new RangeError("Reconnect factor must be at least 1.");
-  if (merged.jitter < 0 || merged.jitter > 1) throw new RangeError("Reconnect jitter must be between 0 and 1.");
+  if (merged.jitter < 0 || merged.jitter > 1)
+    throw new RangeError("Reconnect jitter must be between 0 and 1.");
   return merged;
 }
 
 function validateChannel(channel: ChannelInfo): ChannelInfo {
-  if (!channel.broadcastNo || !channel.chatNo) throw new TypeError("Channel info is missing broadcastNo or chatNo.");
-  if (!/^[a-z0-9.-]+$/i.test(channel.chatDomain)) throw new TypeError("Channel info contains an invalid chatDomain.");
+  if (!channel.broadcastNo || !channel.chatNo)
+    throw new TypeError("Channel info is missing broadcastNo or chatNo.");
+  if (!/^[a-z0-9.-]+$/i.test(channel.chatDomain))
+    throw new TypeError("Channel info contains an invalid chatDomain.");
   if (!Number.isInteger(channel.chatPort) || channel.chatPort < 1 || channel.chatPort > 65_534) {
     throw new TypeError("Channel info contains an invalid chatPort.");
   }
@@ -151,7 +156,9 @@ export class SoopChatCore {
     const controller = new AbortController();
     this.#abortController = controller;
     this.#setState("resolving");
-    const channel = validateChannel(await this.#resolveChannel(this.streamerId, { signal: controller.signal }));
+    const channel = validateChannel(
+      await this.#resolveChannel(this.streamerId, { signal: controller.signal }),
+    );
     if (this.#stopped) throw new DOMException("Connection was aborted.", "AbortError");
     this.#channel = channel;
     this.#parser.reset();
@@ -170,11 +177,13 @@ export class SoopChatCore {
         if (!settled) {
           settled = true;
           this.#cancelPendingSession = undefined;
-          if (this.#socket === socket && socket.readyState < 2) socket.close(1002, "Handshake failed");
+          if (this.#socket === socket && socket.readyState < 2)
+            socket.close(1002, "Handshake failed");
           reject(error);
         }
       };
-      this.#cancelPendingSession = () => fail(new DOMException("Connection was aborted.", "AbortError"));
+      this.#cancelPendingSession = () =>
+        fail(new DOMException("Connection was aborted.", "AbortError"));
 
       socket.onopen = () => {
         try {
@@ -217,7 +226,9 @@ export class SoopChatCore {
       socket.onclose = (event) => {
         this.#clearHeartbeat();
         if (this.#socket === socket) this.#socket = undefined;
-        const error = new Error(`SOOP WebSocket closed (${event.code}${event.reason ? `: ${event.reason}` : ""}).`);
+        const error = new Error(
+          `SOOP WebSocket closed (${event.code}${event.reason ? `: ${event.reason}` : ""}).`,
+        );
         if (!joined) {
           fail(error);
         } else if (!this.#stopped) {
@@ -237,9 +248,10 @@ export class SoopChatCore {
     try {
       event = decodePacket(raw);
     } catch (cause) {
-      const error = cause instanceof ProtocolError
-        ? cause
-        : new ProtocolError(`Failed to decode opcode ${raw.opcode}.`, undefined, { cause });
+      const error =
+        cause instanceof ProtocolError
+          ? cause
+          : new ProtocolError(`Failed to decode opcode ${raw.opcode}.`, undefined, { cause });
       this.#emit("protocolError", { error, raw });
       return;
     }
@@ -271,7 +283,7 @@ export class SoopChatCore {
   #emitProtocol(event: Exclude<SoopEvent, { type: "unknown" }>): void {
     const listeners = this.#listeners.get(event.type);
     if (!listeners) return;
-    for (const listener of [...listeners]) listener(event as never);
+    for (const listener of Array.from(listeners)) listener(event as never);
   }
 
   #startHeartbeat(socket: WebSocketLike): void {
@@ -335,6 +347,6 @@ export class SoopChatCore {
   #emit<K extends SoopChatEventType>(type: K, event: SoopChatEventMap[K]): void {
     const listeners = this.#listeners.get(type);
     if (!listeners) return;
-    for (const listener of [...listeners]) listener(event as never);
+    for (const listener of Array.from(listeners)) listener(event as never);
   }
 }

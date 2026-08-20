@@ -8,7 +8,8 @@ export class SoopChat extends SoopChatCore {
     super({
       ...options,
       resolveChannel: options.resolveChannel ?? resolveNodeChannel,
-      createWebSocket: (url, protocols) => new WebSocket(url, protocols) as unknown as WebSocketLike,
+      createWebSocket: (url, protocols) =>
+        new WebSocket(url, protocols) as unknown as WebSocketLike,
     });
   }
 }

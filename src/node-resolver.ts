@@ -10,7 +10,7 @@ const LIVE_API = "https://live.sooplive.com/afreeca/player_live_api.php";
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : undefined;
 }
 
@@ -22,12 +22,16 @@ function restrictionFromReason(reason: string): RestrictedRoomReason {
   const normalized = reason.toLowerCase();
   if (normalized.includes("password") || normalized.includes("pwd")) return "password";
   if (normalized.includes("adult") || normalized.includes("19")) return "adult";
-  if (normalized.includes("subscription") || normalized.includes("subscribe")) return "subscriptionPlus";
+  if (normalized.includes("subscription") || normalized.includes("subscribe"))
+    return "subscriptionPlus";
   if (normalized.includes("login") || normalized.includes("auth")) return "loginRequired";
   return "unknown";
 }
 
-export const resolveNodeChannel: ChannelResolver = async (streamerId, { signal }): Promise<ChannelInfo> => {
+export const resolveNodeChannel: ChannelResolver = async (
+  streamerId,
+  { signal },
+): Promise<ChannelInfo> => {
   const body = new URLSearchParams({
     bid: streamerId,
     type: "live",
@@ -66,7 +70,8 @@ export const resolveNodeChannel: ChannelResolver = async (streamerId, { signal }
   const result = Number(channel.RESULT ?? root.RESULT ?? 0);
   const reason = text(channel.REASON ?? root.REASON);
   if (result !== 1) {
-    if (result === 0 || /offline|not.?stream/i.test(reason)) throw new BroadcastOfflineError(streamerId);
+    if (result === 0 || /offline|not.?stream/i.test(reason))
+      throw new BroadcastOfflineError(streamerId);
     const restriction = restrictionFromReason(reason);
     if (restriction !== "unknown") throw new RestrictedRoomError(restriction, reason || undefined);
     throw new ChannelResolutionError(reason || `SOOP live-info API returned RESULT=${result}.`);

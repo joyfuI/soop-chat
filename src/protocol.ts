@@ -149,7 +149,12 @@ export class PacketStreamParser {
     while (this.#buffer.length >= 2) {
       if (this.#buffer[0] !== ESC || this.#buffer[1] !== TAB) {
         const prefix = findPrefix(this.#buffer, 1);
-        const keepFrom = prefix >= 0 ? prefix : this.#buffer.at(-1) === ESC ? this.#buffer.length - 1 : this.#buffer.length;
+        const keepFrom =
+          prefix >= 0
+            ? prefix
+            : this.#buffer.at(-1) === ESC
+              ? this.#buffer.length - 1
+              : this.#buffer.length;
         const discarded = this.#buffer.slice(0, keepFrom);
         this.#buffer = this.#buffer.slice(keepFrom);
         errors.push(new ProtocolError("Discarded bytes before the SOOP packet prefix.", discarded));
@@ -194,20 +199,28 @@ export async function messageDataToBytes(data: WebSocketMessageData): Promise<Ui
   throw new ProtocolError("Unsupported WebSocket message data type.");
 }
 
-export function encodePacket(opcode: string, payload = FIELD_SEPARATOR, flags = "00"): Uint8Array<ArrayBuffer> {
+export function encodePacket(
+  opcode: string,
+  payload = FIELD_SEPARATOR,
+  flags = "00",
+): Uint8Array<ArrayBuffer> {
   if (!/^\d{4}$/.test(opcode)) throw new ProtocolError(`Invalid opcode: ${opcode}`);
   if (!/^\d{2}$/.test(flags)) throw new ProtocolError(`Invalid flags: ${flags}`);
 
   const payloadBytes = encoder.encode(payload);
   if (payloadBytes.length > 999_999) throw new ProtocolError("SOOP packet payload is too large.");
-  const header = encoder.encode(`\x1b\x09${opcode}${String(payloadBytes.length).padStart(6, "0")}${flags}`);
+  const header = encoder.encode(
+    `\x1b\x09${opcode}${String(payloadBytes.length).padStart(6, "0")}${flags}`,
+  );
   return concatenate(header, payloadBytes);
 }
 
-export const createConnectPacket = (): Uint8Array<ArrayBuffer> => encodePacket("0001", `${FIELD_SEPARATOR.repeat(3)}16${FIELD_SEPARATOR}`);
+export const createConnectPacket = (): Uint8Array<ArrayBuffer> =>
+  encodePacket("0001", `${FIELD_SEPARATOR.repeat(3)}16${FIELD_SEPARATOR}`);
 export const createJoinPacket = (chatNo: string): Uint8Array<ArrayBuffer> =>
   encodePacket("0002", `${FIELD_SEPARATOR}${chatNo}${FIELD_SEPARATOR.repeat(5)}`);
-export const createKeepAlivePacket = (): Uint8Array<ArrayBuffer> => encodePacket("0000", FIELD_SEPARATOR);
+export const createKeepAlivePacket = (): Uint8Array<ArrayBuffer> =>
+  encodePacket("0000", FIELD_SEPARATOR);
 
 function requireFields(raw: RawPacket, count: number): readonly string[] {
   if (raw.fields.length < count) {
@@ -306,10 +319,14 @@ const SUBSCRIPTION_PRODUCTS = [
 ] as const satisfies readonly SubscriptionProductRow[];
 
 function subscriptionProduct(itemType: number, giftOnly = false): SubscriptionProduct | null {
-  const product = SUBSCRIPTION_PRODUCTS.find((candidate) =>
-    (candidate[0] === itemType || (!giftOnly && candidate[1] === itemType)) && (!giftOnly || candidate[8]));
+  const product = SUBSCRIPTION_PRODUCTS.find(
+    (candidate) =>
+      (candidate[0] === itemType || (!giftOnly && candidate[1] === itemType)) &&
+      (!giftOnly || candidate[8]),
+  );
   if (!product) return null;
-  const [type, vodItemType, tier, level, month, isAutoPay, isLegacy, isCeremony, isGift, isTrial] = product;
+  const [type, vodItemType, tier, level, month, isAutoPay, isLegacy, isCeremony, isGift, isTrial] =
+    product;
   return {
     itemType: type,
     vodItemType,
@@ -379,7 +396,14 @@ function quitChannel(raw: RawPacket): QuitChannelData {
   const kickType = integer(fields[2]);
   return {
     kickType,
-    actor: kickType === 1 ? "streamer" : kickType === 2 ? "manager" : kickType >= 3 && kickType <= 5 ? "admin" : "unknown",
+    actor:
+      kickType === 1
+        ? "streamer"
+        : kickType === 2
+          ? "manager"
+          : kickType >= 3 && kickType <= 5
+            ? "admin"
+            : "unknown",
     adminKickCount: integer(fields[3]),
     adminNickname: fields[4] ?? "",
     bannedRoomBroadcasterId: fields[5] ?? "",
@@ -586,9 +610,9 @@ function iceModeEx(raw: RawPacket): IceModeExData {
   return {
     frozen: integer(fields[0]) !== 0,
     allowedRoleMask,
-    allowedRoles: ICE_MODE_ROLES
-      .filter(([, bit]) => (allowedRoleMask & bit) !== 0)
-      .map(([role]) => role),
+    allowedRoles: ICE_MODE_ROLES.filter(([, bit]) => (allowedRoleMask & bit) !== 0).map(
+      ([role]) => role,
+    ),
     balloonLimitCount: integer(fields[3]),
     subscriptionLimitCount: integer(fields[4]),
   };
@@ -627,10 +651,14 @@ function pollNotification(raw: RawPacket): PollNotificationData {
   const show = integer(fields[3]);
   return {
     status,
-    pollState: status === 1 && show === 1 ? "started"
-      : status === 4 && show === 1 ? "closed"
-      : status === 2 && show === 0 ? "hidden"
-      : "unknown",
+    pollState:
+      status === 1 && show === 1
+        ? "started"
+        : status === 4 && show === 1
+          ? "closed"
+          : status === 2 && show === 0
+            ? "hidden"
+            : "unknown",
     broadcasterId: fields[1] ?? "",
     pollNo: integer(fields[2]),
     show,
@@ -1103,7 +1131,10 @@ function mission(raw: RawPacket): MissionData {
   return { missionKind: "unknown", action: "unknown", payload: record };
 }
 
-function missionSettlementParticipant(value: unknown, index: number): ChallengeMissionSettlementParticipant {
+function missionSettlementParticipant(
+  value: unknown,
+  index: number,
+): ChallengeMissionSettlementParticipant {
   if (!Array.isArray(value) || value.length < 5) {
     throw new ProtocolError(`Opcode 0125 participant ${index} must contain five fields.`);
   }
@@ -1111,9 +1142,12 @@ function missionSettlementParticipant(value: unknown, index: number): ChallengeM
   return {
     userId: typeof value[0] === "string" ? value[0] : "",
     nickname: typeof value[1] === "string" ? value[1] : "",
-    contributionCount: typeof value[2] === "number" && Number.isFinite(value[2])
-      ? value[2]
-      : typeof value[2] === "string" ? integer(value[2]) : 0,
+    contributionCount:
+      typeof value[2] === "number" && Number.isFinite(value[2])
+        ? value[2]
+        : typeof value[2] === "string"
+          ? integer(value[2])
+          : 0,
     becameFanClub: value[3] === 1 || value[3] === "1",
     becameTopFan: value[4] === 1 || value[4] === "1",
   };
@@ -1191,69 +1225,132 @@ function nightbotTimeout(raw: RawPacket): NightbotTimeoutData {
 
 function decodedData(raw: RawPacket): object {
   switch (raw.opcode) {
-    case "0001": return login(raw);
-    case "0002": return joinChannel(raw);
-    case "0003": return quitChannel(raw);
-    case "0004": return chatUser(raw);
-    case "0005": return chatMessage(raw);
-    case "0007": return broadcasterStatus(raw);
-    case "0008": return setDumb(raw);
-    case "0009": return directChat(raw);
-    case "0012": return setUserFlag(raw);
-    case "0013": return setSubBj(raw);
-    case "0014": return nicknameChange(raw);
-    case "0018": return balloon(raw);
-    case "0020": return fanLetter(raw);
-    case "0021": return iceModeEx(raw);
-    case "0023": return slowMode(raw);
-    case "0026": return managerChat(raw);
-    case "0033": return balloon(raw, true);
-    case "0034": return fanLetter(raw, true);
-    case "0037": return chocolate(raw);
-    case "0038": return chocolate(raw, true);
-    case "0045": return quickViewGift(raw);
-    case "0047": return itemUsing(raw);
-    case "0050": return pollNotification(raw);
-    case "0054": return banWord(raw);
-    case "0058": return adminNotice(raw);
-    case "0070": return goodsPurchase(raw);
-    case "0071": return goodsPurchase(raw, true);
-    case "0074": return vrNotification(raw);
-    case "0075": return mobileBroadcastPause(raw);
-    case "0076": return kickAndCancel(raw);
-    case "0077": return kickUserList(raw);
-    case "0078": return adminChatUser(raw);
-    case "0086": return vodBalloon(raw);
-    case "0087": return adconEffect(raw);
-    case "0090": return kickMessageState(raw);
-    case "0091": return followItem(raw);
-    case "0092": return itemSellEffect(raw);
-    case "0093": return followItemEffect(raw);
-    case "0095": return translation(raw);
-    case "0102": return giftTicket(raw);
-    case "0103": return vodAdcon(raw);
-    case "0104": return bjNotice(raw);
-    case "0105": return videoBalloon(raw);
-    case "0107": return stationAdcon(raw);
-    case "0108": return giftSubscription(raw);
-    case "0109": return ogqEmoticon(raw);
-    case "0111": return itemDrops(raw);
-    case "0118": return ogqEmoticonGift(raw);
-    case "0119": return jsonData(raw);
-    case "0120": return gemItemSend(raw);
-    case "0121": return mission(raw);
-    case "0122": return jsonData(raw);
-    case "0125": return challengeMissionSettlement(raw);
-    case "0126": return adminFlag(raw);
-    case "0127": return chatUserExtend(raw);
-    case "0130": return subscriptionCeremonyButton(raw);
-    case "0131": return savvyNotice(raw);
-    case "0136": return globalSubtitle(raw);
-    case "0138": return confetti(raw);
-    case "0139": return jsonData(raw);
-    case "0140": return cheerTeamChange(raw);
-    case "0141": return nightbotTimeout(raw);
-    default: return { fields: raw.fields };
+    case "0001":
+      return login(raw);
+    case "0002":
+      return joinChannel(raw);
+    case "0003":
+      return quitChannel(raw);
+    case "0004":
+      return chatUser(raw);
+    case "0005":
+      return chatMessage(raw);
+    case "0007":
+      return broadcasterStatus(raw);
+    case "0008":
+      return setDumb(raw);
+    case "0009":
+      return directChat(raw);
+    case "0012":
+      return setUserFlag(raw);
+    case "0013":
+      return setSubBj(raw);
+    case "0014":
+      return nicknameChange(raw);
+    case "0018":
+      return balloon(raw);
+    case "0020":
+      return fanLetter(raw);
+    case "0021":
+      return iceModeEx(raw);
+    case "0023":
+      return slowMode(raw);
+    case "0026":
+      return managerChat(raw);
+    case "0033":
+      return balloon(raw, true);
+    case "0034":
+      return fanLetter(raw, true);
+    case "0037":
+      return chocolate(raw);
+    case "0038":
+      return chocolate(raw, true);
+    case "0045":
+      return quickViewGift(raw);
+    case "0047":
+      return itemUsing(raw);
+    case "0050":
+      return pollNotification(raw);
+    case "0054":
+      return banWord(raw);
+    case "0058":
+      return adminNotice(raw);
+    case "0070":
+      return goodsPurchase(raw);
+    case "0071":
+      return goodsPurchase(raw, true);
+    case "0074":
+      return vrNotification(raw);
+    case "0075":
+      return mobileBroadcastPause(raw);
+    case "0076":
+      return kickAndCancel(raw);
+    case "0077":
+      return kickUserList(raw);
+    case "0078":
+      return adminChatUser(raw);
+    case "0086":
+      return vodBalloon(raw);
+    case "0087":
+      return adconEffect(raw);
+    case "0090":
+      return kickMessageState(raw);
+    case "0091":
+      return followItem(raw);
+    case "0092":
+      return itemSellEffect(raw);
+    case "0093":
+      return followItemEffect(raw);
+    case "0095":
+      return translation(raw);
+    case "0102":
+      return giftTicket(raw);
+    case "0103":
+      return vodAdcon(raw);
+    case "0104":
+      return bjNotice(raw);
+    case "0105":
+      return videoBalloon(raw);
+    case "0107":
+      return stationAdcon(raw);
+    case "0108":
+      return giftSubscription(raw);
+    case "0109":
+      return ogqEmoticon(raw);
+    case "0111":
+      return itemDrops(raw);
+    case "0118":
+      return ogqEmoticonGift(raw);
+    case "0119":
+      return jsonData(raw);
+    case "0120":
+      return gemItemSend(raw);
+    case "0121":
+      return mission(raw);
+    case "0122":
+      return jsonData(raw);
+    case "0125":
+      return challengeMissionSettlement(raw);
+    case "0126":
+      return adminFlag(raw);
+    case "0127":
+      return chatUserExtend(raw);
+    case "0130":
+      return subscriptionCeremonyButton(raw);
+    case "0131":
+      return savvyNotice(raw);
+    case "0136":
+      return globalSubtitle(raw);
+    case "0138":
+      return confetti(raw);
+    case "0139":
+      return jsonData(raw);
+    case "0140":
+      return cheerTeamChange(raw);
+    case "0141":
+      return nightbotTimeout(raw);
+    default:
+      return { fields: raw.fields };
   }
 }
 

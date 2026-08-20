@@ -25,7 +25,8 @@ class FakeSocket implements WebSocketLike {
   send(data: string | ArrayBufferLike | ArrayBufferView): void {
     if (this.throwOnSend) throw new Error("synthetic send failure");
     if (typeof data === "string") this.sent.push(new TextEncoder().encode(data));
-    else if (ArrayBuffer.isView(data)) this.sent.push(new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice());
+    else if (ArrayBuffer.isView(data))
+      this.sent.push(new Uint8Array(data.buffer, data.byteOffset, data.byteLength).slice());
     else this.sent.push(new Uint8Array(data).slice());
   }
 
@@ -67,7 +68,7 @@ async function join(client: SoopChatCore, socket: FakeSocket): Promise<void> {
   await connecting;
 }
 
-test("connects, emits typed chat, sends heartbeat, and disconnects idempotently", async () => {
+void test("connects, emits typed chat, sends heartbeat, and disconnects idempotently", async () => {
   const socket = new FakeSocket();
   let resolverCalls = 0;
   const client = new SoopChatCore({
@@ -102,7 +103,7 @@ test("connects, emits typed chat, sends heartbeat, and disconnects idempotently"
   assert.equal(client.state, "closed");
 });
 
-test("re-resolves channel information and reconnects after an unexpected close", async () => {
+void test("re-resolves channel information and reconnects after an unexpected close", async () => {
   const firstSocket = new FakeSocket();
   const secondSocket = new FakeSocket();
   const sockets = [firstSocket, secondSocket];
@@ -133,7 +134,7 @@ test("re-resolves channel information and reconnects after an unexpected close",
   await client.disconnect();
 });
 
-test("stops reconnecting when the broadcast becomes offline", async () => {
+void test("stops reconnecting when the broadcast becomes offline", async () => {
   const socket = new FakeSocket();
   let resolverCalls = 0;
   const client = new SoopChatCore({
@@ -156,7 +157,7 @@ test("stops reconnecting when the broadcast becomes offline", async () => {
   assert.equal(client.state, "closed");
 });
 
-test("closes without reconnecting when the chat server announces broadcast end", async () => {
+void test("closes without reconnecting when the chat server announces broadcast end", async () => {
   const socket = new FakeSocket();
   const client = new SoopChatCore({
     streamerId: "streamer",
@@ -182,7 +183,7 @@ test("closes without reconnecting when the chat server announces broadcast end",
   assert.equal(client.state, "closed");
 });
 
-test("disconnect rejects an in-flight connect and leaves no pending session", async () => {
+void test("disconnect rejects an in-flight connect and leaves no pending session", async () => {
   const socket = new FakeSocket();
   const client = new SoopChatCore({
     streamerId: "streamer",
@@ -198,7 +199,7 @@ test("disconnect rejects an in-flight connect and leaves no pending session", as
   assert.equal(client.state, "closed");
 });
 
-test("a failed handshake closes its socket and resets client state", async () => {
+void test("a failed handshake closes its socket and resets client state", async () => {
   const socket = new FakeSocket();
   socket.throwOnSend = true;
   const client = new SoopChatCore({

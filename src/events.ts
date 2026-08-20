@@ -50,7 +50,11 @@ export const EVENT_CATALOG = {
   "0040": { type: "topClanSub", description: "Top Clan (Sub)", provenance: "reference" },
   "0041": { type: "superChat", description: "Super Chat", provenance: "reference" },
   "0042": { type: "updateTicket", description: "Update Ticket", provenance: "reference" },
-  "0043": { type: "notiGameRanker", description: "Game Ranker Notification", provenance: "reference" },
+  "0043": {
+    type: "notiGameRanker",
+    description: "Game Ranker Notification",
+    provenance: "reference",
+  },
   "0044": { type: "starCoin", description: "Star Coin", provenance: "reference" },
   "0045": { type: "sendQuickView", description: "Send Quick View Gift", provenance: "observed" },
   "0046": { type: "itemStatus", description: "Item Status", provenance: "reference" },
@@ -67,7 +71,11 @@ export const EVENT_CATALOG = {
   "0071": { type: "buyGoodsSub", description: "Buy Goods (Sub)", provenance: "player" },
   "0072": { type: "sendPromotion", description: "Send Promotion", provenance: "reference" },
   "0074": { type: "notifyVr", description: "VR Notification", provenance: "player" },
-  "0075": { type: "notifyMobBroadPause", description: "Mobile Broadcast Pause Notification", provenance: "player" },
+  "0075": {
+    type: "notifyMobBroadPause",
+    description: "Mobile Broadcast Pause Notification",
+    provenance: "player",
+  },
   "0076": { type: "kickAndCancel", description: "Kick and Cancel", provenance: "player" },
   "0077": { type: "kickUserList", description: "Kick User List", provenance: "player" },
   "0078": { type: "adminChatUser", description: "Admin Chat User", provenance: "player" },
@@ -78,7 +86,11 @@ export const EVENT_CATALOG = {
   "0090": { type: "kickMsgState", description: "Kick Message State", provenance: "observed" },
   "0091": { type: "followItem", description: "New Subscription", provenance: "observed" },
   "0092": { type: "itemSellEffect", description: "Item Sell Effect", provenance: "player" },
-  "0093": { type: "followItemEffect", description: "Continuous Subscription", provenance: "observed" },
+  "0093": {
+    type: "followItemEffect",
+    description: "Continuous Subscription",
+    provenance: "observed",
+  },
   "0094": { type: "translationState", description: "Translation State", provenance: "observed" },
   "0095": { type: "translation", description: "Translation", provenance: "player" },
   "0102": { type: "giftTicket", description: "Gift Ticket", provenance: "player" },
@@ -99,8 +111,16 @@ export const EVENT_CATALOG = {
   "0125": { type: "missionSettle", description: "Mission Settlement", provenance: "observed" },
   "0126": { type: "setAdminFlag", description: "Set Admin Flag", provenance: "player" },
   "0127": { type: "chuserExtend", description: "Subscriber List", provenance: "observed" },
-  "0128": { type: "adminChuserExtend", description: "Admin Chat User Extended", provenance: "reference" },
-  "0130": { type: "subscriptionCeremonyButton", description: "Subscription Ceremony Button", provenance: "player" },
+  "0128": {
+    type: "adminChuserExtend",
+    description: "Admin Chat User Extended",
+    provenance: "reference",
+  },
+  "0130": {
+    type: "subscriptionCeremonyButton",
+    description: "Subscription Ceremony Button",
+    provenance: "player",
+  },
   "0131": { type: "savvyNotice", description: "Savvy Notice", provenance: "player" },
   "0136": { type: "globalSubtitle", description: "Global Subtitle", provenance: "player" },
   "0137": { type: "userLanguageSet", description: "User Language Set", provenance: "player" },
@@ -213,7 +233,13 @@ export interface NicknameChangeData {
   userFlag: string;
 }
 
-export type IceModeRole = "streamer" | "fanClub" | "supporter" | "topFan" | "subscriber" | "manager";
+export type IceModeRole =
+  | "streamer"
+  | "fanClub"
+  | "supporter"
+  | "topFan"
+  | "subscriber"
+  | "manager";
 
 export interface IceModeExData {
   frozen: boolean;
@@ -860,16 +886,15 @@ type DecodedData<O extends KnownSoopOpcode> = O extends keyof DecodedDataByOpcod
   ? DecodedDataByOpcode[O]
   : FieldEventData;
 
-export type KnownSoopEvent<O extends KnownSoopOpcode = KnownSoopOpcode> =
-  O extends KnownSoopOpcode
-    ? {
-        type: (typeof EVENT_CATALOG)[O]["type"];
-        opcode: O;
-        receivedAt: number;
-        raw: RawPacket;
-        data: DecodedData<O>;
-      }
-    : never;
+export type KnownSoopEvent<O extends KnownSoopOpcode = KnownSoopOpcode> = O extends KnownSoopOpcode
+  ? {
+      type: (typeof EVENT_CATALOG)[O]["type"];
+      opcode: O;
+      receivedAt: number;
+      raw: RawPacket;
+      data: DecodedData<O>;
+    }
+  : never;
 
 export interface UnknownSoopEvent {
   type: "unknown";

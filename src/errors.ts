@@ -33,7 +33,11 @@ export class RestrictedRoomError extends SoopChatError {
   readonly reason: RestrictedRoomReason;
 
   constructor(reason: RestrictedRoomReason, message?: string, options?: ErrorOptions) {
-    super("RESTRICTED_ROOM", message ?? `This room is not available anonymously (${reason}).`, options);
+    super(
+      "RESTRICTED_ROOM",
+      message ?? `This room is not available anonymously (${reason}).`,
+      options,
+    );
     this.reason = reason;
   }
 }
