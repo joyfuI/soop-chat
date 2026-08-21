@@ -162,7 +162,7 @@ animation, cheerTeamNumber
 - `0045 sendQuickView`: 공식 플레이어 분기대로 일반 퀵뷰 `1/2/3`을 `30/90/365`일, 퀵뷰 플러스 `100/101/102/103`을 `7/30/90/365`일로 구조화합니다. `itemType=100`은 실방송의 퀵뷰 플러스 7일 이용권 선물 화면과 대조했습니다.
 - `0047 itemUsing`: 공식 플레이어가 실제 사용하는 남은 초와 `Math.round(seconds / 60)` 분 값을 제공합니다. 읽기만 하고 사용하지 않는 앞선 두 필드는 이름을 추측하지 않습니다.
 - `0070/0071 buyGoods`, `0074 notifyVr`, `0075 notifyMobBroadPause`: 상품 구매, VR 연결 정보, 모바일 송출 일시정지·재개 상태를 제공합니다.
-- `0076 kickAndCancel`, `0077 kickUserList`, `0078 adminChatUser`: 강퇴 취소, 강퇴 대상·명령자 목록, 채팅지킴이·숲지기·매니저 목록을 구조화합니다.
+- `0076 kickAndCancel`, `0077 kickUserList`, `0078 adminChatUser`: 강퇴 취소와 강퇴 대상·명령자 목록을 구조화합니다. `0078`은 공식 플레이어의 `flag1`·`flag2` 및 `isAdmin`, `isManager`, `isFixedManager`, `isEmployee`, `isEmployeeAdminChat`, `isCleanAti` 판정을 독립적으로 제공하며 여러 비트를 하나의 역할로 축약하지 않습니다.
 - `0092 itemSellEffect`, `0103 vodAdcon`, `0111 itemDrops`, `0126 setAdminFlag`: 판매 효과, VOD 애드벌룬, 드롭스, 운영자 플래그를 구조화합니다.
 - 기존 구조화 이벤트 중 `0005 chatMessage`에는 캐리지 리턴 제거와 색상·누적 구독·대표 퍼스널콘·응원팀을, `0091 followItem`에는 티어·언어·URL 보정을 추가했습니다. `0107 stationAdcon.chatNo`는 공식 플레이어와 같은 원본 문자열로 바로잡았습니다.
 - `0121 mission`의 대결미션도 `GIFT`·`NOTICE`·`SETTLE`별 공식 필드를 제공하고, `0141 nightbotTimeout`은 사유 코드를 언어 중립 판별 값으로 함께 제공합니다.

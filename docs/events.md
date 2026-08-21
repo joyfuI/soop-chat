@@ -341,7 +341,7 @@ type ChatUserData =
 | `notifyMobBroadPause` (`0075`) | `state: number`, `action: "pause" \| "resume" \| "unknown"` |
 | `kickAndCancel` (`0076`) | `state: number`, `cancelled: boolean`, `userId`, `nickname: string` |
 | `kickUserList` (`0077`) | `users` 배열에 대상·명령자 ID/닉네임, 시각, 명령자 원본·1차·2차 플래그 제공 |
-| `adminChatUser` (`0078`) | `state: number`, `users` 배열에 ID·닉네임·플래그와 `employee \| admin \| manager \| unknown` 역할 제공 |
+| `adminChatUser` (`0078`) | `state: number`, `users` 배열에 ID·닉네임·원본 `userFlag`, 공식 `flag1`·`flag2`와 독립 판정 `isAdmin`, `isManager`, `isFixedManager`, `isEmployee`, `isEmployeeAdminChat`, `isCleanAti` 제공 |
 | `kickMsgState` (`0090`) | `chatNo: number`, `hideKickMessage: boolean` |
 | `itemSellEffect` (`0092`) | `chatNo`, `count: number`, 방송인·발신자, 주·보조 메시지, 제목, 이미지·기본 이미지 URL |
 | `translation` (`0095`) | `messageIndex: number`, `mode: number`, `message: string`, `originalLanguage: number`, `translatedLanguage: number` |

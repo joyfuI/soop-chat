@@ -744,15 +744,52 @@ void test("decodes every field-reading official player branch", () => {
   const adminUsers = decodePacket(
     rawPacket(
       "0078",
-      `${separator}1${separator}employee${separator}employeeNick${separator}0|1024${separator}admin${separator}adminNick${separator}1|0${separator}manager${separator}managerNick${separator}256|0`,
+      `${separator}1${separator}adminCleanAti${separator}adminCleanAtiNick${separator}590339|165888${separator}fixedManager${separator}fixedManagerNick${separator}320|0${separator}employeeAdminChat${separator}employeeAdminChatNick${separator}0|9216`,
     ),
   );
   assert.equal(adminUsers.type, "adminChatUser");
   if (adminUsers.type === "adminChatUser")
-    assert.deepEqual(
-      adminUsers.data.users.map((user) => user.role),
-      ["employee", "admin", "manager"],
-    );
+    assert.deepEqual(adminUsers.data.users, [
+      {
+        userId: "adminCleanAti",
+        nickname: "adminCleanAtiNick",
+        userFlag: "590339|165888",
+        flag1: 590339,
+        flag2: 165888,
+        isAdmin: true,
+        isManager: false,
+        isFixedManager: false,
+        isEmployee: false,
+        isEmployeeAdminChat: false,
+        isCleanAti: true,
+      },
+      {
+        userId: "fixedManager",
+        nickname: "fixedManagerNick",
+        userFlag: "320|0",
+        flag1: 320,
+        flag2: 0,
+        isAdmin: false,
+        isManager: true,
+        isFixedManager: true,
+        isEmployee: false,
+        isEmployeeAdminChat: false,
+        isCleanAti: false,
+      },
+      {
+        userId: "employeeAdminChat",
+        nickname: "employeeAdminChatNick",
+        userFlag: "0|9216",
+        flag1: 0,
+        flag2: 9216,
+        isAdmin: false,
+        isManager: false,
+        isFixedManager: false,
+        isEmployee: true,
+        isEmployeeAdminChat: true,
+        isCleanAti: false,
+      },
+    ]);
 
   const chat = decodePacket(
     rawPacket(

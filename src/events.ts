@@ -546,13 +546,18 @@ export interface KickUserListData {
   users: readonly KickUserListEntry[];
 }
 
-export type AdminChatUserRole = "employee" | "admin" | "manager" | "unknown";
-
 export interface AdminChatUserInfo {
   userId: string;
   nickname: string;
   userFlag: string;
-  role: AdminChatUserRole;
+  flag1: number;
+  flag2: number;
+  isAdmin: boolean;
+  isManager: boolean;
+  isFixedManager: boolean;
+  isEmployee: boolean;
+  isEmployeeAdminChat: boolean;
+  isCleanAti: boolean;
 }
 
 export interface AdminChatUserData {

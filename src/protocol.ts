@@ -3,7 +3,6 @@ import {
   EVENT_CATALOG,
   type AdconEffectData,
   type AdminChatUserData,
-  type AdminChatUserRole,
   type AdminFlagData,
   type AdminNoticeData,
   type BjNoticeData,
@@ -340,14 +339,6 @@ function subscriptionProduct(itemType: number, giftOnly = false): SubscriptionPr
     isGift,
     isTrial,
   };
-}
-
-function adminChatUserRole(userFlag: string): AdminChatUserRole {
-  const flags = userFlags(userFlag);
-  if ((flags.secondary & 1024) !== 0) return "employee";
-  if ((flags.primary & 1) !== 0) return "admin";
-  if ((flags.primary & 256) !== 0) return "manager";
-  return "unknown";
 }
 
 function jsonString(record: Readonly<Record<string, unknown>>, key: string): string {
@@ -803,11 +794,19 @@ function adminChatUser(raw: RawPacket): AdminChatUserData {
   if (state === 1) {
     for (let index = 1; index + 2 < fields.length && fields[index] !== ""; index += 3) {
       const userFlag = fields[index + 2] ?? "";
+      const { primary: flag1, secondary: flag2 } = userFlags(userFlag);
       users.push({
         userId: fields[index] ?? "",
         nickname: fields[index + 1] ?? "",
         userFlag,
-        role: adminChatUserRole(userFlag),
+        flag1,
+        flag2,
+        isAdmin: (flag1 & 1) !== 0,
+        isManager: (flag1 & 256) !== 0,
+        isFixedManager: (flag1 & 64) !== 0,
+        isEmployee: (flag2 & 1024) !== 0,
+        isEmployeeAdminChat: (flag2 & 8192) !== 0,
+        isCleanAti: (flag2 & 2048) !== 0,
       });
     }
   }
