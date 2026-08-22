@@ -129,7 +129,7 @@ interface FieldEventData {
 | `0103` | `vodAdcon` | VOD 애드벌룬 | object | player |
 | `0104` | `bjNotice` | 방송인 공지 | object | observed |
 | `0105` | `videoBalloon` | 영상풍선 후원 | object | observed |
-| `0107` | `stationAdcon` | 스테이션 애드벌룬 | object | player |
+| `0107` | `stationAdcon` | 스테이션 애드벌룬 | object | observed |
 | `0108` | `sendSubscription` | 구독 선물 | object | observed |
 | `0109` | `ogqEmoticon` | OGQ 이모티콘 채팅 | object | observed |
 | `0110` | `emoticonTicket` | 이모티콘 티켓 | fields | observed |
@@ -318,6 +318,8 @@ type ChatUserData =
 | `subscriptionLimitCount` | `number` | 플레이어가 사용하는 구독 제한 수치 |
 
 `IceModeRole`은 `"streamer" | "fanClub" | "supporter" | "topFan" | "subscriber" | "manager"`입니다. 각 비트는 차례대로 `16`, `32`, `64`, `128`, `256`, `512`입니다. 플레이어가 읽지 않는 원본 두 번째 필드는 이름을 붙이지 않고 `raw.fields`에만 보존합니다. 구형 `0019 iceMode`는 현재 플레이어에 처리 분기가 없어 계속 `data.fields`만 제공합니다.
+
+방송 대기 없이 채팅창을 얼린 뒤 종료한 실방송에서는 `0021`과 `0019` 수신 후 45.7초 동안 채팅 10건이 모두 방송인에게서 왔고, 별풍선과 구독 선물 이벤트는 계속 수신됐습니다. 이후 `0007 status=0`과 `0088 closeBroad`가 1ms 간격으로 와서 종료됐습니다. 얼음 상태를 방송 종료나 방송 대기로 해석하지 않습니다.
 
 ### `managerChat` (`0026`)
 
@@ -564,6 +566,8 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
+실방송에서 `count=2`가 화면의 “[닉네임] 방송국 애드벌룬 2개”와 일치했습니다. 공식 플레이어도 애드벌룬 공통 UI에서 채널 출처에 “방송국”을 붙입니다. 패킷의 `title`에는 더 긴 문장이 오므로 화면 문구를 새 필드로 합성하지 않고 원문 그대로 제공합니다.
+
 ### `sendSubscription` (`0108`)
 
 구독 선물 이벤트입니다.
@@ -716,7 +720,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `becameFanClub` | `boolean` | 이번 정산으로 팬클럽에 새로 가입했는지 여부 |
 | `becameTopFan` | `boolean` | 이번 정산으로 열혈팬이 되었는지 여부 |
 
-`fanOrder`는 `becameFanClub`이 참인 참여자에게만 화면의 가입 순번으로 사용됩니다. 같은 캡처에서 각각 100개로 정산된 두 미션 중 기존 팬은 순번 문구가 없었고, 신규 팬은 `becameFanClub=true`, `fanOrder=7447`과 화면의 7,447번째 팬클럽 문구가 일치했습니다.
+`fanOrder`는 `becameFanClub`이 참인 참여자에게만 화면의 가입 순번으로 사용됩니다. 같은 캡처에서 각각 100개로 정산된 두 미션 중 기존 팬은 순번 문구가 없었고, 신규 팬은 `becameFanClub=true`, `fanOrder=7447`과 화면의 7,447번째 팬클럽 문구가 일치했습니다. 새 캡처에서도 `fanOrder=3722`였지만 참여자 6명의 `becameFanClub`이 모두 거짓이라 화면에는 6,850개 정산 문구만 나오고 팬클럽 문구는 없었습니다.
 
 ### `subscriptionCeremonyButton` (`0130`)
 

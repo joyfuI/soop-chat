@@ -97,7 +97,7 @@ export const EVENT_CATALOG = {
   "0103": { type: "vodAdcon", description: "VOD Adcon", provenance: "player" },
   "0104": { type: "bjNotice", description: "BJ Notice", provenance: "observed" },
   "0105": { type: "videoBalloon", description: "Video Donation", provenance: "observed" },
-  "0107": { type: "stationAdcon", description: "Station Adcon", provenance: "player" },
+  "0107": { type: "stationAdcon", description: "Station Adcon", provenance: "observed" },
   "0108": { type: "sendSubscription", description: "Gift Subscription", provenance: "observed" },
   "0109": { type: "ogqEmoticon", description: "OGQ Emoticon", provenance: "observed" },
   "0110": { type: "emoticonTicket", description: "Emoticon Ticket", provenance: "observed" },

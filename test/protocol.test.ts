@@ -448,11 +448,17 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   const stationAdcon = decodePacket(
     rawPacket(
       "0107",
-      `${separator}bj${separator}user${separator}nick${separator}10${separator}image${separator}title${separator}123${separator}ko_KR${separator}456`,
+      `${separator}bj${separator}sender${separator}nickname${separator}2${separator}image${separator}방송국에서 nickname님이 애드벌룬 2개를 선물 하셨습니다.${separator}123${separator}ko_KR${separator}456`,
     ),
   );
   assert.equal(stationAdcon.type, "stationAdcon");
-  if (stationAdcon.type === "stationAdcon") assert.equal(stationAdcon.data.title, "title");
+  if (stationAdcon.type === "stationAdcon")
+    assert.partialDeepStrictEqual(stationAdcon.data, {
+      senderNickname: "nickname",
+      count: 2,
+      title: "방송국에서 nickname님이 애드벌룬 2개를 선물 하셨습니다.",
+      chatNo: "123",
+    });
 
   const battleMission = decodePacket(
     rawPacket("0121", `${separator}{"type":"NOTICE","uuid":"synthetic"}`),
@@ -522,7 +528,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   const missionSettle = decodePacket(
     rawPacket(
       "0125",
-      `${separator}{"chno":456,"uuid":"settle-event","fanOrder":18002,"list":[["user","nickname",1000,1,0]]}`,
+      `${separator}{"chno":456,"uuid":"settle-event","fanOrder":18002,"list":[["user","nickname",1000,1,0],["existing","existingNick",6850,0,0]]}`,
     ),
   );
   assert.equal(missionSettle.type, "missionSettle");
@@ -537,6 +543,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
       becameFanClub: true,
       becameTopFan: false,
     });
+    assert.equal(missionSettle.data.participants[1]?.becameFanClub, false);
   }
 
   const ogq = decodePacket(
