@@ -240,6 +240,20 @@ function userFlags(value: string | undefined): { primary: number; secondary: num
   return { primary: integer(primary), secondary: integer(secondary) };
 }
 
+function officialUserFlags(userFlag: string) {
+  const { primary: flag1, secondary: flag2 } = userFlags(userFlag);
+  return {
+    flag1,
+    flag2,
+    isAdmin: (flag1 & 1) !== 0,
+    isManager: (flag1 & 256) !== 0,
+    isFixedManager: (flag1 & 64) !== 0,
+    isEmployee: (flag2 & 1024) !== 0,
+    isEmployeeAdminChat: (flag2 & 8192) !== 0,
+    isCleanAti: (flag2 & 2048) !== 0,
+  };
+}
+
 function subscriptionTier(tier: number): "basic" | "plus" | "unknown" {
   return tier === 1 ? "basic" : tier === 2 ? "plus" : "unknown";
 }
@@ -592,7 +606,7 @@ function setSubBj(raw: RawPacket): SetSubBjData {
     nickname: fields[3] ?? "",
     hide,
     hidden: hide !== 0,
-    isManager: (userFlags(userFlag).primary & 256) !== 0,
+    ...officialUserFlags(userFlag),
   };
 }
 
@@ -794,19 +808,11 @@ function adminChatUser(raw: RawPacket): AdminChatUserData {
   if (state === 1) {
     for (let index = 1; index + 2 < fields.length && fields[index] !== ""; index += 3) {
       const userFlag = fields[index + 2] ?? "";
-      const { primary: flag1, secondary: flag2 } = userFlags(userFlag);
       users.push({
         userId: fields[index] ?? "",
         nickname: fields[index + 1] ?? "",
         userFlag,
-        flag1,
-        flag2,
-        isAdmin: (flag1 & 1) !== 0,
-        isManager: (flag1 & 256) !== 0,
-        isFixedManager: (flag1 & 64) !== 0,
-        isEmployee: (flag2 & 1024) !== 0,
-        isEmployeeAdminChat: (flag2 & 8192) !== 0,
-        isCleanAti: (flag2 & 2048) !== 0,
+        ...officialUserFlags(userFlag),
       });
     }
   }

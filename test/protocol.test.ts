@@ -317,13 +317,20 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   }
 
   const manager = decodePacket(
-    rawPacket("0013", `${separator}user${separator}256|0${separator}1${separator}manager`),
+    rawPacket(
+      "0013",
+      `${separator}user${separator}269025632|688128${separator}1${separator}manager`,
+    ),
   );
   assert.equal(manager.type, "setSubBj");
   if (manager.type === "setSubBj") {
     assert.equal(manager.data.nickname, "manager");
     assert.equal(manager.data.hidden, true);
+    assert.equal(manager.data.flag1, 269025632);
+    assert.equal(manager.data.flag2, 688128);
     assert.equal(manager.data.isManager, true);
+    assert.equal(manager.data.isFixedManager, true);
+    assert.equal(manager.data.isEmployee, false);
   }
 
   const adminNotice = decodePacket(rawPacket("0058", `${separator}운영자 공지`));
@@ -379,12 +386,18 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   const plusFollow = decodePacket(
     rawPacket(
       "0093",
-      `${separator}bj${separator}user${separator}nick${separator}30${separator}123${separator}200${separator}30${separator}2${separator}synthetic-id${separator}ko_KR${separator}456`,
+      `${separator}bj${separator}user${separator}nick${separator}25${separator}123${separator}201${separator}25${separator}2${separator}synthetic-id${separator}ko_KR${separator}456`,
     ),
   );
   assert.equal(plusFollow.type, "followItemEffect");
-  if (plusFollow.type === "followItemEffect")
+  if (plusFollow.type === "followItemEffect") {
     assert.equal(plusFollow.data.subscriptionTier, "plus");
+    assert.partialDeepStrictEqual(plusFollow.data.subscriptionProduct, {
+      itemType: 201,
+      subscriptionTier: "plus",
+      month: 1,
+    });
+  }
 
   const kickMessageState = decodePacket(rawPacket("0090", `${separator}123${separator}1`));
   assert.equal(kickMessageState.type, "kickMsgState");

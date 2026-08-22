@@ -260,7 +260,16 @@ type ChatUserData =
 | `nickname` | `string` | 대상 사용자 닉네임 |
 | `hide` | `number` | 플레이어가 전달하는 숨김 상태 원본 숫자 |
 | `hidden` | `boolean` | 플레이어가 전달하는 숨김 상태 |
+| `flag1` | `number` | 공식 플레이어의 첫 번째 사용자 플래그 숫자 |
+| `flag2` | `number` | 공식 플레이어의 두 번째 사용자 플래그 숫자 |
+| `isAdmin` | `boolean` | 공식 `admin` 비트 설정 여부 |
 | `isManager` | `boolean` | `userFlag`의 매니저 비트 `256` 설정 여부 |
+| `isFixedManager` | `boolean` | 공식 `fixedManager` 비트 `64` 설정 여부 |
+| `isEmployee` | `boolean` | 공식 `employee` 비트 설정 여부 |
+| `isEmployeeAdminChat` | `boolean` | 공식 `employeeAdminChat` 비트 설정 여부 |
+| `isCleanAti` | `boolean` | 공식 `cleanati` 비트 설정 여부 |
+
+실방송에서 한 사용자가 입장할 때 `fixedManager` 비트만 포함된 `0004`가 온 직후 `0013`에서 `manager` 비트 `256`이 추가됐고, 퇴장·재입장 뒤에도 같은 순서가 반복됐습니다. 화면상 별도 명칭이나 안내는 확인되지 않았으므로 플래그 이상의 의미를 합성하지 않습니다.
 
 ### `setNickname` (`0014`)
 
@@ -349,6 +358,8 @@ type ChatUserData =
 | `vodAdcon` (`0103`) | `stationAdcon`과 같은 방송인·발신자·개수·이미지·제목·채팅방·언어·URL 보정 필드 |
 | `itemDrops` (`0111`) | `broadcasterId`, `name`, `message`, `imageUrl: string` |
 | `ogqEmoticonGift` (`0118`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `title: string`, `imageUrl: string` |
+
+`itemDrops`는 새 실방송 캡처에서 같은 이벤트 이름으로 약 20분 간격으로 6회 수신됐습니다. `name`에는 드롭스 상품명이 있었고 `message`와 `imageUrl`은 비어 있었습니다. 방송에서 드롭스 제공을 안내했고 수신 직후 축하 채팅이 이어졌지만 다시보기 채팅에는 해당 안내가 남지 않아 화면 문구는 확정하지 않습니다.
 
 `notifyPoll`은 같은 투표 번호의 실방송 흐름에서 `status=1, show=1`이 투표 시작, `status=4, show=1`이 투표 마감과 결과 공개, `status=2, show=0`이 투표 UI 제거와 일치했습니다. 원본 숫자를 유지하면서 각각 `started`, `closed`, `hidden`으로 제공하고 `show !== 0`을 `visible`로 제공합니다. 질문·선택지·득표수는 채팅 WebSocket 패킷에 포함되지 않았습니다.
 | `gemItemSend` (`0120`) | `receiverId: string`, `receiverNickname: string`, `itemName: string` |
@@ -505,7 +516,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-`itemType=203/211/200`의 플러스 표본은 각각 화면의 9/11/4개월째 구독 문구와, `itemType=100/101`의 베이직 표본은 9/12개월째 구독 문구와 대조됐습니다. 화면의 “N개월째”는 `month`이고 상품표의 1개월권·3개월권은 이번 상품 기간이므로 서로 다른 값입니다. 커스텀 베이직·플러스 구독자 명칭은 이 패킷에 없고 플레이어가 별도 채널 설정에서 가져오므로 합성하지 않습니다. 화면은 티어와 연속 개월을 확인하지만 상품표의 레벨·자동 결제·선물 플래그까지 실방송으로 확정하지는 않습니다.
+`itemType=201/203/211/200`의 플러스 표본은 각각 화면의 25/9/11/4개월째 구독 문구와, `itemType=100/101`의 베이직 표본은 9·27/12개월째 구독 문구와 대조됐습니다. 화면의 “N개월째”는 `month`이고 상품표의 1개월권·3개월권은 이번 상품 기간이므로 서로 다른 값입니다. 커스텀 베이직·플러스 구독자 명칭은 이 패킷에 없고 플레이어가 별도 채널 설정에서 가져오므로 합성하지 않습니다. 화면은 티어와 연속 개월을 확인하지만 상품표의 레벨·자동 결제·선물 플래그까지 실방송으로 확정하지는 않습니다.
 
 ### `bjNotice` (`0104`)
 
@@ -535,7 +546,7 @@ interface ChatUserExtendData {
 | `isDefault` | `boolean` | 기본 효과 리소스 사용 여부 |
 | `extraData` | `string` | 플레이어가 전달하는 추가 원본 데이터 |
 
-실방송에서 `balloonCount=50`, `isDefault=true` 표본을 화면의 영상풍선 50개 표시와 대조했습니다. 같은 패킷의 32자리 `extraData`는 공식 플레이어도 의미 있게 해석하지 않아 원문 문자열로 보존합니다.
+실방송에서 `balloonCount=50`, `isDefault=true` 표본을 화면의 영상풍선 50개 표시와 대조했습니다. 다른 표본의 `balloonCount=5`, `fanOrder=9725`는 영상풍선 5개와 9,725번째 팬클럽 가입 문구가 함께 표시된 화면과 일치했습니다. 같은 패킷의 32자리 `extraData`는 공식 플레이어도 의미 있게 해석하지 않아 원문 문자열로 보존합니다.
 
 ### `stationAdcon` (`0107`)
 

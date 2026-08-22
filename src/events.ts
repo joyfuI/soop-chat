@@ -447,7 +447,14 @@ export interface SetSubBjData {
   nickname: string;
   hide: number;
   hidden: boolean;
+  flag1: number;
+  flag2: number;
+  isAdmin: boolean;
   isManager: boolean;
+  isFixedManager: boolean;
+  isEmployee: boolean;
+  isEmployeeAdminChat: boolean;
+  isCleanAti: boolean;
 }
 
 export interface AdminNoticeData {
