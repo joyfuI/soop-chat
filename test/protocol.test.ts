@@ -207,11 +207,19 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   const userFlag = decodePacket(
     rawPacket(
       "0012",
-      `${separator}528${separator}user${separator}nick${separator}0${separator}0${separator}16`,
+      `${separator}65568|163840${separator}user${separator}nick${separator}0${separator}0${separator}65536|163840`,
     ),
   );
   assert.equal(userFlag.type, "setUserFlag");
-  if (userFlag.type === "setUserFlag") assert.equal(userFlag.data.previousUserFlag, "16");
+  if (userFlag.type === "setUserFlag") {
+    assert.equal(userFlag.data.previousUserFlag, "65536|163840");
+    assert.equal(userFlag.data.flag1, 65568);
+    assert.equal(userFlag.data.flag2, 163840);
+    assert.equal(userFlag.data.previousFlag1, 65536);
+    assert.equal(userFlag.data.previousFlag2, 163840);
+    assert.equal(userFlag.data.isFanClub, true);
+    assert.equal(userFlag.data.wasFanClub, false);
+  }
 
   const nickname = decodePacket(
     rawPacket(

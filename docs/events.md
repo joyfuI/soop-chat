@@ -248,6 +248,10 @@ type ChatUserData =
 | `nickname` | `string` | 대상 사용자 닉네임 |
 | `userFlag` | `string` | 변경 후 원본 복합 플래그 |
 | `previousUserFlag` | `string` | 변경 전 원본 복합 플래그 |
+| `flag1`, `flag2` | `number` | 변경 후 공식 주·보조 플래그 숫자 |
+| `previousFlag1`, `previousFlag2` | `number` | 변경 전 공식 주·보조 플래그 숫자 |
+| `isFanClub` | `boolean` | 변경 후 팬클럽 비트 `32` 설정 여부 |
+| `wasFanClub` | `boolean` | 변경 전 팬클럽 비트 `32` 설정 여부 |
 
 ### `setSubBj` (`0013`)
 

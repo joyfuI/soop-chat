@@ -223,6 +223,12 @@ export interface SetUserFlagData {
   nickname: string;
   userFlag: string;
   previousUserFlag: string;
+  flag1: number;
+  flag2: number;
+  previousFlag1: number;
+  previousFlag2: number;
+  isFanClub: boolean;
+  wasFanClub: boolean;
 }
 
 export interface NicknameChangeData {

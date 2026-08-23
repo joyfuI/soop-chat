@@ -499,11 +499,21 @@ function setDumb(raw: RawPacket): SetDumbData {
 
 function setUserFlag(raw: RawPacket): SetUserFlagData {
   const fields = requireFields(raw, 6);
+  const userFlag = fields[0] ?? "";
+  const previousUserFlag = fields[5] ?? "";
+  const { primary: flag1, secondary: flag2 } = userFlags(userFlag);
+  const { primary: previousFlag1, secondary: previousFlag2 } = userFlags(previousUserFlag);
   return {
     userId: fields[1] ?? "",
     nickname: fields[2] ?? "",
-    userFlag: fields[0] ?? "",
-    previousUserFlag: fields[5] ?? "",
+    userFlag,
+    previousUserFlag,
+    flag1,
+    flag2,
+    previousFlag1,
+    previousFlag2,
+    isFanClub: (flag1 & 32) !== 0,
+    wasFanClub: (previousFlag1 & 32) !== 0,
   };
 }
 
