@@ -61,6 +61,7 @@ import {
   type SubscriptionProduct,
   type TranslationData,
   type UnknownSoopEvent,
+  type UserStatus,
   type VideoBalloonData,
   type VodAdconData,
   type VodBalloonData,
@@ -240,14 +241,37 @@ function userFlags(value: string | undefined): { primary: number; secondary: num
   return { primary: integer(primary), secondary: integer(secondary) };
 }
 
-function officialUserFlags(userFlag: string) {
+function followerTier(flag2: number): 0 | 1 | 2 | 3 {
+  return (flag2 & (1 << 18)) !== 0
+    ? 1
+    : (flag2 & (1 << 19)) !== 0
+      ? 2
+      : (flag2 & (1 << 20)) !== 0
+        ? 3
+        : 0;
+}
+
+function decodeUserStatus(userFlag: string): UserStatus {
   const { primary: flag1, secondary: flag2 } = userFlags(userFlag);
+  const tier = followerTier(flag2);
   return {
     flag1,
     flag2,
     isAdmin: (flag1 & 1) !== 0,
+    isBJ: (flag1 & 4) !== 0,
     isManager: (flag1 & 256) !== 0,
     isFixedManager: (flag1 & 64) !== 0,
+    isTopFan: (flag1 & 32768) !== 0,
+    isFan: (flag1 & 32) !== 0,
+    isSupporter: (flag1 & (1 << 20)) !== 0,
+    isFollower: tier !== 0,
+    followerTier: tier,
+    isGuest: (flag1 & 16) !== 0,
+    hasAppliedQuickview: (flag1 & (1 << 19)) !== 0,
+    isMobile: (flag1 & 16384) !== 0,
+    isFemale: (flag1 & 512) !== 0,
+    isHideSex: (flag2 & (1 << 25)) !== 0,
+    isAtagAllow: (flag2 & 32) !== 0,
     isEmployee: (flag2 & 1024) !== 0,
     isEmployeeAdminChat: (flag2 & 8192) !== 0,
     isCleanAti: (flag2 & 2048) !== 0,
@@ -380,19 +404,22 @@ function bgrColor(value: string | undefined): string {
 
 function login(raw: RawPacket): LoginData {
   const fields = requireFields(raw, 2);
-  return { userId: fields[0] ?? "", userFlag: fields[1] ?? "" };
+  const userFlag = fields[1] ?? "";
+  return { userId: fields[0] ?? "", userFlag, userStatus: decodeUserStatus(userFlag) };
 }
 
 function joinChannel(raw: RawPacket): JoinChannelData {
   const fields = requireFields(raw, 7);
   const [position, familyNickname = ""] = (fields[4] ?? "").split("]");
+  const userFlag = fields[6] ?? "";
   return {
     chatNo: fields[0] ?? "",
     broadcasterId: fields[1] ?? "",
     maxManagerCount: integer(fields[3]),
     familyNickname,
     familyNicknamePosition: integer(position),
-    userFlag: fields[6] ?? "",
+    userFlag,
+    userStatus: decodeUserStatus(userFlag),
   };
 }
 
@@ -418,6 +445,7 @@ function quitChannel(raw: RawPacket): QuitChannelData {
 
 function chatMessage(raw: RawPacket): ChatMessageData {
   const fields = requireFields(raw, 8);
+  const senderFlag = fields[6] ?? "";
   return {
     message: (fields[0] ?? "").replace(/\r/g, ""),
     senderId: fields[1] ?? "",
@@ -425,7 +453,8 @@ function chatMessage(raw: RawPacket): ChatMessageData {
     messageType: integer(fields[3]),
     chatLanguage: integer(fields[4]),
     senderNickname: fields[5] ?? "",
-    senderFlag: fields[6] ?? "",
+    senderFlag,
+    senderStatus: decodeUserStatus(senderFlag),
     subscriptionMonth: fields[7] ?? "",
     nicknameColor: fields[8] ?? "",
     nicknameColorDark: fields[9] ?? "",
@@ -440,23 +469,27 @@ function chatUser(raw: RawPacket): ChatUserData {
   if (integer(fields[0]) === 1) {
     const users = [];
     for (let index = 1; index + 2 < fields.length && fields[index] !== ""; index += 3) {
+      const userFlag = fields[index + 2] ?? "";
       users.push({
         userId: fields[index] ?? "",
         nickname: fields[index + 1] ?? "",
-        userFlag: fields[index + 2] ?? "",
+        userFlag,
+        userStatus: decodeUserStatus(userFlag),
       });
     }
     return { action: "join", users };
   }
 
   requireFields(raw, 6);
+  const userFlag = fields[5] ?? "";
   return {
     action: "leave",
     userId: fields[1] ?? "",
     nickname: fields[2] ?? "",
     quitFlag: integer(fields[3]),
     etcInfo: fields[4] ?? "",
-    userFlag: fields[5] ?? "",
+    userFlag,
+    userStatus: decodeUserStatus(userFlag),
     isKicked: integer(fields[3]) !== 1,
   };
 }
@@ -469,6 +502,7 @@ function broadcasterStatus(raw: RawPacket): BroadcasterStatusData {
 function directChat(raw: RawPacket): DirectChatData {
   const fields = requireFields(raw, 8);
   const messageType = integer(fields[3]);
+  const userFlag = fields[7] ?? "";
   return {
     message: (fields[0] ?? "").replace(/\r/g, ""),
     senderId: fields[1] ?? "",
@@ -477,7 +511,8 @@ function directChat(raw: RawPacket): DirectChatData {
     chatLanguage: integer(fields[4]),
     senderNickname: fields[5] ?? "",
     receiverNickname: fields[6] ?? "",
-    userFlag: fields[7] ?? "",
+    userFlag,
+    senderStatus: decodeUserStatus(userFlag),
     isAdmin: messageType === 3 || messageType === 4 || messageType === 6,
   };
 }
@@ -501,30 +536,38 @@ function setUserFlag(raw: RawPacket): SetUserFlagData {
   const fields = requireFields(raw, 6);
   const userFlag = fields[0] ?? "";
   const previousUserFlag = fields[5] ?? "";
-  const { primary: flag1, secondary: flag2 } = userFlags(userFlag);
-  const { primary: previousFlag1, secondary: previousFlag2 } = userFlags(previousUserFlag);
+  const userStatus = decodeUserStatus(userFlag);
+  const previousUserStatus = decodeUserStatus(previousUserFlag);
   return {
     userId: fields[1] ?? "",
     nickname: fields[2] ?? "",
     userFlag,
     previousUserFlag,
-    flag1,
-    flag2,
-    previousFlag1,
-    previousFlag2,
-    isFanClub: (flag1 & 32) !== 0,
-    wasFanClub: (previousFlag1 & 32) !== 0,
+    flag1: userStatus.flag1,
+    flag2: userStatus.flag2,
+    previousFlag1: previousUserStatus.flag1,
+    previousFlag2: previousUserStatus.flag2,
+    isFanClub: userStatus.isFan,
+    wasFanClub: previousUserStatus.isFan,
+    isFollower: userStatus.isFollower,
+    wasFollower: previousUserStatus.isFollower,
+    followerTier: userStatus.followerTier,
+    previousFollowerTier: previousUserStatus.followerTier,
+    userStatus,
+    previousUserStatus,
   };
 }
 
 function nicknameChange(raw: RawPacket): NicknameChangeData {
   const fields = requireFields(raw, 5);
+  const userFlag = fields[3] ?? "";
   return {
     userId: fields[0] ?? "",
     newNickname: fields[1] ?? "",
     oldNickname: fields[4] ?? "",
     changeType: integer(fields[2]),
-    userFlag: fields[3] ?? "",
+    userFlag,
+    userStatus: decodeUserStatus(userFlag),
   };
 }
 
@@ -609,6 +652,7 @@ function followItem(raw: RawPacket): FollowItemData {
 function setSubBj(raw: RawPacket): SetSubBjData {
   const fields = requireFields(raw, 4);
   const userFlag = fields[1] ?? "";
+  const userStatus = decodeUserStatus(userFlag);
   const hide = integer(fields[2]);
   return {
     userId: fields[0] ?? "",
@@ -616,7 +660,15 @@ function setSubBj(raw: RawPacket): SetSubBjData {
     nickname: fields[3] ?? "",
     hide,
     hidden: hide !== 0,
-    ...officialUserFlags(userFlag),
+    flag1: userStatus.flag1,
+    flag2: userStatus.flag2,
+    isAdmin: userStatus.isAdmin,
+    isManager: userStatus.isManager,
+    isFixedManager: userStatus.isFixedManager,
+    isEmployee: userStatus.isEmployee,
+    isEmployeeAdminChat: userStatus.isEmployeeAdminChat,
+    isCleanAti: userStatus.isCleanAti,
+    userStatus,
   };
 }
 
@@ -636,12 +688,14 @@ function iceModeEx(raw: RawPacket): IceModeExData {
 
 function managerChat(raw: RawPacket): ManagerChatData {
   const fields = requireFields(raw, 7);
+  const userFlag = fields[5] ?? "";
   return {
     message: (fields[0] ?? "").replace(/\r/g, ""),
     senderId: fields[1] ?? "",
     isAdmin: integer(fields[2]) === 1,
     nickname: fields[4] ?? "",
-    userFlag: fields[5] ?? "",
+    userFlag,
+    senderStatus: decodeUserStatus(userFlag),
     subscriptionMonth: fields[6] ?? "",
   };
 }
@@ -796,7 +850,7 @@ function kickUserList(raw: RawPacket): KickUserListData {
   const users = [];
   for (let index = 0; index + 5 < fields.length && fields[index] !== ""; index += 6) {
     const commanderFlag = fields[index + 5] ?? "";
-    const flags = userFlags(commanderFlag);
+    const commanderStatus = decodeUserStatus(commanderFlag);
     users.push({
       userId: fields[index] ?? "",
       nickname: fields[index + 1] ?? "",
@@ -804,8 +858,9 @@ function kickUserList(raw: RawPacket): KickUserListData {
       commanderId: fields[index + 3] ?? "",
       commanderNickname: fields[index + 4] ?? "",
       commanderFlag,
-      commanderPrimaryFlag: flags.primary,
-      commanderSecondaryFlag: flags.secondary,
+      commanderPrimaryFlag: commanderStatus.flag1,
+      commanderSecondaryFlag: commanderStatus.flag2,
+      commanderStatus,
     });
   }
   return { users };
@@ -818,11 +873,20 @@ function adminChatUser(raw: RawPacket): AdminChatUserData {
   if (state === 1) {
     for (let index = 1; index + 2 < fields.length && fields[index] !== ""; index += 3) {
       const userFlag = fields[index + 2] ?? "";
+      const userStatus = decodeUserStatus(userFlag);
       users.push({
         userId: fields[index] ?? "",
         nickname: fields[index + 1] ?? "",
         userFlag,
-        ...officialUserFlags(userFlag),
+        flag1: userStatus.flag1,
+        flag2: userStatus.flag2,
+        isAdmin: userStatus.isAdmin,
+        isManager: userStatus.isManager,
+        isFixedManager: userStatus.isFixedManager,
+        isEmployee: userStatus.isEmployee,
+        isEmployeeAdminChat: userStatus.isEmployeeAdminChat,
+        isCleanAti: userStatus.isCleanAti,
+        userStatus,
       });
     }
   }
@@ -872,7 +936,8 @@ function itemDrops(raw: RawPacket): ItemDropsData {
 
 function adminFlag(raw: RawPacket): AdminFlagData {
   const fields = requireFields(raw, 1);
-  return { userFlag: fields[0] ?? "" };
+  const userFlag = fields[0] ?? "";
+  return { userFlag, userStatus: decodeUserStatus(userFlag) };
 }
 
 function followItemEffect(raw: RawPacket): FollowItemEffectData {
@@ -972,6 +1037,7 @@ function videoBalloon(raw: RawPacket): VideoBalloonData {
 
 function ogqEmoticon(raw: RawPacket): OgqEmoticonData {
   const fields = requireFields(raw, 12);
+  const senderFlag = fields[7] ?? "";
   return {
     chatNo: fields[0] ?? "",
     message: fields[1] ?? "",
@@ -980,7 +1046,8 @@ function ogqEmoticon(raw: RawPacket): OgqEmoticonData {
     version: fields[4] ?? "",
     senderId: fields[5] ?? "",
     senderNickname: fields[6] ?? "",
-    senderFlag: fields[7] ?? "",
+    senderFlag,
+    senderStatus: decodeUserStatus(senderFlag),
     color: bgrColor(fields[8]),
     chatLanguage: integer(fields[9]),
     emoticonType: integer(fields[10]),
@@ -1227,6 +1294,7 @@ function cheerTeamChange(raw: RawPacket): CheerTeamChangeData {
 function nightbotTimeout(raw: RawPacket): NightbotTimeoutData {
   const fields = requireFields(raw, 7);
   const reasonCode = integer(fields[2]);
+  const userFlag = fields[6] ?? "";
   return {
     userId: fields[0] ?? "",
     nickname: fields[1] ?? "",
@@ -1235,7 +1303,8 @@ function nightbotTimeout(raw: RawPacket): NightbotTimeoutData {
     channelNumber: fields[3] ?? "",
     message: fields[4] ?? "",
     time: integer(fields[5]),
-    userFlag: fields[6] ?? "",
+    userFlag,
+    userStatus: decodeUserStatus(userFlag),
   };
 }
 

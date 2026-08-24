@@ -34,6 +34,34 @@ interface FieldEventData {
 
 필드 의미를 확인하지 못한 경우에는 이름을 추측하지 않습니다. 문자열 필드는 빈 문자열일 수 있고, 원본 숫자·플래그의 열거 의미가 확인되지 않은 경우 아래 표에 따로 표시합니다. `raw`와 `data.fields`에는 사용자 ID, 닉네임, 메시지 등 개인정보가 포함될 수 있습니다.
 
+## 사용자 상태
+
+사용자 원본 플래그가 있는 이벤트는 공식 플레이어와 SOOP Chat SDK의 판정을 `UserStatus`로 제공합니다. 각 권한은 동시에 설정될 수 있으므로 하나의 역할로 축약하지 않습니다.
+
+| 필드 | 근거 비트 | 의미 |
+|---|---|---|
+| `flag1`, `flag2` | 원본 복합 플래그 | 공식 주·보조 플래그 숫자 |
+| `isAdmin` | `flag1 & 1` | 운영자 플래그 |
+| `isBJ` | `flag1 & 4` | 방송인 플래그 |
+| `isGuest` | `flag1 & 16` | 공식 `GUEST` 플래그 |
+| `isFan` | `flag1 & 32` | 팬클럽 플래그 |
+| `isFixedManager` | `flag1 & 64` | 플레이어 UI의 `fixedManager` 플래그 |
+| `isManager` | `flag1 & 256` | 매니저 플래그 |
+| `isFemale` | `flag1 & 512` | 여성 플래그 |
+| `isMobile` | `flag1 & 16384` | 모바일 접속 플래그 |
+| `isTopFan` | `flag1 & 32768` | 열혈팬 플래그 |
+| `hasAppliedQuickview` | `flag1 & 2^19` | 퀵뷰 적용 여부 |
+| `isSupporter` | `flag1 & 2^20` | 서포터 플래그 |
+| `isAtagAllow` | `flag2 & 32` | 공식 `ATAG_ALLOW` 플래그 |
+| `isEmployee` | `flag2 & 1024` | 공식 `EMPLOYEE` 플래그 |
+| `isCleanAti` | `flag2 & 2048` | 공식 `CLEANATI` 플래그 |
+| `isEmployeeAdminChat` | `flag2 & 8192` | 공식 `ADMINCHAT` 플래그 |
+| `isFollower` | `flag2 & (2^18 \| 2^19 \| 2^20)` | 구독자 여부 |
+| `followerTier` | `FOLLOW_TIER1/2/3` | 구독 티어 `1/2/3`. 비구독자는 `0` |
+| `isHideSex` | `flag2 & 2^25` | 플레이어 UI의 성별 숨김 플래그 |
+
+`login.userStatus`, `joinChannel.userStatus`, `chatUser`의 사용자별 `userStatus`, `setNickname.userStatus`, `setSubBj.userStatus`, `adminChatUser`의 사용자별 `userStatus`, `setAdminFlag.userStatus`, `nightbotTimeout.userStatus`에서 사용합니다. 발신자 플래그는 `chatMessage.senderStatus`, `directChat.senderStatus`, `managerChat.senderStatus`, `ogqEmoticon.senderStatus`로, 강퇴 명령자는 `kickUserList.users[].commanderStatus`로 제공합니다. `setUserFlag`는 변경 후 `userStatus`와 변경 전 `previousUserStatus`를 모두 제공합니다.
+
 ## 근거 수준
 
 | 값 | 의미 |
@@ -162,8 +190,8 @@ interface FieldEventData {
 
 | 이벤트 | 공개 필드 |
 |---|---|
-| `login` (`0001`) | `userId: string`, `userFlag: string` |
-| `joinChannel` (`0002`) | `chatNo: string`, `broadcasterId: string`, `maxManagerCount: number`, `familyNickname: string`, `familyNicknamePosition: number`, `userFlag: string` |
+| `login` (`0001`) | `userId: string`, `userFlag: string`, `userStatus: UserStatus` |
+| `joinChannel` (`0002`) | `chatNo: string`, `broadcasterId: string`, `maxManagerCount: number`, `familyNickname: string`, `familyNicknamePosition: number`, `userFlag: string`, `userStatus: UserStatus` |
 | `quitChannel` (`0003`) | `kickType: number`, `actor: "streamer" \| "manager" \| "admin" \| "unknown"`, `adminKickCount: number`, `adminNickname: string`, `bannedRoomBroadcasterId: string`, `bannedRoomBroadcasterNickname: string` |
 
 `quitChannel`은 현재 시청자 자신이 채널에서 강제 퇴장될 때 공식 플레이어가 종료 사유를 만드는 패킷입니다. 다른 사용자의 강퇴 알림은 `chatUser`의 `isKicked`로 구분합니다.
@@ -180,6 +208,7 @@ type ChatUserData =
         userId: string;
         nickname: string;
         userFlag: string;
+        userStatus: UserStatus;
       }[];
     }
   | {
@@ -189,6 +218,7 @@ type ChatUserData =
       quitFlag: number;
       etcInfo: string;
       userFlag: string;
+      userStatus: UserStatus;
       isKicked: boolean;
     };
 ```
@@ -208,6 +238,7 @@ type ChatUserData =
 | `chatLanguage` | `number` | 플레이어의 원본 채팅 언어 값 |
 | `senderNickname` | `string` | 발신자 닉네임 |
 | `senderFlag` | `string` | 사용자 상태를 나타내는 원본 복합 플래그 |
+| `senderStatus` | `UserStatus` | `senderFlag`를 공식 플레이어 비트로 판정한 발신자 상태 |
 | `subscriptionMonth` | `string` | 구독 개월 관련 원본 값 |
 | `nicknameColor` | `string` | 밝은 테마용 닉네임 색상. 없으면 빈 문자열 |
 | `nicknameColorDark` | `string` | 어두운 테마용 닉네임 색상. 없으면 빈 문자열 |
@@ -252,6 +283,9 @@ type ChatUserData =
 | `previousFlag1`, `previousFlag2` | `number` | 변경 전 공식 주·보조 플래그 숫자 |
 | `isFanClub` | `boolean` | 변경 후 팬클럽 비트 `32` 설정 여부 |
 | `wasFanClub` | `boolean` | 변경 전 팬클럽 비트 `32` 설정 여부 |
+| `isFollower`, `wasFollower` | `boolean` | 변경 후·전 구독자 여부. 공식 플레이어의 `isFollower` 판정과 같은 값 |
+| `followerTier`, `previousFollowerTier` | `0 \| 1 \| 2 \| 3` | 변경 후·전 공식 `FOLLOW_TIER1/2/3` 비트 판정. `0`은 구독 아님 |
+| `userStatus`, `previousUserStatus` | `UserStatus` | 변경 후·전 원본 플래그의 전체 공식 상태 판정 |
 
 ### `setSubBj` (`0013`)
 
@@ -272,6 +306,7 @@ type ChatUserData =
 | `isEmployee` | `boolean` | 공식 `employee` 비트 설정 여부 |
 | `isEmployeeAdminChat` | `boolean` | 공식 `employeeAdminChat` 비트 설정 여부 |
 | `isCleanAti` | `boolean` | 공식 `cleanati` 비트 설정 여부 |
+| `userStatus` | `UserStatus` | 원본 플래그의 전체 공식 상태 판정 |
 
 실방송에서 한 사용자가 입장할 때 `fixedManager` 비트만 포함된 `0004`가 온 직후 `0013`에서 `manager` 비트 `256`이 추가됐고, 퇴장·재입장 뒤에도 같은 순서가 반복됐습니다. 화면상 별도 명칭이나 안내는 확인되지 않았으므로 플래그 이상의 의미를 합성하지 않습니다.
 
@@ -286,6 +321,7 @@ type ChatUserData =
 | `oldNickname` | `string` | 변경 전 닉네임 |
 | `changeType` | `number` | 닉네임 변경 종류의 원본 값. 빈 필드는 `0` |
 | `userFlag` | `string` | 대상 사용자의 원본 복합 플래그 |
+| `userStatus` | `UserStatus` | 원본 플래그의 전체 공식 상태 판정 |
 
 ### `sendBalloon` (`0018`)
 
@@ -334,6 +370,7 @@ type ChatUserData =
 | `isAdmin` | `boolean` | 운영자 채팅 여부 |
 | `nickname` | `string` | 발신자 닉네임 |
 | `userFlag` | `string` | 발신자의 원본 복합 플래그 |
+| `senderStatus` | `UserStatus` | 원본 플래그의 전체 공식 발신자 상태 판정 |
 | `subscriptionMonth` | `string` | 구독 개월 관련 원본 값 |
 
 ### 플레이어에서 직접 확인한 기타 이벤트
@@ -342,7 +379,7 @@ type ChatUserData =
 
 | 이벤트 | 공개 필드 |
 |---|---|
-| `directChat` (`0009`) | `message`, `senderId`, `receiverId`, `senderNickname`, `receiverNickname`, `userFlag: string`, `messageType`, `chatLanguage: number`, `isAdmin: boolean` |
+| `directChat` (`0009`) | `message`, `senderId`, `receiverId`, `senderNickname`, `receiverNickname`, `userFlag: string`, `senderStatus: UserStatus`, `messageType`, `chatLanguage: number`, `isAdmin: boolean` |
 | `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`) | `broadcasterId`, `broadcasterNickname`, `senderId`, `senderNickname`, `supporterOrder`, `senderLanguage: string`, `itemType`, `count: number`, `relay: boolean` |
 | `slowMode` (`0023`) | `automaticSeconds: number`, `manualSeconds: number` |
 | `sendBalloonSub` (`0033`) | `sendBalloon`과 같은 필드. 서브 채널 필드 순서를 적용하고 `relay: true` 제공 |
@@ -355,8 +392,8 @@ type ChatUserData =
 | `notifyVr` (`0074`) | `action`, `vrType: number`, `broadcasterId`, `vrId`, `rtmpUrl`, `hlsUrl: string` |
 | `notifyMobBroadPause` (`0075`) | `state: number`, `action: "pause" \| "resume" \| "unknown"` |
 | `kickAndCancel` (`0076`) | `state: number`, `cancelled: boolean`, `userId`, `nickname: string` |
-| `kickUserList` (`0077`) | `users` 배열에 대상·명령자 ID/닉네임, 시각, 명령자 원본·1차·2차 플래그 제공 |
-| `adminChatUser` (`0078`) | `state: number`, `users` 배열에 ID·닉네임·원본 `userFlag`, 공식 `flag1`·`flag2`와 독립 판정 `isAdmin`, `isManager`, `isFixedManager`, `isEmployee`, `isEmployeeAdminChat`, `isCleanAti` 제공 |
+| `kickUserList` (`0077`) | `users` 배열에 대상·명령자 ID/닉네임, 시각, 명령자 원본·1차·2차 플래그와 `commanderStatus` 제공 |
+| `adminChatUser` (`0078`) | `state: number`, `users` 배열에 ID·닉네임·원본 `userFlag`, 기존 독립 권한 판정과 전체 `userStatus` 제공 |
 | `kickMsgState` (`0090`) | `chatNo: number`, `hideKickMessage: boolean` |
 | `itemSellEffect` (`0092`) | `chatNo`, `count: number`, 방송인·발신자, 주·보조 메시지, 제목, 이미지·기본 이미지 URL |
 | `translation` (`0095`) | `messageIndex: number`, `mode: number`, `message: string`, `originalLanguage: number`, `translatedLanguage: number` |
@@ -369,7 +406,7 @@ type ChatUserData =
 
 `notifyPoll`은 같은 투표 번호의 실방송 흐름에서 `status=1, show=1`이 투표 시작, `status=4, show=1`이 투표 마감과 결과 공개, `status=2, show=0`이 투표 UI 제거와 일치했습니다. 원본 숫자를 유지하면서 각각 `started`, `closed`, `hidden`으로 제공하고 `show !== 0`을 `visible`로 제공합니다. 질문·선택지·득표수는 채팅 WebSocket 패킷에 포함되지 않았습니다.
 | `gemItemSend` (`0120`) | `receiverId: string`, `receiverNickname: string`, `itemName: string` |
-| `setAdminFlag` (`0126`) | `userFlag: string` |
+| `setAdminFlag` (`0126`) | `userFlag: string`, `userStatus: UserStatus` |
 
 `adInBroadJson` (`0119`)은 첫 필드를 JSON 객체로 검증해 `{ payload: Readonly<Record<string, unknown>> }`로 제공합니다. 객체의 내부 필드는 안정적인 공개 스키마로 확인되지 않았으므로 더 세분화하지 않습니다.
 
@@ -613,6 +650,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `senderId` | `string` | 발신자 ID |
 | `senderNickname` | `string` | 발신자 닉네임 |
 | `senderFlag` | `string` | 사용자 상태를 나타내는 원본 복합 플래그 |
+| `senderStatus` | `UserStatus` | `senderFlag`를 공식 플레이어 비트로 판정한 발신자 상태 |
 | `color` | `string` | 원본 BGR 정수를 변환한 CSS `#RRGGBB` 색상. 값이 없으면 빈 문자열 |
 | `chatLanguage` | `number` | 플레이어의 원본 채팅 언어 값 |
 | `emoticonType` | `number` | 이모티콘 원본 종류 값 |
@@ -788,3 +826,4 @@ Nightbot 사용자 타임아웃 이벤트입니다.
 | `message` | `string` | 관련 메시지 |
 | `time` | `number` | 타임아웃 시간의 원본 숫자 값. 단위는 공개 API에서 정규화하지 않음 |
 | `userFlag` | `string` | 대상 사용자의 원본 복합 플래그 |
+| `userStatus` | `UserStatus` | 원본 플래그의 전체 공식 상태 판정 |

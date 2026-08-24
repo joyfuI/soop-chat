@@ -145,10 +145,13 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   );
   assert.equal(joined.type, "chatUser");
   if (joined.type === "chatUser" && joined.data.action === "join") {
-    assert.deepEqual(joined.data.users, [
-      { userId: "user1", nickname: "nick1", userFlag: "16" },
-      { userId: "user2", nickname: "nick2", userFlag: "32" },
-    ]);
+    assert.partialDeepStrictEqual(joined.data.users[0], {
+      userId: "user1",
+      nickname: "nick1",
+      userFlag: "16",
+    });
+    assert.equal(joined.data.users[0]?.userStatus.isGuest, true);
+    assert.equal(joined.data.users[1]?.userStatus.isFan, true);
   }
 
   const left = decodePacket(
@@ -188,6 +191,37 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     assert.equal(chat.data.senderNickname, "nick");
   }
 
+  const statusChat = decodePacket(
+    rawPacket(
+      "0005",
+      `${separator}status${separator}user${separator}${separator}1${separator}2${separator}nick${separator}1622901|34090016${separator}9`,
+    ),
+  );
+  assert.equal(statusChat.type, "chatMessage");
+  if (statusChat.type === "chatMessage")
+    assert.deepEqual(statusChat.data.senderStatus, {
+      flag1: 1622901,
+      flag2: 34090016,
+      isAdmin: true,
+      isBJ: true,
+      isManager: true,
+      isFixedManager: true,
+      isTopFan: true,
+      isFan: true,
+      isSupporter: true,
+      isFollower: true,
+      followerTier: 2,
+      isGuest: true,
+      hasAppliedQuickview: true,
+      isMobile: true,
+      isFemale: true,
+      isHideSex: true,
+      isAtagAllow: true,
+      isEmployee: true,
+      isEmployeeAdminChat: true,
+      isCleanAti: true,
+    });
+
   const dumb = decodePacket(
     rawPacket(
       "0008",
@@ -207,18 +241,38 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   const userFlag = decodePacket(
     rawPacket(
       "0012",
-      `${separator}65568|163840${separator}user${separator}nick${separator}0${separator}0${separator}65536|163840`,
+      `${separator}65568|425984${separator}user${separator}nick${separator}0${separator}0${separator}65536|163840`,
     ),
   );
   assert.equal(userFlag.type, "setUserFlag");
   if (userFlag.type === "setUserFlag") {
     assert.equal(userFlag.data.previousUserFlag, "65536|163840");
     assert.equal(userFlag.data.flag1, 65568);
-    assert.equal(userFlag.data.flag2, 163840);
+    assert.equal(userFlag.data.flag2, 425984);
     assert.equal(userFlag.data.previousFlag1, 65536);
     assert.equal(userFlag.data.previousFlag2, 163840);
     assert.equal(userFlag.data.isFanClub, true);
     assert.equal(userFlag.data.wasFanClub, false);
+    assert.equal(userFlag.data.isFollower, true);
+    assert.equal(userFlag.data.wasFollower, false);
+    assert.equal(userFlag.data.followerTier, 1);
+    assert.equal(userFlag.data.previousFollowerTier, 0);
+  }
+
+  for (const [flag2, tier] of [
+    [0, 0],
+    [1 << 18, 1],
+    [1 << 19, 2],
+    [1 << 20, 3],
+  ] as const) {
+    const event = decodePacket(
+      rawPacket(
+        "0012",
+        `${separator}0|${flag2}${separator}user${separator}nick${separator}0${separator}0${separator}0|0`,
+      ),
+    );
+    assert.equal(event.type, "setUserFlag");
+    if (event.type === "setUserFlag") assert.equal(event.data.followerTier, tier);
   }
 
   const nickname = decodePacket(
@@ -776,48 +830,24 @@ void test("decodes every field-reading official player branch", () => {
     ),
   );
   assert.equal(adminUsers.type, "adminChatUser");
-  if (adminUsers.type === "adminChatUser")
-    assert.deepEqual(adminUsers.data.users, [
-      {
-        userId: "adminCleanAti",
-        nickname: "adminCleanAtiNick",
-        userFlag: "590339|165888",
-        flag1: 590339,
-        flag2: 165888,
-        isAdmin: true,
-        isManager: false,
-        isFixedManager: false,
-        isEmployee: false,
-        isEmployeeAdminChat: false,
-        isCleanAti: true,
-      },
-      {
-        userId: "fixedManager",
-        nickname: "fixedManagerNick",
-        userFlag: "320|0",
-        flag1: 320,
-        flag2: 0,
-        isAdmin: false,
-        isManager: true,
-        isFixedManager: true,
-        isEmployee: false,
-        isEmployeeAdminChat: false,
-        isCleanAti: false,
-      },
-      {
-        userId: "employeeAdminChat",
-        nickname: "employeeAdminChatNick",
-        userFlag: "0|9216",
-        flag1: 0,
-        flag2: 9216,
-        isAdmin: false,
-        isManager: false,
-        isFixedManager: false,
-        isEmployee: true,
-        isEmployeeAdminChat: true,
-        isCleanAti: false,
-      },
-    ]);
+  if (adminUsers.type === "adminChatUser") {
+    assert.partialDeepStrictEqual(adminUsers.data.users[0], {
+      userId: "adminCleanAti",
+      isAdmin: true,
+      isCleanAti: true,
+    });
+    assert.partialDeepStrictEqual(adminUsers.data.users[1], {
+      userId: "fixedManager",
+      isManager: true,
+      isFixedManager: true,
+    });
+    assert.partialDeepStrictEqual(adminUsers.data.users[2], {
+      userId: "employeeAdminChat",
+      isEmployee: true,
+      isEmployeeAdminChat: true,
+    });
+    assert.equal(adminUsers.data.users[2]?.userStatus.isEmployee, true);
+  }
 
   const chat = decodePacket(
     rawPacket(

@@ -145,9 +145,33 @@ export interface FieldEventData {
   fields: readonly string[];
 }
 
+export interface UserStatus {
+  flag1: number;
+  flag2: number;
+  isAdmin: boolean;
+  isBJ: boolean;
+  isManager: boolean;
+  isFixedManager: boolean;
+  isTopFan: boolean;
+  isFan: boolean;
+  isSupporter: boolean;
+  isFollower: boolean;
+  followerTier: 0 | 1 | 2 | 3;
+  isGuest: boolean;
+  hasAppliedQuickview: boolean;
+  isMobile: boolean;
+  isFemale: boolean;
+  isHideSex: boolean;
+  isAtagAllow: boolean;
+  isEmployee: boolean;
+  isEmployeeAdminChat: boolean;
+  isCleanAti: boolean;
+}
+
 export interface LoginData {
   userId: string;
   userFlag: string;
+  userStatus: UserStatus;
 }
 
 export interface JoinChannelData {
@@ -157,6 +181,7 @@ export interface JoinChannelData {
   familyNickname: string;
   familyNicknamePosition: number;
   userFlag: string;
+  userStatus: UserStatus;
 }
 
 export type QuitChannelActor = "streamer" | "manager" | "admin" | "unknown";
@@ -174,6 +199,7 @@ export interface ChatUserInfo {
   userId: string;
   nickname: string;
   userFlag: string;
+  userStatus: UserStatus;
 }
 
 export type ChatUserData =
@@ -188,6 +214,7 @@ export type ChatUserData =
       quitFlag: number;
       etcInfo: string;
       userFlag: string;
+      userStatus: UserStatus;
       isKicked: boolean;
     };
 
@@ -204,6 +231,7 @@ export interface DirectChatData {
   senderNickname: string;
   receiverNickname: string;
   userFlag: string;
+  senderStatus: UserStatus;
   isAdmin: boolean;
 }
 
@@ -229,6 +257,12 @@ export interface SetUserFlagData {
   previousFlag2: number;
   isFanClub: boolean;
   wasFanClub: boolean;
+  isFollower: boolean;
+  wasFollower: boolean;
+  followerTier: 0 | 1 | 2 | 3;
+  previousFollowerTier: 0 | 1 | 2 | 3;
+  userStatus: UserStatus;
+  previousUserStatus: UserStatus;
 }
 
 export interface NicknameChangeData {
@@ -237,6 +271,7 @@ export interface NicknameChangeData {
   oldNickname: string;
   changeType: number;
   userFlag: string;
+  userStatus: UserStatus;
 }
 
 export type IceModeRole =
@@ -261,6 +296,7 @@ export interface ManagerChatData {
   isAdmin: boolean;
   nickname: string;
   userFlag: string;
+  senderStatus: UserStatus;
   subscriptionMonth: string;
 }
 
@@ -347,6 +383,7 @@ export interface ChatMessageData {
   chatLanguage: number;
   senderNickname: string;
   senderFlag: string;
+  senderStatus: UserStatus;
   subscriptionMonth: string;
   nicknameColor: string;
   nicknameColorDark: string;
@@ -461,6 +498,7 @@ export interface SetSubBjData {
   isEmployee: boolean;
   isEmployeeAdminChat: boolean;
   isCleanAti: boolean;
+  userStatus: UserStatus;
 }
 
 export interface AdminNoticeData {
@@ -553,6 +591,7 @@ export interface KickUserListEntry {
   commanderFlag: string;
   commanderPrimaryFlag: number;
   commanderSecondaryFlag: number;
+  commanderStatus: UserStatus;
 }
 
 export interface KickUserListData {
@@ -571,6 +610,7 @@ export interface AdminChatUserInfo {
   isEmployee: boolean;
   isEmployeeAdminChat: boolean;
   isCleanAti: boolean;
+  userStatus: UserStatus;
 }
 
 export interface AdminChatUserData {
@@ -612,6 +652,7 @@ export interface ItemDropsData {
 
 export interface AdminFlagData {
   userFlag: string;
+  userStatus: UserStatus;
 }
 
 export interface GiftSubscriptionData {
@@ -659,6 +700,7 @@ export interface OgqEmoticonData {
   senderId: string;
   senderNickname: string;
   senderFlag: string;
+  senderStatus: UserStatus;
   color: string;
   chatLanguage: number;
   emoticonType: number;
@@ -825,6 +867,7 @@ export interface NightbotTimeoutData {
   message: string;
   time: number;
   userFlag: string;
+  userStatus: UserStatus;
 }
 
 export type NightbotTimeoutReason =
