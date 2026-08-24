@@ -209,6 +209,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
       isTopFan: true,
       isFan: true,
       isSupporter: true,
+      isWhisperAllowed: true,
       isFollower: true,
       followerTier: 2,
       isGuest: true,
@@ -241,13 +242,13 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   const userFlag = decodePacket(
     rawPacket(
       "0012",
-      `${separator}65568|425984${separator}user${separator}nick${separator}0${separator}0${separator}65536|163840`,
+      `${separator}196640|425984${separator}user${separator}nick${separator}0${separator}0${separator}65536|163840`,
     ),
   );
   assert.equal(userFlag.type, "setUserFlag");
   if (userFlag.type === "setUserFlag") {
     assert.equal(userFlag.data.previousUserFlag, "65536|163840");
-    assert.equal(userFlag.data.flag1, 65568);
+    assert.equal(userFlag.data.flag1, 196640);
     assert.equal(userFlag.data.flag2, 425984);
     assert.equal(userFlag.data.previousFlag1, 65536);
     assert.equal(userFlag.data.previousFlag2, 163840);
@@ -257,6 +258,8 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     assert.equal(userFlag.data.wasFollower, false);
     assert.equal(userFlag.data.followerTier, 1);
     assert.equal(userFlag.data.previousFollowerTier, 0);
+    assert.equal(userFlag.data.userStatus.isWhisperAllowed, false);
+    assert.equal(userFlag.data.previousUserStatus.isWhisperAllowed, true);
   }
 
   for (const [flag2, tier] of [

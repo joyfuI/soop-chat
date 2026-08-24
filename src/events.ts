@@ -155,6 +155,7 @@ export interface UserStatus {
   isTopFan: boolean;
   isFan: boolean;
   isSupporter: boolean;
+  isWhisperAllowed: boolean;
   isFollower: boolean;
   followerTier: 0 | 1 | 2 | 3;
   isGuest: boolean;

@@ -264,6 +264,7 @@ function decodeUserStatus(userFlag: string): UserStatus {
     isTopFan: (flag1 & 32768) !== 0,
     isFan: (flag1 & 32) !== 0,
     isSupporter: (flag1 & (1 << 20)) !== 0,
+    isWhisperAllowed: (flag1 & (1 << 17)) === 0,
     isFollower: tier !== 0,
     followerTier: tier,
     isGuest: (flag1 & 16) !== 0,

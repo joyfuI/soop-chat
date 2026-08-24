@@ -50,6 +50,7 @@ interface FieldEventData {
 | `isFemale` | `flag1 & 512` | 여성 플래그 |
 | `isMobile` | `flag1 & 16384` | 모바일 접속 플래그 |
 | `isTopFan` | `flag1 & 32768` | 열혈팬 플래그 |
+| `isWhisperAllowed` | `flag1 & 2^17 === 0` | 공식 `NODIRECT` 비트가 없는 귓속말 허용 상태 |
 | `hasAppliedQuickview` | `flag1 & 2^19` | 퀵뷰 적용 여부 |
 | `isSupporter` | `flag1 & 2^20` | 서포터 플래그 |
 | `isAtagAllow` | `flag2 & 32` | 공식 `ATAG_ALLOW` 플래그 |
@@ -61,6 +62,8 @@ interface FieldEventData {
 | `isHideSex` | `flag2 & 2^25` | 플레이어 UI의 성별 숨김 플래그 |
 
 `login.userStatus`, `joinChannel.userStatus`, `chatUser`의 사용자별 `userStatus`, `setNickname.userStatus`, `setSubBj.userStatus`, `adminChatUser`의 사용자별 `userStatus`, `setAdminFlag.userStatus`, `nightbotTimeout.userStatus`에서 사용합니다. 발신자 플래그는 `chatMessage.senderStatus`, `directChat.senderStatus`, `managerChat.senderStatus`, `ogqEmoticon.senderStatus`로, 강퇴 명령자는 `kickUserList.users[].commanderStatus`로 제공합니다. `setUserFlag`는 변경 후 `userStatus`와 변경 전 `previousUserStatus`를 모두 제공합니다.
+
+플레이어의 `allowWhisper(false)`는 `NODIRECT` 비트를 추가하고 `allowWhisper(true)`는 제거합니다. 실방송 캡처의 `0012` 18건에서 이 비트가 추가되는 변경을 확인했습니다.
 
 ## 근거 수준
 
@@ -496,7 +499,7 @@ interface ChatUserExtendData {
 | `isAutoPay` | `boolean` | 플레이어 상품표의 자동 결제 플래그 |
 | `isLegacy` | `boolean` | 구형 상품 여부 |
 | `isCeremony` | `boolean` | 플레이어 상품표의 세리머니 플래그 |
-| `isGift` | `boolean` | 선물 상품 여부 |
+| `isGift` | `boolean` | 플레이어 상품표의 선물 상품 플래그 |
 | `isTrial` | `boolean` | 체험권 여부 |
 
 예를 들어 실방송에서 확인된 `sendSubscription`의 `itemType=11`은 다음 메타데이터로 연결됩니다.
@@ -538,7 +541,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-실방송에서 `itemType=103`, `tier=1`이 “베이직 구독하였습니다”와 “3개월 정기구독권” 이미지에 일치해 상품 기간 3개월을 확인했습니다. `itemType=9200`은 상품표의 `vodItemType=9200`인 플러스 상품과 연결되고 화면의 “VOD에서 플러스 구독하였습니다” 문구와 일치해 `subscriptionSource="vod"`로 제공합니다. `live`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다. 화면만으로 선물 여부 같은 다른 내부 상품 플래그까지 확정하지는 않습니다.
+실방송에서 `itemType=103`, `tier=1`이 “베이직 구독하였습니다”와 “3개월 정기구독권” 이미지에 일치해 상품 기간 3개월을 확인했습니다. `itemType=111`, `tier=1`은 “베이직 구독하였습니다”와 “선물 받은 1개월 구독권” 이미지에 반복해서 일치했습니다. 다만 `isGift`는 현재 이벤트의 취득 경로가 아니라 공식 상품표 행의 값이므로, 이를 근거로 직접 구매와 선물권 사용을 일반화하지 않습니다. `itemType=9200`은 상품표의 `vodItemType=9200`인 플러스 상품과 연결되고 화면의 “VOD에서 플러스 구독하였습니다” 문구와 일치해 `subscriptionSource="vod"`로 제공합니다. `live`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다.
 
 ### `followItemEffect` (`0093`)
 
@@ -559,7 +562,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-`itemType=201/203/211/200`의 플러스 표본은 각각 화면의 25/9/11/4개월째 구독 문구와, `itemType=100/101`의 베이직 표본은 9·27/12개월째 구독 문구와 대조됐습니다. 화면의 “N개월째”는 `month`이고 상품표의 1개월권·3개월권은 이번 상품 기간이므로 서로 다른 값입니다. 커스텀 베이직·플러스 구독자 명칭은 이 패킷에 없고 플레이어가 별도 채널 설정에서 가져오므로 합성하지 않습니다. 화면은 티어와 연속 개월을 확인하지만 상품표의 레벨·자동 결제·선물 플래그까지 실방송으로 확정하지는 않습니다.
+`itemType=201/203/211/200`의 플러스 표본은 각각 화면의 25/9/11/4개월째 구독 문구와, `itemType=100/101`의 베이직 표본은 9·27/12개월째 구독 문구와 대조됐습니다. 추가 `itemType=101, month=2, accumulatedMonth=2` 표본도 “베이직 2개월째 구독 중” 문구와 “2개월 구독” 이미지에 일치했습니다. 화면의 “N개월째”는 `month`이고 상품표의 1개월권·3개월권은 이번 상품 기간이므로 서로 다른 값입니다. 커스텀 베이직·플러스 구독자 명칭은 이 패킷에 없고 플레이어가 별도 채널 설정에서 가져오므로 합성하지 않습니다. 화면은 티어와 연속 개월을 확인하지만 상품표의 레벨·자동 결제·선물 플래그까지 실방송으로 확정하지는 않습니다.
 
 ### `bjNotice` (`0104`)
 
@@ -762,7 +765,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `becameFanClub` | `boolean` | 이번 정산으로 팬클럽에 새로 가입했는지 여부 |
 | `becameTopFan` | `boolean` | 이번 정산으로 열혈팬이 되었는지 여부 |
 
-`fanOrder`는 `becameFanClub`이 참인 참여자에게만 화면의 가입 순번으로 사용됩니다. 같은 캡처에서 각각 100개로 정산된 두 미션 중 기존 팬은 순번 문구가 없었고, 신규 팬은 `becameFanClub=true`, `fanOrder=7447`과 화면의 7,447번째 팬클럽 문구가 일치했습니다. 새 캡처에서도 `fanOrder=3722`였지만 참여자 6명의 `becameFanClub`이 모두 거짓이라 화면에는 6,850개 정산 문구만 나오고 팬클럽 문구는 없었습니다.
+`fanOrder`는 `becameFanClub`이 참인 참여자에게만 화면의 가입 순번으로 사용됩니다. 같은 캡처에서 각각 100개로 정산된 두 미션 중 기존 팬은 순번 문구가 없었고, 신규 팬은 `becameFanClub=true`, `fanOrder=7447`과 화면의 7,447번째 팬클럽 문구가 일치했습니다. 이후 `fanOrder=3722`인 6,850개 정산과 `fanOrder=5098`인 500개 정산도 모든 참여자의 `becameFanClub`이 거짓이었고 화면에 팬클럽 문구가 없었습니다.
 
 ### `subscriptionCeremonyButton` (`0130`)
 
