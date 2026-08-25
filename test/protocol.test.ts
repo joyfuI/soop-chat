@@ -369,13 +369,15 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   const balloon = decodePacket(
     rawPacket(
       "0018",
-      `${separator}bj${separator}user${separator}nick${separator}10${separator}0${separator}0${separator}123${separator}10${separator}0${separator}0${separator}google_tts${separator}synthetic-id${separator}ko_KR${separator}456`,
+      `${separator}bj${separator}user${separator}nick${separator}10${separator}0${separator}0${separator}123${separator}10${separator}0${separator}1${separator}google_tts${separator}synthetic-id${separator}ko_KR${separator}456`,
     ),
   );
   assert.equal(balloon.type, "sendBalloon");
   if (balloon.type === "sendBalloon") {
     assert.equal(balloon.data.count, 10);
     assert.equal(balloon.data.becameFanClub, false);
+    assert.equal(balloon.data.topFanLevel, 1);
+    assert.equal(balloon.data.becameTopFan, true);
     assert.equal(balloon.data.ttsData, "google_tts");
     assert.equal(balloon.data.senderLanguage, "ko_KR");
     assert.equal(balloon.data.urlModify, "456");

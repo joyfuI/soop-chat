@@ -575,6 +575,7 @@ function nicknameChange(raw: RawPacket): NicknameChangeData {
 function balloon(raw: RawPacket, relay = false): BalloonData {
   const fields = requireFields(raw, relay ? 11 : 10);
   const fanOrder = integer(fields[relay ? 6 : 4]);
+  const topFanLevel = integer(fields[relay ? 10 : 9]);
   return {
     broadcasterId: fields[relay ? 1 : 0] ?? "",
     senderId: fields[relay ? 3 : 1] ?? "",
@@ -584,7 +585,8 @@ function balloon(raw: RawPacket, relay = false): BalloonData {
     becameFanClub: fanOrder > 0,
     fileName: fields[relay ? 8 : 7] ?? "",
     isDefault: fields[relay ? 9 : 8] === "1",
-    topFanLevel: integer(fields[relay ? 10 : 9]),
+    topFanLevel,
+    becameTopFan: topFanLevel === 1,
     ttsData: fields[relay ? 11 : 10] ?? "",
     senderLanguage: fields[relay ? 13 : 12] ?? "",
     urlModify: fields[relay ? 14 : 13] ?? "",

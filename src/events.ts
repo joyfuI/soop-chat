@@ -403,6 +403,7 @@ export interface BalloonData {
   fileName: string;
   isDefault: boolean;
   topFanLevel: number;
+  becameTopFan: boolean;
   ttsData: string;
   senderLanguage: string;
   urlModify: string;

@@ -340,13 +340,14 @@ type ChatUserData =
 | `becameFanClub` | `boolean` | `fanOrder > 0`이며 팬클럽 가입 문구가 표시되는지 여부 |
 | `fileName` | `string` | 효과 리소스의 원본 파일 이름 |
 | `isDefault` | `boolean` | 기본 효과 리소스 사용 여부 |
-| `topFanLevel` | `number` | 열혈팬 관련 원본 단계 값 |
+| `topFanLevel` | `number` | 열혈팬 관련 원본 단계 값. 실방송에서 `1`은 열혈팬 가입 문구와 일치 |
+| `becameTopFan` | `boolean` | `topFanLevel === 1`이며 열혈팬 가입 문구가 표시되는지 여부 |
 | `ttsData` | `string` | TTS 관련 원본 데이터 |
 | `senderLanguage` | `string` | 후원자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 | `relay` | `boolean` | 일반 채널은 `false`, 서브 채널 `sendBalloonSub`은 `true` |
 
-실방송 화면과 공식 플레이어를 대조해 `fanOrder > 0`일 때 신규 팬클럽 문구가 표시되는 것을 확인했습니다.
+실방송 화면과 공식 플레이어를 대조해 `fanOrder > 0`일 때 신규 팬클럽 문구가 표시되는 것을 확인했습니다. 별풍선 50개와 1개 표본에서는 각각 `fanOrder=17/18`, `topFanLevel=1`이 왔고 화면에 팬클럽 가입 문구와 열혈팬 가입 문구가 차례로 표시됐습니다. 각 패킷 직후 `0012 setUserFlag`도 팬클럽 비트와 열혈팬 비트를 같은 순서로 추가했습니다.
 
 ### `iceModeEx` (`0021`)
 
@@ -476,13 +477,13 @@ interface ChatUserExtendData {
 | `count` | `number` | 전송 개수 |
 | `fanOrder` | `number` | 신규 팬클럽 순번. 신규 가입이 아니면 `0` |
 | `becameFanClub` | `boolean` | `fanOrder > 0`이며 팬클럽 가입 문구가 표시되는지 여부 |
-| `isTopFan` | `boolean` | 열혈팬 여부 |
+| `isTopFan` | `boolean` | 이번 애드벌룬으로 열혈팬 가입 문구가 표시되는지 여부 |
 | `isFanChief` | `boolean` | 팬클럽 회장 여부 |
 | `isSubRoom` | `boolean` | 서브 채널 여부 |
 | `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-실방송에서 애드벌룬 1개와 `fanOrder=10325`가 함께 왔고 화면에 “10,325번째 팬클럽” 문구가 표시됐습니다. 공식 플레이어도 `fanOrder > 0`을 같은 문구의 조건으로 사용합니다.
+실방송에서 애드벌룬 1개와 `fanOrder=10325`가 함께 왔고 화면에 “10,325번째 팬클럽” 문구가 표시됐습니다. 공식 플레이어도 `fanOrder > 0`을 같은 문구의 조건으로 사용합니다. 애드벌룬 10개 표본에서는 `fanOrder=16`, `isTopFan=true`와 화면의 팬클럽 가입·열혈팬 가입 문구가 차례로 일치했고, 직후 `0012 setUserFlag`도 두 상태 비트를 같은 순서로 추가했습니다.
 
 ### 구독 상품 메타데이터
 

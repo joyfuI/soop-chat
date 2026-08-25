@@ -154,6 +154,8 @@ animation, cheerTeamNumber
 
 `0012 setUserFlag`는 공식 플레이어와 같은 순서로 변경 후·변경 전 사용자 플래그를 제공합니다. 신규 팬클럽 별풍선 후원 12건에서는 `0018 becameFanClub=true` 직후 0~10ms 안에 `0012`가 이어졌고, 주 플래그에 `32`가 추가되며 보조 플래그는 유지됐습니다. 이에 따라 원본 문자열과 함께 변경 전후 `flag1`·`flag2`, `isFanClub`·`wasFanClub`을 제공합니다.
 
+새 캡처의 애드벌룬 10개와 별풍선 50개·1개 후원은 모두 팬클럽 가입 문구 뒤 열혈팬 가입 문구가 표시됐습니다. `0087 isTopFan=true`와 `0018 topFanLevel=1`이 각각 열혈팬 문구에 일치했고, 뒤따른 `0012`도 팬클럽 비트 `32` 다음 열혈팬 비트 `32768`을 추가했습니다. `0018`은 원본 `topFanLevel`과 함께 정확히 `1`일 때 `becameTopFan=true`를 제공합니다. 다른 숫자의 화면 의미는 추측하지 않습니다.
+
 공식 플레이어는 주 플래그 `2^17`을 `NODIRECT`로 정의합니다. `allowWhisper(false)`일 때 이 비트를 추가하고 `allowWhisper(true)`일 때 제거하므로, 공통 `UserStatus.isWhisperAllowed`는 비트가 없을 때 참입니다. 새 캡처의 `0012` 18건은 모두 이 비트가 추가되는 변경이었습니다.
 
 공식 플레이어는 보조 플래그의 `2^18`, `2^19`, `2^20`을 각각 `FOLLOW_TIER1`, `FOLLOW_TIER2`, `FOLLOW_TIER3`으로 정의하고 이를 `isFollower`와 `getSubscriptionTier()` 판정에 사용합니다. 새 캡처에서는 같은 사용자의 세션 두 건 모두 `2^18`이 추가돼 비구독자에서 티어 1 구독자로 바뀌었고, 약 11.2초 뒤 `0091 itemType=111` 구독 세리머니가 이어졌습니다. 라이브러리는 이를 변경 전후 `isFollower`와 `followerTier`로 제공합니다. 함께 추가된 주 플래그 `2^28`은 공식 상수에 의미가 정의돼 있지 않으므로 원본으로만 보존합니다.
