@@ -413,7 +413,7 @@ type ChatUserData =
 
 `adInBroadJson` (`0119`)은 첫 필드를 JSON 객체로 검증해 `{ payload: Readonly<Record<string, unknown>> }`로 제공합니다. 객체의 내부 필드는 안정적인 공개 스키마로 확인되지 않았으므로 더 세분화하지 않습니다.
 
-`sendQuickView`의 공식 상품 매핑은 일반 퀵뷰 `1/2/3`이 각각 `30/90/365`일, 퀵뷰 플러스 `100/101/102/103`이 각각 `7/30/90/365`일입니다. 실방송에서 `itemType=100`이 “퀵뷰 플러스 7일 이용권 선물” 화면과 일치했습니다. 표에 없는 값은 `quickViewProduct="unknown"`, `durationDays=null`로 두며 `itemType`은 보존합니다.
+`sendQuickView`의 공식 상품 매핑은 일반 퀵뷰 `1/2/3`이 각각 `30/90/365`일, 퀵뷰 플러스 `100/101/102/103`이 각각 `7/30/90/365`일입니다. 실방송에서 `itemType=100`은 “퀵뷰 플러스 7일 이용권 선물” 화면과 일치했습니다. 다른 캡처에서 `itemType=1` 20건은 “퀵뷰 30일 이용권 선물”, `itemType=101` 16건은 “퀵뷰 플러스 30일 이용권 선물” 화면과 각각 일치했으며, 대량 선물도 수신자별 독립 패킷으로 전달됐습니다. 표에 없는 값은 `quickViewProduct="unknown"`, `durationDays=null`로 두며 `itemType`은 보존합니다.
 
 ### `chuserExtend` (`0127`)
 
