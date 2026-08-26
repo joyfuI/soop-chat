@@ -157,12 +157,15 @@ void test("stops reconnecting when the broadcast becomes offline", async () => {
   assert.equal(client.state, "closed");
 });
 
-void test("closes without reconnecting when the chat server announces broadcast end", async () => {
-  const socket = new FakeSocket();
+void test("closes on broadcast end and re-resolves a later manual connection", async () => {
+  const firstSocket = new FakeSocket();
+  const secondSocket = new FakeSocket();
+  const sockets = [firstSocket, secondSocket];
+  let resolverCalls = 0;
   const client = new SoopChatCore({
     streamerId: "streamer",
-    resolveChannel: async () => channel,
-    createWebSocket: () => socket,
+    resolveChannel: async () => ({ ...channel, chatNo: String(++resolverCalls) }),
+    createWebSocket: () => sockets.shift()!,
     reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
   });
   const closeEvents: string[] = [];
@@ -172,15 +175,21 @@ void test("closes without reconnecting when the chat server announces broadcast 
   client.on("ended", (event) => ended.push(event.reason));
   client.on("reconnecting", (event) => reconnects.push(event.attempt));
 
-  await join(client, socket);
-  socket.receive(encodePacket("0088", ""));
+  await join(client, firstSocket);
+  firstSocket.receive(encodePacket("0088", ""));
   await turn();
 
   assert.deepEqual(closeEvents, ["0088"]);
   assert.deepEqual(ended, ["offline"]);
   assert.deepEqual(reconnects, []);
-  assert.equal(socket.readyState, 3);
+  assert.equal(firstSocket.readyState, 3);
   assert.equal(client.state, "closed");
+
+  await join(client, secondSocket);
+  const secondJoin = new PacketStreamParser().push(secondSocket.sent[1]!).packets[0];
+  assert.equal(resolverCalls, 2);
+  assert.equal(secondJoin?.fields[0], "2");
+  await client.disconnect();
 });
 
 void test("disconnect rejects an in-flight connect and leaves no pending session", async () => {
