@@ -3,7 +3,6 @@ export type SoopChatErrorCode =
   | "RESTRICTED_ROOM"
   | "BROWSER_RESOLVER_REQUIRED"
   | "CHANNEL_RESOLUTION_FAILED"
-  | "CONNECTION_FAILED"
   | "PROTOCOL_ERROR";
 
 export class SoopChatError extends Error {
@@ -54,12 +53,6 @@ export class BrowserResolverRequiredError extends SoopChatError {
 export class ChannelResolutionError extends SoopChatError {
   constructor(message: string, options?: ErrorOptions) {
     super("CHANNEL_RESOLUTION_FAILED", message, options);
-  }
-}
-
-export class ConnectionError extends SoopChatError {
-  constructor(message: string, options?: ErrorOptions) {
-    super("CONNECTION_FAILED", message, options);
   }
 }
 
