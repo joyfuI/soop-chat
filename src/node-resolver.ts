@@ -72,6 +72,7 @@ export const resolveNodeChannel: ChannelResolver = async (
   if (result !== 1) {
     if (result === 0 || /offline|not.?stream/i.test(reason))
       throw new BroadcastOfflineError(streamerId);
+    if (result === -6) throw new RestrictedRoomError("adult");
     const restriction = restrictionFromReason(reason);
     if (restriction !== "unknown") throw new RestrictedRoomError(restriction, reason || undefined);
     throw new ChannelResolutionError(reason || `SOOP live-info API returned RESULT=${result}.`);

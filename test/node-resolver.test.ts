@@ -30,7 +30,7 @@ void test("resolves and validates SOOP channel information", async (context) => 
   });
 });
 
-void test("distinguishes offline and password rooms", async (context) => {
+void test("distinguishes offline and restricted rooms", async (context) => {
   const originalFetch = globalThis.fetch;
   context.after(() => {
     globalThis.fetch = originalFetch;
@@ -58,5 +58,11 @@ void test("distinguishes offline and password rooms", async (context) => {
   await assert.rejects(
     resolveNodeChannel("password", { signal: new AbortController().signal }),
     RestrictedRoomError,
+  );
+
+  globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -6 } }));
+  await assert.rejects(
+    resolveNodeChannel("adult", { signal: new AbortController().signal }),
+    (error) => error instanceof RestrictedRoomError && error.reason === "adult",
   );
 });
