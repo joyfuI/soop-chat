@@ -166,7 +166,7 @@ interface FieldEventData {
 | `0110` | `emoticonTicket` | 이모티콘 티켓 | fields | observed |
 | `0111` | `itemDrops` | 아이템 드롭 | object | player |
 | `0117` | `videoBalloonLink` | 영상풍선 링크 | fields | reference |
-| `0118` | `ogqEmoticonGift` | OGQ 이모티콘 선물 | object | player |
+| `0118` | `ogqEmoticonGift` | OGQ 이모티콘 선물 | object | observed |
 | `0119` | `adInBroadJson` | 방송 중 광고 JSON | JSON | player |
 | `0120` | `gemItemSend` | 젬 아이템 전송 | object | player |
 | `0121` | `mission` | 도전미션 또는 대결미션 | object | observed |
@@ -408,6 +408,8 @@ type ChatUserData =
 
 `itemDrops`는 새 실방송 캡처에서 같은 이벤트 이름으로 약 20분 간격으로 6회 수신됐습니다. `name`에는 드롭스 상품명이 있었고 `message`와 `imageUrl`은 비어 있었습니다. 방송에서 드롭스 제공을 안내했고 수신 직후 축하 채팅이 이어졌지만 다시보기 채팅에는 해당 안내가 남지 않아 화면 문구는 확정하지 않습니다.
 
+`ogqEmoticonGift`는 실방송에서 동일한 발신자가 서로 다른 두 사용자에게 같은 이모티콘을 선물한 화면과 대조했습니다. `senderNickname`, `receiverNickname`, `title`은 각각 화면의 `from.`, `To.`, “이모티콘 선물” 앞 상품명과 일치했고 `imageUrl`에는 해당 이모티콘 이미지가 왔습니다.
+
 `notifyPoll`은 같은 투표 번호의 실방송 흐름에서 `status=1, show=1`이 투표 시작, `status=4, show=1`이 투표 마감과 결과 공개, `status=2, show=0`이 투표 UI 제거와 일치했습니다. 원본 숫자를 유지하면서 각각 `started`, `closed`, `hidden`으로 제공하고 `show !== 0`을 `visible`로 제공합니다. 질문·선택지·득표수는 채팅 WebSocket 패킷에 포함되지 않았습니다.
 | `gemItemSend` (`0120`) | `receiverId: string`, `receiverNickname: string`, `itemName: string` |
 | `setAdminFlag` (`0126`) | `userFlag: string`, `userStatus: UserStatus` |
@@ -542,7 +544,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-실방송에서 `itemType=103`, `tier=1`이 “베이직 구독하였습니다”와 “3개월 정기구독권” 이미지에 일치해 상품 기간 3개월을 확인했습니다. `itemType=111`, `tier=1`은 “베이직 구독하였습니다”와 “선물 받은 1개월 구독권” 이미지에 반복해서 일치했습니다. 다만 `isGift`는 현재 이벤트의 취득 경로가 아니라 공식 상품표 행의 값이므로, 이를 근거로 직접 구매와 선물권 사용을 일반화하지 않습니다. `itemType=9200`은 상품표의 `vodItemType=9200`인 플러스 상품과 연결되고 화면의 “VOD에서 플러스 구독하였습니다” 문구와 일치해 `subscriptionSource="vod"`로 제공합니다. `live`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다.
+실방송에서 `itemType=103`, `tier=1`이 “베이직 구독하였습니다”와 “3개월 정기구독권” 이미지에 일치해 상품 기간 3개월을 확인했습니다. `itemType=101`, `tier=1`은 베이직 구독 완료 문구와 “1개월 정기구독권” 이미지에, `itemType=111`, `tier=1`은 베이직 구독 완료 문구와 “선물 받은 1개월 구독권” 이미지에 각각 일치했습니다. 공식 상품표에서 `itemType=101`의 `isGift`가 `true`여도 화면에는 선물받았다는 표시가 없었으므로, `isGift`는 현재 이벤트의 취득 경로로 일반화하지 않습니다. `itemType=9200`은 상품표의 `vodItemType=9200`인 플러스 상품과 연결되고 화면의 “VOD에서 플러스 구독하였습니다” 문구와 일치해 `subscriptionSource="vod"`로 제공합니다. `live`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다.
 
 ### `followItemEffect` (`0093`)
 

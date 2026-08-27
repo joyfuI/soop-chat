@@ -103,7 +103,7 @@ export const EVENT_CATALOG = {
   "0110": { type: "emoticonTicket", description: "Emoticon Ticket", provenance: "observed" },
   "0111": { type: "itemDrops", description: "Item Drops", provenance: "player" },
   "0117": { type: "videoBalloonLink", description: "Video Balloon Link", provenance: "reference" },
-  "0118": { type: "ogqEmoticonGift", description: "OGQ Emoticon Gift", provenance: "player" },
+  "0118": { type: "ogqEmoticonGift", description: "OGQ Emoticon Gift", provenance: "observed" },
   "0119": { type: "adInBroadJson", description: "In-Broadcast Ad JSON", provenance: "player" },
   "0120": { type: "gemItemSend", description: "Gem Item Send", provenance: "player" },
   "0121": { type: "mission", description: "Challenge or Battle Mission", provenance: "observed" },
