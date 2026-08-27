@@ -105,7 +105,7 @@ interface ChannelInfo {
 }
 ```
 
-성인 인증 계정으로 19금 방에 연결할 때는 애플리케이션 서버가 로그인과 쿠키를 담당합니다. 로그인 API에서 `authenticateNode`를 호출하고, 반환된 `authTicket`을 인증된 암호화 방식으로 봉인해 HttpOnly 쿠키에 저장하세요. 평문 또는 서명만 한 JWT로 저장하면 안 됩니다.
+성인 인증 계정으로 19금 방에 연결할 때는 애플리케이션 서버가 로그인과 쿠키를 담당합니다. 로그인 API에서 `authenticateNode`를 호출하고, 반환된 `authTicket`을 인증된 암호화 방식으로 봉인해 `HttpOnly`, `Secure`, 적절한 `SameSite` 속성의 쿠키에 저장하세요. 평문 또는 서명만 한 JWT로 저장하면 안 됩니다.
 
 ```ts
 import { authenticateNode } from "soop-chat";
@@ -126,7 +126,9 @@ const channel = await resolveNodeChannel(streamerId, {
   authentication,
 });
 
-return Response.json(channel);
+return Response.json(channel, {
+  headers: { "cache-control": "no-store" },
+});
 ```
 
 인증된 호출은 `AuthenticatedChannelInfo`를 반환합니다. `AuthTicket`은 포함하지 않으며, 브라우저가 SOOP WebSocket에 직접 연결하는 데 필요한 단기 티켓만 포함합니다.
