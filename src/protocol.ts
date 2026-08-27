@@ -215,10 +215,18 @@ export function encodePacket(
   return concatenate(header, payloadBytes);
 }
 
-export const createConnectPacket = (): Uint8Array<ArrayBuffer> =>
-  encodePacket("0001", `${FIELD_SEPARATOR.repeat(3)}16${FIELD_SEPARATOR}`);
-export const createJoinPacket = (chatNo: string): Uint8Array<ArrayBuffer> =>
-  encodePacket("0002", `${FIELD_SEPARATOR}${chatNo}${FIELD_SEPARATOR.repeat(5)}`);
+export const createConnectPacket = (ticket = ""): Uint8Array<ArrayBuffer> =>
+  encodePacket(
+    "0001",
+    `${FIELD_SEPARATOR}${ticket}${FIELD_SEPARATOR.repeat(2)}16${FIELD_SEPARATOR}`,
+  );
+export const createJoinPacket = (chatNo: string, fanTicket = ""): Uint8Array<ArrayBuffer> =>
+  encodePacket(
+    "0002",
+    fanTicket
+      ? `${FIELD_SEPARATOR}${chatNo}${FIELD_SEPARATOR}${fanTicket}${FIELD_SEPARATOR}0${FIELD_SEPARATOR.repeat(3)}`
+      : `${FIELD_SEPARATOR}${chatNo}${FIELD_SEPARATOR.repeat(5)}`,
+  );
 export const createKeepAlivePacket = (): Uint8Array<ArrayBuffer> =>
   encodePacket("0000", FIELD_SEPARATOR);
 

@@ -42,6 +42,22 @@ await chat.connect();
 await chat.disconnect();
 ```
 
+성인 인증이 완료된 SOOP 계정으로 Node에서 19금 방을 읽으려면 `credentials`를 전달합니다. 계정 정보를 소스 코드에 직접 쓰거나 저장소에 커밋하지 말고 환경 변수나 별도의 비밀 저장소에서 읽으세요.
+
+```ts
+const { SOOP_USERNAME: username, SOOP_PASSWORD: password } = process.env;
+if (!username || !password) throw new Error("SOOP credentials are required.");
+
+const chat = new SoopChat({
+  streamerId: "soopId",
+  credentials: { username, password },
+});
+
+await chat.connect();
+```
+
+`credentials`는 Node 프로세스 메모리에서만 사용합니다. 로그인 유지와 아이디 저장을 요청하지 않으며, `AuthTicket`, `TK`, `FTK`를 `ChannelInfo`나 이벤트로 노출하지 않습니다. 자동 재연결은 같은 메모리 내 로그인 티켓을 재사용합니다. `resolveChannel`을 직접 전달하면 사용자 리졸버가 우선하며 `credentials`는 사용하지 않습니다.
+
 Node에서도 별도 API나 캐시를 사용하려면 브라우저와 같은 형태의 `resolveChannel`을 생성자에 전달해 기본 조회를 대체할 수 있습니다.
 
 ## 브라우저
@@ -184,6 +200,7 @@ chat.on("reconnecting", ({ attempt, delayMs }) => {
 | ------------------------------ | --------------------------- | ----------------------------------------------------------------------------- |
 | `BroadcastOfflineError`        | `BROADCAST_OFFLINE`         | 방송 중이 아님                                                                |
 | `RestrictedRoomError`          | `RESTRICTED_ROOM`           | `reason`: `password`, `adult`, `subscriptionPlus`, `loginRequired`, `unknown` |
+| `AuthenticationError`          | `AUTHENTICATION_FAILED`     | 로그인 API 실패, 잘못된 계정 정보 또는 인증 티켓 누락                         |
 | `BrowserResolverRequiredError` | `BROWSER_RESOLVER_REQUIRED` | 브라우저 리졸버 누락                                                          |
 | `ChannelResolutionError`       | `CHANNEL_RESOLUTION_FAILED` | 라이브 정보 API 또는 리졸버 실패                                              |
 | `ProtocolError`                | `PROTOCOL_ERROR`            | 프레임 또는 이벤트 payload 해석 실패, 버린 바이트가 있으면 `discarded`        |
@@ -200,7 +217,7 @@ try {
 }
 ```
 
-로그인, 비밀번호 방, 구독플러스 방, 19금 방, 채팅 전송은 v0.1.0에서 지원하지 않습니다. 조사 내용은 [프로토콜 문서](docs/protocol.md)에 정리되어 있습니다.
+Node에서는 성인 인증이 완료된 계정의 19금 방 읽기를 지원합니다. 비밀번호 방, 구독플러스 방, 브라우저 인증 연결과 채팅 전송은 지원하지 않습니다. 조사 내용은 [프로토콜 문서](docs/protocol.md)에 정리되어 있습니다.
 
 `raw` 이벤트에는 사용자 ID·닉네임·메시지 등 개인정보가 포함될 수 있습니다. 명시적인 보관 정책 없이 로그나 파일에 저장하지 마세요.
 

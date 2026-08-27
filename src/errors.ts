@@ -1,6 +1,7 @@
 export type SoopChatErrorCode =
   | "BROADCAST_OFFLINE"
   | "RESTRICTED_ROOM"
+  | "AUTHENTICATION_FAILED"
   | "BROWSER_RESOLVER_REQUIRED"
   | "CHANNEL_RESOLUTION_FAILED"
   | "PROTOCOL_ERROR";
@@ -38,6 +39,12 @@ export class RestrictedRoomError extends SoopChatError {
       options,
     );
     this.reason = reason;
+  }
+}
+
+export class AuthenticationError extends SoopChatError {
+  constructor(message = "SOOP login failed.", options?: ErrorOptions) {
+    super("AUTHENTICATION_FAILED", message, options);
   }
 }
 

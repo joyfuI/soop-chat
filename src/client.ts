@@ -1,4 +1,5 @@
 import { BroadcastOfflineError, ProtocolError, RestrictedRoomError } from "./errors.js";
+import { getChannelAuthentication } from "./channel-authentication.js";
 import type { RawPacket, SoopEvent } from "./events.js";
 import {
   createConnectPacket,
@@ -187,7 +188,7 @@ export class SoopChatCore {
 
       socket.onopen = () => {
         try {
-          socket.send(createConnectPacket());
+          socket.send(createConnectPacket(getChannelAuthentication(channel)?.ticket));
         } catch (cause) {
           fail(cause instanceof Error ? cause : new Error(String(cause)));
         }
@@ -241,7 +242,9 @@ export class SoopChatCore {
   #handlePacket(raw: RawPacket, socket: WebSocketLike): void {
     this.#emit("raw", raw);
     if (raw.opcode === "0001" && this.#channel && socket.readyState === 1) {
-      socket.send(createJoinPacket(this.#channel.chatNo));
+      socket.send(
+        createJoinPacket(this.#channel.chatNo, getChannelAuthentication(this.#channel)?.fanTicket),
+      );
     }
 
     let event: SoopEvent;
