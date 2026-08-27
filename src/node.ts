@@ -1,8 +1,10 @@
 import WebSocket from "ws";
 import { SoopChatCore } from "./client.js";
 import {
+  authenticateNode,
   createNodeChannelResolver,
   resolveNodeChannel,
+  type SoopAuthentication,
   type SoopCredentials,
 } from "./node-resolver.js";
 import type { SoopChatOptions, WebSocketLike } from "./types.js";
@@ -25,8 +27,8 @@ export class SoopChat extends SoopChatCore {
   }
 }
 
-export { createNodeChannelResolver, resolveNodeChannel };
-export type { SoopCredentials };
+export { authenticateNode, createNodeChannelResolver, resolveNodeChannel };
+export type { SoopAuthentication, SoopCredentials };
 export * from "./errors.js";
 export * from "./events.js";
 export * from "./types.js";

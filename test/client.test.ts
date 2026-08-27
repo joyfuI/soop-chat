@@ -3,7 +3,12 @@ import test from "node:test";
 import { SoopChatCore } from "../src/client.js";
 import { BroadcastOfflineError } from "../src/errors.js";
 import { encodePacket, PacketStreamParser } from "../src/protocol.js";
-import type { ChannelInfo, WebSocketLike, WebSocketMessageData } from "../src/types.js";
+import type {
+  AuthenticatedChannelInfo,
+  ChannelInfo,
+  WebSocketLike,
+  WebSocketMessageData,
+} from "../src/types.js";
 
 const channel: ChannelInfo = {
   broadcastNo: "1",
@@ -101,6 +106,36 @@ void test("connects, emits typed chat, sends heartbeat, and disconnects idempote
   await client.disconnect();
   await client.disconnect();
   assert.equal(client.state, "closed");
+});
+
+void test("uses and validates serialized browser channel authentication", async () => {
+  const socket = new FakeSocket();
+  const authenticatedChannel: AuthenticatedChannelInfo = {
+    ...channel,
+    authentication: { ticket: "browser-ticket", fanTicket: "browser-fan-ticket" },
+  };
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => authenticatedChannel,
+    createWebSocket: () => socket,
+  });
+
+  await join(client, socket);
+  const connect = new PacketStreamParser().push(socket.sent[0]!).packets[0];
+  const joinPacket = new PacketStreamParser().push(socket.sent[1]!).packets[0];
+  assert.equal(connect?.fields[0], "browser-ticket");
+  assert.equal(joinPacket?.fields[1], "browser-fan-ticket");
+  await client.disconnect();
+
+  const invalidClient = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => ({
+      ...channel,
+      authentication: { ticket: "invalid\x0cticket", fanTicket: "browser-fan-ticket" },
+    }),
+    createWebSocket: () => new FakeSocket(),
+  });
+  await assert.rejects(invalidClient.connect(), /invalid authentication/);
 });
 
 void test("re-resolves channel information and reconnects after an unexpected close", async () => {

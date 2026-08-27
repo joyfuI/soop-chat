@@ -14,6 +14,15 @@ export interface ChannelInfo {
   chatPort: number;
 }
 
+export interface ChannelAuthentication {
+  ticket: string;
+  fanTicket: string;
+}
+
+export interface AuthenticatedChannelInfo extends ChannelInfo {
+  authentication: ChannelAuthentication;
+}
+
 export interface ChannelResolverContext {
   signal: AbortSignal;
 }

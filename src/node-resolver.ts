@@ -6,7 +6,13 @@ import {
   type RestrictedRoomReason,
 } from "./errors.js";
 import { setChannelAuthentication } from "./channel-authentication.js";
-import type { ChannelInfo, ChannelResolver, ChannelResolverContext } from "./types.js";
+import type {
+  AuthenticatedChannelInfo,
+  ChannelAuthentication,
+  ChannelInfo,
+  ChannelResolver,
+  ChannelResolverContext,
+} from "./types.js";
 
 const LIVE_API = "https://live.sooplive.com/afreeca/player_live_api.php";
 const LOGIN_API = "https://login.sooplive.com/app/LoginAction.php";
@@ -14,6 +20,19 @@ const LOGIN_API = "https://login.sooplive.com/app/LoginAction.php";
 export interface SoopCredentials {
   username: string;
   password: string;
+}
+
+export interface SoopAuthentication {
+  authTicket: string;
+}
+
+interface AuthenticatedChannelResolverContext extends ChannelResolverContext {
+  authentication: SoopAuthentication;
+}
+
+interface ChannelResolution {
+  channel: ChannelInfo;
+  authentication?: ChannelAuthentication;
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -34,6 +53,22 @@ function restrictionFromReason(reason: string): RestrictedRoomReason {
     return "subscriptionPlus";
   if (normalized.includes("login") || normalized.includes("auth")) return "loginRequired";
   return "unknown";
+}
+
+function normalizedCredentials(credentials: SoopCredentials): SoopCredentials {
+  const username = credentials.username.trim();
+  const password = credentials.password;
+  if (!username || !password) throw new TypeError("SOOP username and password must not be empty.");
+  return { username, password };
+}
+
+function isValidAuthTicket(value: unknown): value is string {
+  if (typeof value !== "string" || !value) return false;
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x20 || code === 0x7f || character === ";") return false;
+  }
+  return true;
 }
 
 async function authenticate(credentials: SoopCredentials, signal: AbortSignal): Promise<string> {
@@ -81,7 +116,8 @@ async function authenticate(credentials: SoopCredentials, signal: AbortSignal): 
     .getSetCookie()
     .map((cookie) => /^AuthTicket=([^;]+)/.exec(cookie)?.[1])
     .find((ticket): ticket is string => Boolean(ticket));
-  if (!authTicket) throw new AuthenticationError("SOOP login API omitted AuthTicket.");
+  if (!isValidAuthTicket(authTicket))
+    throw new AuthenticationError("SOOP login API omitted a valid AuthTicket.");
   return authTicket;
 }
 
@@ -89,7 +125,7 @@ async function resolveChannel(
   streamerId: string,
   { signal }: ChannelResolverContext,
   authTicket?: string,
-): Promise<ChannelInfo> {
+): Promise<ChannelResolution> {
   const body = new URLSearchParams({
     bid: streamerId,
     type: "live",
@@ -150,27 +186,60 @@ async function resolveChannel(
     throw new ChannelResolutionError("SOOP live-info API omitted required channel fields.");
   }
   if (authTicket) {
-    const ticket = text(channel.TK) || authTicket;
+    const ticket = text(channel.TK);
     const fanTicket = text(channel.FTK);
-    if (!fanTicket) {
+    if (!ticket || !fanTicket || ticket.includes("\x0c") || fanTicket.includes("\x0c")) {
       throw new ChannelResolutionError("SOOP live-info API omitted authenticated chat fields.");
     }
-    setChannelAuthentication(info, { ticket, fanTicket });
+    return { channel: info, authentication: { ticket, fanTicket } };
   }
-  return info;
+  return { channel: info };
 }
 
-export const resolveNodeChannel: ChannelResolver = (streamerId, context) =>
-  resolveChannel(streamerId, context);
+export async function authenticateNode(
+  credentials: SoopCredentials,
+  { signal }: ChannelResolverContext,
+): Promise<SoopAuthentication> {
+  return { authTicket: await authenticate(normalizedCredentials(credentials), signal) };
+}
+
+export function resolveNodeChannel(
+  streamerId: string,
+  context: AuthenticatedChannelResolverContext,
+): Promise<AuthenticatedChannelInfo>;
+export function resolveNodeChannel(
+  streamerId: string,
+  context: ChannelResolverContext,
+): Promise<ChannelInfo>;
+export async function resolveNodeChannel(
+  streamerId: string,
+  context: ChannelResolverContext | AuthenticatedChannelResolverContext,
+): Promise<ChannelInfo | AuthenticatedChannelInfo> {
+  const authentication = "authentication" in context ? context.authentication : undefined;
+  if (
+    authentication !== undefined &&
+    (authentication === null ||
+      typeof authentication !== "object" ||
+      !isValidAuthTicket(authentication.authTicket))
+  ) {
+    throw new AuthenticationError("SOOP authentication ticket is invalid.");
+  }
+  const resolution = await resolveChannel(streamerId, context, authentication?.authTicket);
+  if (!resolution.authentication) return resolution.channel;
+  return { ...resolution.channel, authentication: resolution.authentication };
+}
 
 export function createNodeChannelResolver(credentials: SoopCredentials): ChannelResolver {
-  const username = credentials.username.trim();
-  const password = credentials.password;
-  if (!username || !password) throw new TypeError("SOOP username and password must not be empty.");
+  const normalized = normalizedCredentials(credentials);
 
-  let authTicket: string | undefined;
+  let authentication: SoopAuthentication | undefined;
   return async (streamerId: string, context: ChannelResolverContext) => {
-    authTicket ??= await authenticate({ username, password }, context.signal);
-    return resolveChannel(streamerId, context, authTicket);
+    authentication ??= await authenticateNode(normalized, context);
+    const resolution = await resolveChannel(streamerId, context, authentication.authTicket);
+    if (!resolution.authentication) {
+      throw new ChannelResolutionError("SOOP live-info API omitted authenticated chat fields.");
+    }
+    setChannelAuthentication(resolution.channel, resolution.authentication);
+    return resolution.channel;
   };
 }

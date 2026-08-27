@@ -1,5 +1,5 @@
 import { BroadcastOfflineError, ProtocolError, RestrictedRoomError } from "./errors.js";
-import { getChannelAuthentication } from "./channel-authentication.js";
+import { getChannelAuthentication, setChannelAuthentication } from "./channel-authentication.js";
 import type { RawPacket, SoopEvent } from "./events.js";
 import {
   createConnectPacket,
@@ -11,6 +11,7 @@ import {
 } from "./protocol.js";
 import type {
   ChannelInfo,
+  ChannelAuthentication,
   ChannelResolver,
   ConnectionState,
   ReconnectOptions,
@@ -60,7 +61,31 @@ function validateChannel(channel: ChannelInfo): ChannelInfo {
   if (!Number.isInteger(channel.chatPort) || channel.chatPort < 1 || channel.chatPort > 65_534) {
     throw new TypeError("Channel info contains an invalid chatPort.");
   }
-  return channel;
+  if (!Object.hasOwn(channel, "authentication")) return channel;
+
+  const authentication = (channel as ChannelInfo & { authentication?: unknown }).authentication;
+  if (authentication === null || typeof authentication !== "object") {
+    throw new TypeError("Channel info contains invalid authentication.");
+  }
+  const { ticket, fanTicket } = authentication as Partial<ChannelAuthentication>;
+  if (
+    typeof ticket !== "string" ||
+    !ticket ||
+    ticket.includes("\x0c") ||
+    typeof fanTicket !== "string" ||
+    !fanTicket ||
+    fanTicket.includes("\x0c")
+  ) {
+    throw new TypeError("Channel info contains invalid authentication.");
+  }
+  const info: ChannelInfo = {
+    broadcastNo: channel.broadcastNo,
+    chatNo: channel.chatNo,
+    chatDomain: channel.chatDomain,
+    chatPort: channel.chatPort,
+  };
+  setChannelAuthentication(info, { ticket, fanTicket });
+  return info;
 }
 
 export class SoopChatCore {

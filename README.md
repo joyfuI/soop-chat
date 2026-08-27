@@ -64,16 +64,7 @@ Node에서도 별도 API나 캐시를 사용하려면 브라우저와 같은 형
 
 SOOP 라이브 정보 API는 임의 웹사이트의 CORS 요청을 허용하지 않습니다. 따라서 브라우저에서는 애플리케이션 서버가 제공하는 `ChannelResolver`가 필요합니다.
 
-서버에서는 기본 진입점이 공개하는 `resolveNodeChannel`로 `ChannelInfo`를 조회해 그대로 응답합니다.
-
-```ts
-import { resolveNodeChannel } from "soop-chat";
-
-const channel = await resolveNodeChannel(streamerId, { signal: request.signal });
-return Response.json(channel);
-```
-
-브라우저 리졸버는 서버가 반환한 JSON을 그대로 반환하면 됩니다.
+브라우저 리졸버는 서버가 반환한 JSON을 그대로 반환합니다. 인증용 HttpOnly 쿠키도 보낼 수 있도록 `credentials: "include"`를 사용하세요.
 
 ```ts
 import { SoopChat } from "soop-chat/browser";
@@ -81,7 +72,10 @@ import { SoopChat } from "soop-chat/browser";
 const chat = new SoopChat({
   streamerId: "soopId",
   resolveChannel: async (streamerId, { signal }) => {
-    const response = await fetch(`/api/soop-channel/${encodeURIComponent(streamerId)}`, { signal });
+    const response = await fetch(`/api/soop-channel/${encodeURIComponent(streamerId)}`, {
+      credentials: "include",
+      signal,
+    });
     if (!response.ok) throw new Error("채널 정보를 가져오지 못했습니다.");
     return response.json();
   },
@@ -91,7 +85,16 @@ chat.on("chatMessage", ({ data }) => console.log(data.message));
 await chat.connect();
 ```
 
-리졸버는 아래 값만 반환하면 됩니다. 인증 티켓이나 쿠키를 브라우저에 전달하지 마세요.
+익명 연결이라면 서버에서 `resolveNodeChannel` 결과를 그대로 응답합니다.
+
+```ts
+import { resolveNodeChannel } from "soop-chat";
+
+const channel = await resolveNodeChannel(streamerId, { signal: request.signal });
+return Response.json(channel);
+```
+
+이 응답은 다음 `ChannelInfo`만 포함합니다.
 
 ```ts
 interface ChannelInfo {
@@ -101,6 +104,43 @@ interface ChannelInfo {
   chatPort: number;
 }
 ```
+
+성인 인증 계정으로 19금 방에 연결할 때는 애플리케이션 서버가 로그인과 쿠키를 담당합니다. 로그인 API에서 `authenticateNode`를 호출하고, 반환된 `authTicket`을 인증된 암호화 방식으로 봉인해 HttpOnly 쿠키에 저장하세요. 평문 또는 서명만 한 JWT로 저장하면 안 됩니다.
+
+```ts
+import { authenticateNode } from "soop-chat";
+
+const authentication = await authenticateNode({ username, password }, { signal: request.signal });
+
+await encryptAndSetHttpOnlyCookie(authentication); // 애플리케이션 구현
+```
+
+채널 API는 쿠키를 복호화하고 같은 `resolveNodeChannel`의 `authentication` 옵션에 전달합니다.
+
+```ts
+import { resolveNodeChannel } from "soop-chat";
+
+const authentication = await readEncryptedHttpOnlyCookie(request); // 애플리케이션 구현
+const channel = await resolveNodeChannel(streamerId, {
+  signal: request.signal,
+  authentication,
+});
+
+return Response.json(channel);
+```
+
+인증된 호출은 `AuthenticatedChannelInfo`를 반환합니다. `AuthTicket`은 포함하지 않으며, 브라우저가 SOOP WebSocket에 직접 연결하는 데 필요한 단기 티켓만 포함합니다.
+
+```ts
+interface AuthenticatedChannelInfo extends ChannelInfo {
+  authentication: {
+    ticket: string; // TK, 0001에 사용
+    fanTicket: string; // FTK, 0002에 사용
+  };
+}
+```
+
+브라우저 클라이언트는 두 티켓을 검증한 뒤 열거 가능한 채널 정보에서 제거하고 메모리의 내부 저장소로 옮깁니다. 서버와 브라우저 모두 로그인 본문, `AuthTicket`, `TK`, `FTK`를 로그나 영구 저장소에 남기지 말고 채널 응답에는 `Cache-Control: no-store`를 적용하세요. 재연결 시 `resolveChannel`이 채널 API를 다시 호출하므로 `chatNo`와 단기 티켓을 캐시하지 않습니다. 로그인·상태 확인·로그아웃 HTTP API와 쿠키 암호화는 사용하는 서버 프레임워크에 맞게 애플리케이션에서 구현합니다.
 
 ## 연결 상태
 
@@ -217,7 +257,7 @@ try {
 }
 ```
 
-Node에서는 성인 인증이 완료된 계정의 19금 방 읽기를 지원합니다. 비밀번호 방, 구독플러스 방, 브라우저 인증 연결과 채팅 전송은 지원하지 않습니다. 조사 내용은 [프로토콜 문서](docs/protocol.md)에 정리되어 있습니다.
+Node에서는 성인 인증이 완료된 계정의 19금 방 읽기를 직접 지원합니다. 브라우저에서는 애플리케이션 서버가 발급한 인증 채널 정보를 사용하는 19금 방 읽기를 지원합니다. 비밀번호 방, 구독플러스 방과 채팅 전송은 지원하지 않습니다. 조사 내용은 [프로토콜 문서](docs/protocol.md)에 정리되어 있습니다.
 
 `raw` 이벤트에는 사용자 ID·닉네임·메시지 등 개인정보가 포함될 수 있습니다. 명시적인 보관 정책 없이 로그나 파일에 저장하지 마세요.
 

@@ -1,9 +1,4 @@
-import type { ChannelInfo } from "./types.js";
-
-export interface ChannelAuthentication {
-  ticket: string;
-  fanTicket: string;
-}
+import type { ChannelAuthentication, ChannelInfo } from "./types.js";
 
 const authentications = new WeakMap<ChannelInfo, ChannelAuthentication>();
 
