@@ -72,7 +72,10 @@ void test("distinguishes offline and restricted rooms", async (context) => {
   globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -6 } }));
   await assert.rejects(
     resolveNodeChannel("adult", { signal: new AbortController().signal }),
-    (error) => error instanceof RestrictedRoomError && error.reason === "adult",
+    (error) =>
+      error instanceof RestrictedRoomError &&
+      error.reason === "adult" &&
+      error.message === "Access to this room is restricted (adult).",
   );
 
   globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -14 } }));
