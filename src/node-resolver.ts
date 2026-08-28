@@ -170,6 +170,7 @@ async function resolveChannel(
     if (result === 0 || /offline|not.?stream/i.test(reason))
       throw new BroadcastOfflineError(streamerId);
     if (result === -6) throw new RestrictedRoomError("adult");
+    if (result === -14) throw new RestrictedRoomError("subscriptionPlus");
     const restriction = restrictionFromReason(reason);
     if (restriction !== "unknown") throw new RestrictedRoomError(restriction, reason || undefined);
     throw new ChannelResolutionError(reason || `SOOP live-info API returned RESULT=${result}.`);

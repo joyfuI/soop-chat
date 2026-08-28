@@ -74,6 +74,12 @@ void test("distinguishes offline and restricted rooms", async (context) => {
     resolveNodeChannel("adult", { signal: new AbortController().signal }),
     (error) => error instanceof RestrictedRoomError && error.reason === "adult",
   );
+
+  globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -14 } }));
+  await assert.rejects(
+    resolveNodeChannel("subscription-plus", { signal: new AbortController().signal }),
+    (error) => error instanceof RestrictedRoomError && error.reason === "subscriptionPlus",
+  );
 });
 
 void test("authenticates once and keeps chat tickets out of channel data", async (context) => {
