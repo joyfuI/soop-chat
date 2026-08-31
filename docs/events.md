@@ -74,7 +74,7 @@ interface FieldEventData {
 | `reference` | 참고 라이브러리의 디코더에서만 확인했으며 현재 실방송 표본은 없음 |
 | `runtime` | 카탈로그에 없는 opcode를 실행 중 `unknown`으로 보존 |
 
-이벤트 타입은 공식 플레이어의 `SVC_*` 이름을 기준으로 lower camel case로 정규화합니다. 필드명은 `bjId`를 `broadcasterId`, `sendNick`을 `senderNickname`으로 바꾸는 것처럼 역할이 분명한 영어 이름을 사용합니다. SOOP 고유 용어가 더 정확한 `fanOrder`, `personalcon` 등은 원래 용어를 유지합니다.
+이벤트 타입은 공식 플레이어의 `SVC_*` 이름을 기준으로 lower camel case로 정규화합니다. 필드명은 `bjID`·`bjId`·`bj_id`를 `streamerId`, `bj_nickname`·`bj_nick`을 `streamerNickname`, `sendNick`을 `senderNickname`으로 바꾸는 것처럼 역할이 분명한 영어 이름을 사용합니다. SOOP 고유 용어가 더 정확한 `fanOrder`, `personalcon` 등은 원래 용어를 유지합니다.
 
 ## 전체 이벤트 색인
 
@@ -194,8 +194,8 @@ interface FieldEventData {
 | 이벤트 | 공개 필드 |
 |---|---|
 | `login` (`0001`) | `userId: string`, `userFlag: string`, `userStatus: UserStatus` |
-| `joinChannel` (`0002`) | `chatNo: string`, `broadcasterId: string`, `maxManagerCount: number`, `familyNickname: string`, `familyNicknamePosition: number`, `userFlag: string`, `userStatus: UserStatus` |
-| `quitChannel` (`0003`) | `kickType: number`, `actor: "streamer" \| "manager" \| "admin" \| "unknown"`, `adminKickCount: number`, `adminNickname: string`, `bannedRoomBroadcasterId: string`, `bannedRoomBroadcasterNickname: string` |
+| `joinChannel` (`0002`) | `chatNo: string`, `streamerId: string`, `maxManagerCount: number`, `familyNickname: string`, `familyNicknamePosition: number`, `userFlag: string`, `userStatus: UserStatus` |
+| `quitChannel` (`0003`) | `kickType: number`, `actor: "streamer" \| "manager" \| "admin" \| "unknown"`, `adminKickCount: number`, `adminNickname: string`, `bannedRoomStreamerId: string`, `bannedRoomStreamerNickname: string` |
 
 `quitChannel`은 현재 시청자 자신이 채널에서 강제 퇴장될 때 공식 플레이어가 종료 사유를 만드는 패킷입니다. 다른 사용자의 강퇴 알림은 `chatUser`의 `isKicked`로 구분합니다.
 
@@ -332,7 +332,7 @@ type ChatUserData =
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
-| `broadcasterId` | `string` | 후원을 받은 방송인 ID |
+| `streamerId` | `string` | 후원을 받은 방송인 ID |
 | `senderId` | `string` | 후원자 ID |
 | `senderNickname` | `string` | 후원자 닉네임 |
 | `count` | `number` | 후원한 별풍선 개수 |
@@ -384,16 +384,16 @@ type ChatUserData =
 | 이벤트 | 공개 필드 |
 |---|---|
 | `directChat` (`0009`) | `message`, `senderId`, `receiverId`, `senderNickname`, `receiverNickname`, `userFlag: string`, `senderStatus: UserStatus`, `messageType`, `chatLanguage: number`, `isAdmin: boolean` |
-| `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`) | `broadcasterId`, `broadcasterNickname`, `senderId`, `senderNickname`, `supporterOrder`, `senderLanguage: string`, `itemType`, `count: number`, `relay: boolean` |
+| `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`) | `streamerId`, `streamerNickname`, `senderId`, `senderNickname`, `supporterOrder`, `senderLanguage: string`, `itemType`, `count: number`, `relay: boolean` |
 | `slowMode` (`0023`) | `automaticSeconds: number`, `manualSeconds: number` |
 | `sendBalloonSub` (`0033`) | `sendBalloon`과 같은 필드. 서브 채널 필드 순서를 적용하고 `relay: true` 제공 |
-| `chocolate` (`0037`), `chocolateSub` (`0038`) | `broadcasterId`, `senderId`, `senderNickname: string`, `count: number`, `relay: boolean` |
+| `chocolate` (`0037`), `chocolateSub` (`0038`) | `streamerId`, `senderId`, `senderNickname: string`, `count: number`, `relay: boolean` |
 | `itemUsing` (`0047`) | `remainingSeconds: number`, 플레이어와 같은 `Math.round(seconds / 60)` 결과인 `remainingMinutes: number` |
 | `sendQuickView` (`0045`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `itemType: number`, `quickViewProduct: "quickView" \| "quickViewPlus" \| "unknown"`, `durationDays: number \| null` |
-| `notifyPoll` (`0050`) | `status`, `show: number`, `pollState: "started" \| "closed" \| "hidden" \| "unknown"`, `visible: boolean`, `broadcasterId: string`, `pollNo: number` |
+| `notifyPoll` (`0050`) | `status`, `show: number`, `pollState: "started" \| "closed" \| "hidden" \| "unknown"`, `visible: boolean`, `streamerId: string`, `pollNo: number` |
 | `banWord` (`0054`) | `replacement: string`, `banWordList: string` |
-| `buyGoods` (`0070`), `buyGoodsSub` (`0071`) | `goodsType`, `count: number`, `broadcasterId`, `buyerId`, `buyerNickname`, `goodsName: string`, `relay: boolean` |
-| `notifyVr` (`0074`) | `action`, `vrType: number`, `broadcasterId`, `vrId`, `rtmpUrl`, `hlsUrl: string` |
+| `buyGoods` (`0070`), `buyGoodsSub` (`0071`) | `goodsType`, `count: number`, `streamerId`, `buyerId`, `buyerNickname`, `goodsName: string`, `relay: boolean` |
+| `notifyVr` (`0074`) | `action`, `vrType: number`, `streamerId`, `vrId`, `rtmpUrl`, `hlsUrl: string` |
 | `notifyMobBroadPause` (`0075`) | `state: number`, `action: "pause" \| "resume" \| "unknown"` |
 | `kickAndCancel` (`0076`) | `state: number`, `cancelled: boolean`, `userId`, `nickname: string` |
 | `kickUserList` (`0077`) | `users` 배열에 대상·명령자 ID/닉네임, 시각, 명령자 원본·1차·2차 플래그와 `commanderStatus` 제공 |
@@ -403,7 +403,7 @@ type ChatUserData =
 | `translation` (`0095`) | `messageIndex: number`, `mode: number`, `message: string`, `originalLanguage: number`, `translatedLanguage: number` |
 | `giftTicket` (`0102`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `ticketData: string` |
 | `vodAdcon` (`0103`) | `stationAdcon`과 같은 방송인·발신자·개수·이미지·제목·채팅방·언어·URL 보정 필드 |
-| `itemDrops` (`0111`) | `broadcasterId`, `name`, `message`, `imageUrl: string` |
+| `itemDrops` (`0111`) | `streamerId`, `name`, `message`, `imageUrl: string` |
 | `ogqEmoticonGift` (`0118`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `title: string`, `imageUrl: string` |
 
 `itemDrops`는 새 실방송 캡처에서 같은 이벤트 이름으로 약 20분 간격으로 6회 수신됐습니다. `name`에는 드롭스 상품명이 있었고 `message`와 `imageUrl`은 비어 있었습니다. 방송에서 드롭스 제공을 안내했고 수신 직후 축하 채팅이 이어졌지만 다시보기 채팅에는 해당 안내가 남지 않아 화면 문구는 확정하지 않습니다.
@@ -451,7 +451,7 @@ interface ChatUserExtendData {
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
-| `broadcasterId` | `string` | 후원을 받은 방송인 ID |
+| `streamerId` | `string` | 후원을 받은 방송인 ID |
 | `senderId` | `string` | VOD 별풍선 후원자 ID |
 | `senderNickname` | `string` | 후원자 닉네임 |
 | `balloonCount` | `number` | 합산된 VOD 별풍선 개수 |
@@ -468,7 +468,7 @@ interface ChatUserExtendData {
 | 필드 | 타입 | 의미 |
 |---|---|---|
 | `chatNo` | `number` | 채팅방 번호 |
-| `broadcasterId` | `string` | 방송인 ID |
+| `streamerId` | `string` | 방송인 ID |
 | `senderId` | `string` | 발신자 ID |
 | `senderNickname` | `string` | 발신자 닉네임 |
 | `message` | `string` | 주 메시지 |
@@ -552,7 +552,7 @@ interface ChatUserExtendData {
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
-| `broadcasterId` | `string` | 구독 대상 방송인 ID |
+| `streamerId` | `string` | 구독 대상 방송인 ID |
 | `senderId` | `string` | 구독자 ID |
 | `senderNickname` | `string` | 구독자 닉네임 |
 | `month` | `number` | 화면에 표시되는 “N개월째” 값 |
@@ -583,7 +583,7 @@ interface ChatUserExtendData {
 | 필드 | 타입 | 의미 |
 |---|---|---|
 | `chatNo` | `string` | 채팅방 번호 원본 문자열 |
-| `broadcasterId` | `string` | 후원을 받은 방송인 ID |
+| `streamerId` | `string` | 후원을 받은 방송인 ID |
 | `senderId` | `string` | 후원자 ID |
 | `senderNickname` | `string` | 후원자 닉네임 |
 | `balloonCount` | `number` | 별풍선 개수 |
@@ -603,7 +603,7 @@ interface ChatUserExtendData {
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
-| `broadcasterId` | `string` | 방송인 ID |
+| `streamerId` | `string` | 방송인 ID |
 | `senderId` | `string` | 발신자 ID |
 | `senderNickname` | `string` | 발신자 닉네임 |
 | `count` | `number` | 전송 개수 |
@@ -627,8 +627,8 @@ interface ChatUserExtendData {
 | `receiverNickname` | `string` | 선물받은 사용자 닉네임 |
 | `subscriptionId` | `string` | 공식 플레이어의 원본 속성명. 관찰 표본에서는 구독 대상 방송인 ID |
 | `subscriptionNickname` | `string` | 공식 플레이어의 원본 속성명. 관찰 표본에서는 구독 대상 방송인 닉네임 |
-| `broadcasterId` | `string` | `subscriptionId`를 역할 중심 이름으로 제공한 값 |
-| `broadcasterNickname` | `string` | `subscriptionNickname`을 역할 중심 이름으로 제공한 값 |
+| `streamerId` | `string` | `subscriptionId`를 역할 중심 이름으로 제공한 값 |
+| `streamerNickname` | `string` | `subscriptionNickname`을 역할 중심 이름으로 제공한 값 |
 | `itemType` | `number` | 구독 상품의 원본 종류 값. 관찰된 `11`은 베이직 1개월 선물권 |
 | `subscriptionTier` | `"basic" \| "plus" \| "unknown"` | 공식 상품표의 티어. 알 수 없는 상품은 `unknown` |
 | `subscriptionMonth` | `number \| null` | 공식 상품표의 상품 기간. 알 수 없는 상품은 `null` |
@@ -706,8 +706,8 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `image` | `string` | 미션 이미지 값 |
 | `senderId` | `string` | 후원자 ID |
 | `senderNickname` | `string` | 후원자 닉네임 |
-| `broadcasterId` | `string` | 방송인 ID |
-| `broadcasterNickname` | `string` | 방송인 닉네임 |
+| `streamerId` | `string` | 방송인 ID |
+| `streamerNickname` | `string` | 방송인 닉네임 |
 
 `action: "notice"` 추가 필드:
 
@@ -724,8 +724,8 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `settleCount` | `number` | 정산할 별풍선 개수 |
 | `isRelay` | `boolean` | 릴레이 여부 |
 | `image` | `string` | 미션 이미지 값 |
-| `broadcasterId` | `string` | 방송인 ID |
-| `broadcasterNickname` | `string` | 방송인 닉네임 |
+| `streamerId` | `string` | 방송인 ID |
+| `streamerNickname` | `string` | 방송인 닉네임 |
 
 대결미션도 공식 플레이어 분기에 맞춰 구조화합니다.
 
@@ -795,7 +795,7 @@ Savvy 알림입니다.
 | 필드 | 타입 | 의미 |
 |---|---|---|
 | `chatNo` | `string` | 채팅방 번호 원본 문자열 |
-| `broadcasterId` | `string` | 방송인 ID |
+| `streamerId` | `string` | 방송인 ID |
 | `language` | `string` | 자막 언어 원본 값 |
 | `subtitle` | `string` | 자막 본문 |
 | `timestamp` | `string` | 플레이어가 전달하는 원본 시각 값 |

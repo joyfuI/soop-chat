@@ -149,7 +149,7 @@ animation, cheerTeamNumber
 
 ## 투표
 
-`0050 SVC_NOTIFY_POLL`은 `[status, broadcasterId, pollNo, show]` 순서입니다. 같은 투표 번호의 실방송 화면과 대조해 `status=1`은 시작, `status=4`는 마감과 결과 공개, `status=2`와 `show=0`은 UI 제거로 확인했습니다. `status`와 `show` 원본을 보존하고 `pollState` 및 `visible`을 함께 제공합니다. 질문·선택지·득표수는 채팅 패킷에 없으므로 추측해 만들지 않습니다.
+`0050 SVC_NOTIFY_POLL`은 `[status, streamerId, pollNo, show]` 순서입니다. 같은 투표 번호의 실방송 화면과 대조해 `status=1`은 시작, `status=4`는 마감과 결과 공개, `status=2`와 `show=0`은 UI 제거로 확인했습니다. `status`와 `show` 원본을 보존하고 `pollState` 및 `visible`을 함께 제공합니다. 질문·선택지·득표수는 채팅 패킷에 없으므로 추측해 만들지 않습니다.
 
 ## 채팅금지와 강퇴
 

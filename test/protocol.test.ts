@@ -498,7 +498,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   assert.equal(gift.type, "sendSubscription");
   if (gift.type === "sendSubscription") {
     assert.equal(gift.data.receiverNickname, "rNick");
-    assert.equal(gift.data.broadcasterId, "streamer");
+    assert.equal(gift.data.streamerId, "streamer");
     assert.equal(gift.data.subscriptionTier, "basic");
     assert.equal(gift.data.subscriptionMonth, 1);
   }
@@ -554,7 +554,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     assert.equal(challengeGift.data.uuid, "gift-event");
     assert.equal(challengeGift.data.chatNo, 456);
     assert.equal(challengeGift.data.senderNickname, "senderNick");
-    assert.equal(challengeGift.data.broadcasterNickname, "bjNick");
+    assert.equal(challengeGift.data.streamerNickname, "bjNick");
     assert.equal(challengeGift.data.image, "gift-image");
     assert.equal(challengeGift.data.isRelay, false);
   }
@@ -707,7 +707,7 @@ void test("decodes every field-reading official player branch", () => {
       "joinChannel",
       {
         chatNo: "123",
-        broadcasterId: "bj",
+        streamerId: "bj",
         maxManagerCount: 10,
         familyNickname: "family",
         familyNicknamePosition: 2,
@@ -729,14 +729,14 @@ void test("decodes every field-reading official player branch", () => {
       "0020",
       `${separator}bj${separator}bjNick${separator}sender${separator}senderNick${separator}ignored${separator}1${separator}ignored${separator}10${separator}2${separator}ignored${separator}ignored${separator}ko_KR`,
       "sendFanLetter",
-      { broadcasterNickname: "bjNick", count: 10, relay: false },
+      { streamerNickname: "bjNick", count: 10, relay: false },
     ],
     ["0023", `${separator}5${separator}10`, "slowMode", { automaticSeconds: 5, manualSeconds: 10 }],
     [
       "0033",
       `${separator}ignored${separator}bj${separator}bjNick${separator}sender${separator}senderNick${separator}10${separator}2${separator}ignored${separator}file${separator}1${separator}3${separator}tts${separator}ignored${separator}ko_KR${separator}456`,
       "sendBalloonSub",
-      { broadcasterId: "bj", senderId: "sender", count: 10, relay: true },
+      { streamerId: "bj", senderId: "sender", count: 10, relay: true },
     ],
     [
       "0034",
@@ -748,7 +748,7 @@ void test("decodes every field-reading official player branch", () => {
       "0037",
       `${separator}ignored${separator}bj${separator}sender${separator}senderNick${separator}10`,
       "chocolate",
-      { broadcasterId: "bj", count: 10, relay: false },
+      { streamerId: "bj", count: 10, relay: false },
     ],
     [
       "0038",
@@ -778,7 +778,7 @@ void test("decodes every field-reading official player branch", () => {
       "0074",
       `${separator}1${separator}bj${separator}vr${separator}rtmp${separator}hls${separator}2`,
       "notifyVr",
-      { action: 1, broadcasterId: "bj", vrType: 2 },
+      { action: 1, streamerId: "bj", vrType: 2 },
     ],
     ["0075", `${separator}0`, "notifyMobBroadPause", { state: 0, action: "pause" }],
     [
@@ -797,13 +797,13 @@ void test("decodes every field-reading official player branch", () => {
       "0103",
       `${separator}bj${separator}sender${separator}nickname${separator}10${separator}image${separator}title${separator}123${separator}ko_KR${separator}456`,
       "vodAdcon",
-      { broadcasterId: "bj", chatNo: "123", count: 10 },
+      { streamerId: "bj", chatNo: "123", count: 10 },
     ],
     [
       "0111",
       `${separator}ignored${separator}bj${separator}drop${separator}message${separator}image`,
       "itemDrops",
-      { broadcasterId: "bj", name: "drop", imageUrl: "image" },
+      { streamerId: "bj", name: "drop", imageUrl: "image" },
     ],
     ["0126", `${separator}1|1024`, "setAdminFlag", { userFlag: "1|1024" }],
   ];

@@ -423,7 +423,7 @@ function joinChannel(raw: RawPacket): JoinChannelData {
   const userFlag = fields[6] ?? "";
   return {
     chatNo: fields[0] ?? "",
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     maxManagerCount: integer(fields[3]),
     familyNickname,
     familyNicknamePosition: integer(position),
@@ -447,8 +447,8 @@ function quitChannel(raw: RawPacket): QuitChannelData {
             : "unknown",
     adminKickCount: integer(fields[3]),
     adminNickname: fields[4] ?? "",
-    bannedRoomBroadcasterId: fields[5] ?? "",
-    bannedRoomBroadcasterNickname: fields[6] ?? "",
+    bannedRoomStreamerId: fields[5] ?? "",
+    bannedRoomStreamerNickname: fields[6] ?? "",
   };
 }
 
@@ -585,7 +585,7 @@ function balloon(raw: RawPacket, relay = false): BalloonData {
   const fanOrder = integer(fields[relay ? 6 : 4]);
   const topFanLevel = integer(fields[relay ? 10 : 9]);
   return {
-    broadcasterId: fields[relay ? 1 : 0] ?? "",
+    streamerId: fields[relay ? 1 : 0] ?? "",
     senderId: fields[relay ? 3 : 1] ?? "",
     senderNickname: fields[relay ? 4 : 2] ?? "",
     count: integer(fields[relay ? 5 : 3]),
@@ -605,8 +605,8 @@ function balloon(raw: RawPacket, relay = false): BalloonData {
 function fanLetter(raw: RawPacket, relay = false): FanLetterData {
   const fields = requireFields(raw, relay ? 10 : 9);
   return {
-    broadcasterId: fields[relay ? 1 : 0] ?? "",
-    broadcasterNickname: fields[relay ? 2 : 1] ?? "",
+    streamerId: fields[relay ? 1 : 0] ?? "",
+    streamerNickname: fields[relay ? 2 : 1] ?? "",
     senderId: fields[relay ? 3 : 2] ?? "",
     senderNickname: fields[relay ? 4 : 3] ?? "",
     itemType: integer(fields[relay ? 6 : 5]),
@@ -625,7 +625,7 @@ function slowMode(raw: RawPacket): SlowModeData {
 function chocolate(raw: RawPacket, relay = false): ChocolateData {
   const fields = requireFields(raw, 5);
   return {
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     senderId: fields[2] ?? "",
     senderNickname: fields[3] ?? "",
     count: integer(fields[4]),
@@ -740,7 +740,7 @@ function pollNotification(raw: RawPacket): PollNotificationData {
           : status === 2 && show === 0
             ? "hidden"
             : "unknown",
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     pollNo: integer(fields[2]),
     show,
     visible: show !== 0,
@@ -763,7 +763,7 @@ function adminNotice(raw: RawPacket): AdminNoticeData {
 function vodBalloon(raw: RawPacket): VodBalloonData {
   const fields = requireFields(raw, 9);
   return {
-    broadcasterId: fields[0] ?? "",
+    streamerId: fields[0] ?? "",
     senderId: fields[1] ?? "",
     senderNickname: fields[2] ?? "",
     balloonCount: integer(fields[3]),
@@ -780,7 +780,7 @@ function adconEffect(raw: RawPacket): AdconEffectData {
   const fanOrder = integer(fields[10]);
   return {
     chatNo: integer(fields[0]),
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     senderId: fields[2] ?? "",
     senderNickname: fields[3] ?? "",
     message: fields[4] ?? "",
@@ -802,7 +802,7 @@ function adconEffect(raw: RawPacket): AdconEffectData {
 function stationAdcon(raw: RawPacket): StationAdconData {
   const fields = requireFields(raw, 9);
   return {
-    broadcasterId: fields[0] ?? "",
+    streamerId: fields[0] ?? "",
     senderId: fields[1] ?? "",
     senderNickname: fields[2] ?? "",
     count: integer(fields[3]),
@@ -818,7 +818,7 @@ function goodsPurchase(raw: RawPacket, relay = false): GoodsPurchaseData {
   const fields = requireFields(raw, 8);
   return {
     goodsType: integer(fields[1]),
-    broadcasterId: fields[2] ?? "",
+    streamerId: fields[2] ?? "",
     buyerId: fields[4] ?? "",
     buyerNickname: fields[5] ?? "",
     goodsName: fields[6] ?? "",
@@ -831,7 +831,7 @@ function vrNotification(raw: RawPacket): VrNotificationData {
   const fields = requireFields(raw, 6);
   return {
     action: integer(fields[0]),
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     vrId: fields[2] ?? "",
     rtmpUrl: fields[3] ?? "",
     hlsUrl: fields[4] ?? "",
@@ -908,7 +908,7 @@ function itemSellEffect(raw: RawPacket): ItemSellEffectData {
   const fields = requireFields(raw, 10);
   return {
     chatNo: integer(fields[0]),
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     senderId: fields[2] ?? "",
     senderNickname: fields[3] ?? "",
     message: fields[4] ?? "",
@@ -923,7 +923,7 @@ function itemSellEffect(raw: RawPacket): ItemSellEffectData {
 function vodAdcon(raw: RawPacket): VodAdconData {
   const fields = requireFields(raw, 9);
   return {
-    broadcasterId: fields[0] ?? "",
+    streamerId: fields[0] ?? "",
     senderId: fields[1] ?? "",
     senderNickname: fields[2] ?? "",
     count: integer(fields[3]),
@@ -938,7 +938,7 @@ function vodAdcon(raw: RawPacket): VodAdconData {
 function itemDrops(raw: RawPacket): ItemDropsData {
   const fields = requireFields(raw, 5);
   return {
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     name: fields[2] ?? "",
     message: fields[3] ?? "",
     imageUrl: fields[4] ?? "",
@@ -956,7 +956,7 @@ function followItemEffect(raw: RawPacket): FollowItemEffectData {
   const itemType = integer(fields[5]);
   const tier = integer(fields[7]);
   return {
-    broadcasterId: fields[0] ?? "",
+    streamerId: fields[0] ?? "",
     senderId: fields[1] ?? "",
     senderNickname: fields[2] ?? "",
     month: integer(fields[3]),
@@ -1012,8 +1012,8 @@ function giftSubscription(raw: RawPacket): GiftSubscriptionData {
     receiverNickname: fields[4] ?? "",
     subscriptionId: fields[5] ?? "",
     subscriptionNickname: fields[6] ?? "",
-    broadcasterId: fields[5] ?? "",
-    broadcasterNickname: fields[6] ?? "",
+    streamerId: fields[5] ?? "",
+    streamerNickname: fields[6] ?? "",
     itemType,
     subscriptionTier: product?.subscriptionTier ?? "unknown",
     subscriptionMonth: product?.month ?? null,
@@ -1032,7 +1032,7 @@ function videoBalloon(raw: RawPacket): VideoBalloonData {
   const fanOrder = integer(fields[5]);
   return {
     chatNo: fields[0] ?? "",
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     senderId: fields[2] ?? "",
     senderNickname: fields[3] ?? "",
     balloonCount: integer(fields[4]),
@@ -1152,8 +1152,8 @@ function mission(raw: RawPacket): MissionData {
       image: jsonString(record, "image"),
       senderId: jsonString(record, "user_id"),
       senderNickname: jsonString(record, "user_nick"),
-      broadcasterId: jsonString(record, "bj_id"),
-      broadcasterNickname: jsonString(record, "bj_nick"),
+      streamerId: jsonString(record, "bj_id"),
+      streamerNickname: jsonString(record, "bj_nick"),
       payload: record,
     };
   }
@@ -1179,8 +1179,8 @@ function mission(raw: RawPacket): MissionData {
       settleCount: jsonNumber(record, "settle_count"),
       isRelay: jsonBoolean(record, "is_relay"),
       image: jsonString(record, "image"),
-      broadcasterId: jsonString(record, "bj_id"),
-      broadcasterNickname: jsonString(record, "bj_nick"),
+      streamerId: jsonString(record, "bj_id"),
+      streamerNickname: jsonString(record, "bj_nick"),
       payload: record,
     };
   }
@@ -1285,7 +1285,7 @@ function globalSubtitle(raw: RawPacket): GlobalSubtitleData {
   const fields = requireFields(raw, 5);
   return {
     chatNo: fields[0] ?? "",
-    broadcasterId: fields[1] ?? "",
+    streamerId: fields[1] ?? "",
     language: fields[2] ?? "",
     subtitle: fields[3] ?? "",
     timestamp: fields[4] ?? "",

@@ -177,7 +177,7 @@ export interface LoginData {
 
 export interface JoinChannelData {
   chatNo: string;
-  broadcasterId: string;
+  streamerId: string;
   maxManagerCount: number;
   familyNickname: string;
   familyNicknamePosition: number;
@@ -192,8 +192,8 @@ export interface QuitChannelData {
   actor: QuitChannelActor;
   adminKickCount: number;
   adminNickname: string;
-  bannedRoomBroadcasterId: string;
-  bannedRoomBroadcasterNickname: string;
+  bannedRoomStreamerId: string;
+  bannedRoomStreamerNickname: string;
 }
 
 export interface ChatUserInfo {
@@ -318,7 +318,7 @@ export type PollState = "started" | "closed" | "hidden" | "unknown";
 export interface PollNotificationData {
   status: number;
   pollState: PollState;
-  broadcasterId: string;
+  streamerId: string;
   pollNo: number;
   show: number;
   visible: boolean;
@@ -394,7 +394,7 @@ export interface ChatMessageData {
 }
 
 export interface BalloonData {
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   count: number;
@@ -411,8 +411,8 @@ export interface BalloonData {
 }
 
 export interface FanLetterData {
-  broadcasterId: string;
-  broadcasterNickname: string;
+  streamerId: string;
+  streamerNickname: string;
   senderId: string;
   senderNickname: string;
   itemType: number;
@@ -428,7 +428,7 @@ export interface SlowModeData {
 }
 
 export interface ChocolateData {
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   count: number;
@@ -472,7 +472,7 @@ export interface SubscriptionProduct {
 }
 
 export interface FollowItemEffectData {
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   month: number;
@@ -508,7 +508,7 @@ export interface AdminNoticeData {
 }
 
 export interface VodBalloonData {
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   balloonCount: number;
@@ -521,7 +521,7 @@ export interface VodBalloonData {
 
 export interface AdconEffectData {
   chatNo: number;
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   message: string;
@@ -540,7 +540,7 @@ export interface AdconEffectData {
 }
 
 export interface StationAdconData {
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   count: number;
@@ -553,7 +553,7 @@ export interface StationAdconData {
 
 export interface GoodsPurchaseData {
   goodsType: number;
-  broadcasterId: string;
+  streamerId: string;
   buyerId: string;
   buyerNickname: string;
   goodsName: string;
@@ -563,7 +563,7 @@ export interface GoodsPurchaseData {
 
 export interface VrNotificationData {
   action: number;
-  broadcasterId: string;
+  streamerId: string;
   vrId: string;
   rtmpUrl: string;
   hlsUrl: string;
@@ -622,7 +622,7 @@ export interface AdminChatUserData {
 
 export interface ItemSellEffectData {
   chatNo: number;
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   message: string;
@@ -634,7 +634,7 @@ export interface ItemSellEffectData {
 }
 
 export interface VodAdconData {
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   count: number;
@@ -646,7 +646,7 @@ export interface VodAdconData {
 }
 
 export interface ItemDropsData {
-  broadcasterId: string;
+  streamerId: string;
   name: string;
   message: string;
   imageUrl: string;
@@ -664,8 +664,8 @@ export interface GiftSubscriptionData {
   receiverNickname: string;
   subscriptionId: string;
   subscriptionNickname: string;
-  broadcasterId: string;
-  broadcasterNickname: string;
+  streamerId: string;
+  streamerNickname: string;
   itemType: number;
   subscriptionTier: SubscriptionTier;
   subscriptionMonth: number | null;
@@ -680,7 +680,7 @@ export interface GiftSubscriptionData {
 
 export interface VideoBalloonData {
   chatNo: string;
-  broadcasterId: string;
+  streamerId: string;
   senderId: string;
   senderNickname: string;
   balloonCount: number;
@@ -743,8 +743,8 @@ export interface ChallengeMissionGiftData extends ChallengeMissionBaseData {
   image: string;
   senderId: string;
   senderNickname: string;
-  broadcasterId: string;
-  broadcasterNickname: string;
+  streamerId: string;
+  streamerNickname: string;
 }
 
 export interface ChallengeMissionNoticeData extends ChallengeMissionBaseData {
@@ -759,8 +759,8 @@ export interface ChallengeMissionSettleData extends ChallengeMissionBaseData {
   settleCount: number;
   isRelay: boolean;
   image: string;
-  broadcasterId: string;
-  broadcasterNickname: string;
+  streamerId: string;
+  streamerNickname: string;
 }
 
 interface BattleMissionBaseData extends MissionBaseData {
@@ -844,7 +844,7 @@ export interface SavvyNoticeData {
 
 export interface GlobalSubtitleData {
   chatNo: string;
-  broadcasterId: string;
+  streamerId: string;
   language: string;
   subtitle: string;
   timestamp: string;
