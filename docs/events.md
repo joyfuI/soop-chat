@@ -63,6 +63,8 @@ interface FieldEventData {
 
 `login.userStatus`, `joinChannel.userStatus`, `chatUser`의 사용자별 `userStatus`, `setNickname.userStatus`, `setSubBj.userStatus`, `adminChatUser`의 사용자별 `userStatus`, `setAdminFlag.userStatus`, `nightbotTimeout.userStatus`에서 사용합니다. 발신자 플래그는 `chatMessage.senderStatus`, `directChat.senderStatus`, `managerChat.senderStatus`, `ogqEmoticon.senderStatus`로, 강퇴 명령자는 `kickUserList.users[].commanderStatus`로 제공합니다. `setUserFlag`는 변경 후 `userStatus`와 변경 전 `previousUserStatus`를 모두 제공합니다.
 
+구독플러스 방송의 13시간 5분 캡처에서 일반 채팅 31,715건의 발신자 155명은 모두 `followerTier=2`였습니다. `chatUser` 입장 사용자 1,362건 중 1,358건도 티어 2였고 나머지 4건은 방송인이었습니다. 이는 공식 `FOLLOW_TIER2` 판정과 구독플러스 방의 실제 참여자를 대조한 결과이며, 다른 티어의 일반적인 구독 의미를 방 접근 권한으로 확대 해석하지 않습니다.
+
 플레이어의 `allowWhisper(false)`는 `NODIRECT` 비트를 추가하고 `allowWhisper(true)`는 제거합니다. 실방송 캡처의 `0012` 18건에서 이 비트가 추가되는 변경을 확인했습니다.
 
 ## 근거 수준
@@ -481,11 +483,13 @@ interface ChatUserExtendData {
 | `becameFanClub` | `boolean` | `fanOrder > 0`이며 팬클럽 가입 문구가 표시되는지 여부 |
 | `isTopFan` | `boolean` | 이번 애드벌룬으로 열혈팬 가입 문구가 표시되는지 여부 |
 | `isFanChief` | `boolean` | 팬클럽 회장 여부 |
-| `isSubRoom` | `boolean` | 서브 채널 여부 |
+| `isSubRoom` | `boolean` | 플레이어의 서브 채널 원본 플래그. 구독플러스 방 여부가 아님 |
 | `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
 실방송에서 애드벌룬 1개와 `fanOrder=10325`가 함께 왔고 화면에 “10,325번째 팬클럽” 문구가 표시됐습니다. 공식 플레이어도 `fanOrder > 0`을 같은 문구의 조건으로 사용합니다. 애드벌룬 10개 표본에서는 `fanOrder=16`, `isTopFan=true`와 화면의 팬클럽 가입·열혈팬 가입 문구가 차례로 일치했고, 직후 `0012 setUserFlag`도 두 상태 비트를 같은 순서로 추가했습니다.
+
+구독플러스 방송에서 관찰한 두 이벤트는 모두 `isSubRoom=false`였으므로 이 값을 방의 구독플러스 제한 여부로 사용하지 않습니다.
 
 ### 구독 상품 메타데이터
 
@@ -544,7 +548,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-실방송에서 `itemType=103`, `tier=1`이 “베이직 구독하였습니다”와 “3개월 정기구독권” 이미지에 일치해 상품 기간 3개월을 확인했습니다. `itemType=101`, `tier=1`은 베이직 구독 완료 문구와 “1개월 정기구독권” 이미지에, `itemType=111`, `tier=1`은 베이직 구독 완료 문구와 “선물 받은 1개월 구독권” 이미지에 각각 일치했습니다. `itemType=200`, `tier=2`는 플러스 구독 완료 문구와 일치했지만 왼쪽 이미지는 기간 대신 “구독 감사합니다”만 표시했습니다. 공식 상품표에서 `itemType=101/200`의 `isGift`가 `true`여도 화면에는 선물받았다는 표시가 없었으므로, `isGift`는 현재 이벤트의 취득 경로로 일반화하지 않습니다. 상품 기간 1개월과 `isAutoPay=true`는 플레이어 상품표 근거이며 이번 화면만으로 확인된 값은 아닙니다. 화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `itemType=9200`은 상품표의 `vodItemType=9200`인 플러스 상품과 연결되고 화면의 “VOD에서 플러스 구독하였습니다” 문구와 일치해 `subscriptionSource="vod"`로 제공합니다. `live`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다.
+실방송에서 `itemType=103`, `tier=1`이 “베이직 구독하였습니다”와 “3개월 정기구독권” 이미지에 일치해 상품 기간 3개월을 확인했습니다. `itemType=101`, `tier=1`은 베이직 구독 완료 문구와 “1개월 정기구독권” 이미지에, `itemType=111`, `tier=1`은 베이직 구독 완료 문구와 “선물 받은 1개월 구독권” 이미지에 각각 일치했습니다. 구독플러스 방송의 `itemType=201`, `tier=2` 3건은 모두 플러스 구독 완료 문구와 “1개월 정기구독권” 이미지에, `itemType=200`, `tier=2` 3건은 같은 완료 문구와 “구독 감사합니다” 이미지에 일치했습니다. 이는 공식 상품표의 `201 isAutoPay=false`, `200 isAutoPay=true` 구분과 일관됩니다. 공식 상품표에서 `itemType=101/200/201`의 `isGift`가 `true`여도 화면에는 선물받았다는 표시가 없었으므로, `isGift`는 현재 이벤트의 취득 경로로 일반화하지 않습니다. 화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `itemType=9200`은 상품표의 `vodItemType=9200`인 플러스 상품과 연결되고 화면의 “VOD에서 플러스 구독하였습니다” 문구와 일치해 `subscriptionSource="vod"`로 제공합니다. `live`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다.
 
 ### `followItemEffect` (`0093`)
 
