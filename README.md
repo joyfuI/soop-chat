@@ -42,7 +42,17 @@ await chat.connect();
 await chat.disconnect();
 ```
 
-성인 인증이 완료된 계정으로 19금 방을 읽거나 구독플러스 권한 계정으로 해당 방을 Node에서 읽으려면 `credentials`를 전달합니다. 계정 정보를 소스 코드에 직접 쓰거나 저장소에 커밋하지 말고 환경 변수나 별도의 비밀 저장소에서 읽으세요.
+비밀번호 방은 계정 로그인 없이 `roomPassword`로 읽을 수 있습니다. 비밀번호를 소스 코드, 로그, 셸 이력이나 저장소에 남기지 말고 환경 변수나 별도의 비밀 저장소에서 읽으세요.
+
+```ts
+const roomPassword = process.env.SOOP_ROOM_PASSWORD;
+if (!roomPassword) throw new Error("SOOP room password is required.");
+
+const chat = new SoopChat({ streamerId: "soopId", roomPassword });
+await chat.connect();
+```
+
+성인 인증이 완료된 계정으로 19금 방을 읽거나 구독플러스 권한 계정으로 해당 방을 Node에서 읽으려면 `credentials`를 전달합니다. 계정 정보도 소스 코드에 직접 쓰거나 저장소에 커밋하지 마세요. 계정 로그인이 필요한 제한과 비밀번호가 함께 설정된 방은 `credentials`와 `roomPassword`를 동시에 전달할 수 있습니다.
 
 ```ts
 const { SOOP_USERNAME: username, SOOP_PASSWORD: password } = process.env;
@@ -56,7 +66,7 @@ const chat = new SoopChat({
 await chat.connect();
 ```
 
-`credentials`는 Node 프로세스 메모리에서만 사용합니다. 로그인 유지와 아이디 저장을 요청하지 않으며, `AuthTicket`, `TK`, `FTK`를 `ChannelInfo`나 이벤트로 노출하지 않습니다. 자동 재연결은 같은 메모리 내 로그인 티켓을 재사용합니다. `resolveChannel`을 직접 전달하면 사용자 리졸버가 우선하며 `credentials`는 사용하지 않습니다.
+`credentials`와 `roomPassword`는 Node 프로세스 메모리에서만 사용합니다. 로그인 유지와 아이디 저장을 요청하지 않으며, 방 비밀번호, `AuthTicket`, `TK`, `FTK`를 `ChannelInfo`나 이벤트로 노출하지 않습니다. 자동 재연결은 같은 메모리 내 방 비밀번호와 로그인 티켓을 재사용합니다. `resolveChannel`을 직접 전달하면 사용자 리졸버가 우선하며 `credentials`는 사용하지 않습니다.
 
 Node에서도 별도 API나 캐시를 사용하려면 브라우저와 같은 형태의 `resolveChannel`을 생성자에 전달해 기본 조회를 대체할 수 있습니다.
 
@@ -69,12 +79,17 @@ SOOP 라이브 정보 API는 임의 웹사이트의 CORS 요청을 허용하지 
 ```ts
 import { SoopChat } from "soop-chat/browser";
 
+const roomPassword = getRoomPasswordFromUserInput(); // 애플리케이션 구현
 const chat = new SoopChat({
   streamerId: "soopId",
-  resolveChannel: async (streamerId, { signal }) => {
-    const response = await fetch(`/api/soop-channel/${encodeURIComponent(streamerId)}`, {
+  roomPassword,
+  resolveChannel: async (streamerId, { signal, roomPassword }) => {
+    const response = await fetch("/api/soop-channel", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
       credentials: "include",
       signal,
+      body: JSON.stringify({ streamerId, roomPassword }),
     });
     if (!response.ok) throw new Error("채널 정보를 가져오지 못했습니다.");
     return response.json();
@@ -85,12 +100,15 @@ chat.on("chatMessage", ({ data }) => console.log(data.message));
 await chat.connect();
 ```
 
-익명 연결이라면 서버에서 `resolveNodeChannel` 결과를 그대로 응답합니다.
+익명 연결이라면 서버에서 요청 본문의 `streamerId`와 선택적인 `roomPassword`를 검증한 뒤 `resolveNodeChannel` 결과를 그대로 응답합니다.
 
 ```ts
 import { resolveNodeChannel } from "soop-chat";
 
-const channel = await resolveNodeChannel(streamerId, { signal: request.signal });
+const channel = await resolveNodeChannel(streamerId, {
+  signal: request.signal,
+  roomPassword,
+});
 return Response.json(channel);
 ```
 
@@ -123,6 +141,7 @@ import { resolveNodeChannel } from "soop-chat";
 const authentication = await readEncryptedHttpOnlyCookie(request); // 애플리케이션 구현
 const channel = await resolveNodeChannel(streamerId, {
   signal: request.signal,
+  roomPassword,
   authentication,
 });
 
@@ -142,7 +161,7 @@ interface AuthenticatedChannelInfo extends ChannelInfo {
 }
 ```
 
-브라우저 클라이언트는 두 티켓을 검증한 뒤 열거 가능한 채널 정보에서 제거하고 메모리의 내부 저장소로 옮깁니다. 서버와 브라우저 모두 로그인 본문, `AuthTicket`, `TK`, `FTK`를 로그나 영구 저장소에 남기지 말고 채널 응답에는 `Cache-Control: no-store`를 적용하세요. 재연결 시 `resolveChannel`이 채널 API를 다시 호출하므로 `chatNo`와 단기 티켓을 캐시하지 않습니다. 로그인·상태 확인·로그아웃 HTTP API와 쿠키 암호화는 사용하는 서버 프레임워크에 맞게 애플리케이션에서 구현합니다.
+브라우저 클라이언트는 두 티켓을 검증한 뒤 열거 가능한 채널 정보에서 제거하고 메모리의 내부 저장소로 옮깁니다. 서버와 브라우저 모두 방 비밀번호, 로그인 본문, `AuthTicket`, `TK`, `FTK`를 URL, 로그나 영구 저장소에 남기지 말고 채널 응답에는 `Cache-Control: no-store`를 적용하세요. 재연결 시 `resolveChannel`이 채널 API를 다시 호출하므로 `chatNo`와 단기 티켓을 캐시하지 않습니다. 로그인·상태 확인·로그아웃 HTTP API와 쿠키 암호화는 사용하는 서버 프레임워크에 맞게 애플리케이션에서 구현합니다.
 
 ## 연결 상태
 
@@ -259,7 +278,7 @@ try {
 }
 ```
 
-Node에서는 성인 인증이 완료된 계정의 19금 방과 권한 계정의 구독플러스 방 읽기를 직접 지원합니다. 브라우저에서는 애플리케이션 서버가 발급한 인증 채널 정보를 사용해 두 제한 방을 읽을 수 있습니다. 비밀번호 방과 채팅 전송은 지원하지 않습니다. 조사 내용은 [프로토콜 문서](docs/protocol.md)에 정리되어 있습니다.
+Node에서는 비밀번호 방, 성인 인증이 완료된 계정의 19금 방과 권한 계정의 구독플러스 방 읽기를 직접 지원합니다. 브라우저에서는 애플리케이션 서버가 검증한 비밀번호와 발급한 인증 채널 정보를 사용해 같은 제한 방을 읽을 수 있습니다. 채팅 전송은 지원하지 않습니다. 조사 내용은 [프로토콜 문서](docs/protocol.md)에 정리되어 있습니다.
 
 `raw` 이벤트에는 사용자 ID·닉네임·메시지 등 개인정보가 포함될 수 있습니다. 명시적인 보관 정책 없이 로그나 파일에 저장하지 마세요.
 
@@ -280,3 +299,5 @@ npm run pack:check
 ```sh
 SOOP_STREAMER_ID=soopId npm run test:live
 ```
+
+비밀번호 방은 `SOOP_ROOM_PASSWORD`, 로그인도 함께 검증할 때는 `SOOP_USERNAME`과 `SOOP_PASSWORD`를 비밀 저장소를 통해 추가로 주입할 수 있습니다.

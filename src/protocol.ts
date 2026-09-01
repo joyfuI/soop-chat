@@ -73,6 +73,8 @@ const HEADER_SIZE = 14;
 const ESC = 0x1b;
 const TAB = 0x09;
 const FIELD_SEPARATOR = "\x0c";
+const ADD_INFO_SEPARATOR = "\x11";
+const ADD_INFO_END = "\x12";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const QUICK_VIEW_PRODUCTS: Partial<Record<number, readonly [QuickViewProduct, number]>> = {
@@ -101,6 +103,15 @@ const NIGHTBOT_TIMEOUT_REASONS = [
   "excessSymbols",
   "repetitions",
 ] as const;
+
+export function isValidRoomPassword(value: string): boolean {
+  if (!value) return false;
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code < 0x20 || code === 0x7f) return false;
+  }
+  return true;
+}
 
 export interface ParseBatch {
   packets: RawPacket[];
@@ -220,13 +231,24 @@ export const createConnectPacket = (ticket = ""): Uint8Array<ArrayBuffer> =>
     "0001",
     `${FIELD_SEPARATOR}${ticket}${FIELD_SEPARATOR.repeat(2)}16${FIELD_SEPARATOR}`,
   );
-export const createJoinPacket = (chatNo: string, fanTicket = ""): Uint8Array<ArrayBuffer> =>
-  encodePacket(
+export const createJoinPacket = (
+  chatNo: string,
+  fanTicket = "",
+  roomPassword = "",
+): Uint8Array<ArrayBuffer> => {
+  if (roomPassword && !isValidRoomPassword(roomPassword)) {
+    throw new ProtocolError("Room password contains invalid control characters.");
+  }
+  const addInfo = roomPassword
+    ? `log${ADD_INFO_SEPARATOR}${ADD_INFO_END}pwd${ADD_INFO_SEPARATOR}${roomPassword}${ADD_INFO_END}auth_info${ADD_INFO_SEPARATOR}${ADD_INFO_END}pver${ADD_INFO_SEPARATOR}2${ADD_INFO_END}access_system${ADD_INFO_SEPARATOR}html5${ADD_INFO_END}`
+    : "";
+  return encodePacket(
     "0002",
-    fanTicket
-      ? `${FIELD_SEPARATOR}${chatNo}${FIELD_SEPARATOR}${fanTicket}${FIELD_SEPARATOR}0${FIELD_SEPARATOR.repeat(3)}`
+    fanTicket || roomPassword
+      ? `${FIELD_SEPARATOR}${chatNo}${FIELD_SEPARATOR}${fanTicket}${FIELD_SEPARATOR}0${FIELD_SEPARATOR.repeat(2)}${addInfo}${FIELD_SEPARATOR}`
       : `${FIELD_SEPARATOR}${chatNo}${FIELD_SEPARATOR.repeat(5)}`,
   );
+};
 export const createKeepAlivePacket = (): Uint8Array<ArrayBuffer> =>
   encodePacket("0000", FIELD_SEPARATOR);
 

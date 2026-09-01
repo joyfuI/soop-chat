@@ -66,7 +66,19 @@ void test("distinguishes offline and restricted rooms", async (context) => {
     );
   await assert.rejects(
     resolveNodeChannel("password", { signal: new AbortController().signal }),
-    RestrictedRoomError,
+    (error) => error instanceof RestrictedRoomError && error.reason === "password",
+  );
+
+  globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -1988 } }));
+  await assert.rejects(
+    resolveNodeChannel("password", {
+      signal: new AbortController().signal,
+      roomPassword: "synthetic-wrong-password",
+    }),
+    (error) =>
+      error instanceof RestrictedRoomError &&
+      error.reason === "password" &&
+      error.message === "SOOP rejected the room password.",
   );
 
   globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -6 } }));
@@ -82,6 +94,77 @@ void test("distinguishes offline and restricted rooms", async (context) => {
   await assert.rejects(
     resolveNodeChannel("subscription-plus", { signal: new AbortController().signal }),
     (error) => error instanceof RestrictedRoomError && error.reason === "subscriptionPlus",
+  );
+});
+
+void test("validates password rooms independently of account authentication", async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const requests: Array<{ type: string | null; password: string | null; cookie: string | null }> =
+    [];
+  globalThis.fetch = async (_input, init) => {
+    assert.ok(init?.body instanceof URLSearchParams);
+    const body = init.body;
+    requests.push({
+      type: body.get("type"),
+      password: body.get("pwd"),
+      cookie: new Headers(init.headers).get("cookie"),
+    });
+    if (body.get("type") === "aid") {
+      assert.equal(body.get("bno"), "10");
+      return new Response(
+        JSON.stringify({
+          CHANNEL: { RESULT: body.get("pwd") === "synthetic-room-password" ? 1 : 0 },
+        }),
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        CHANNEL: {
+          RESULT: 1,
+          BNO: "10",
+          CHATNO: "20",
+          CHDOMAIN: "chat.example.test",
+          CHPT: "8060",
+          BPWD: "Y",
+          TK: "synthetic-ticket",
+          FTK: "synthetic-fan-ticket",
+        },
+      }),
+    );
+  };
+
+  const signal = new AbortController().signal;
+  const anonymous = await resolveNodeChannel("streamer", {
+    signal,
+    roomPassword: "synthetic-room-password",
+  });
+  assert.equal(JSON.stringify(anonymous).includes("synthetic-room-password"), false);
+
+  const authenticated = await resolveNodeChannel("streamer", {
+    signal,
+    roomPassword: "synthetic-room-password",
+    authentication: { authTicket: "synthetic-auth" },
+  });
+  assert.equal(authenticated.authentication.ticket, "synthetic-ticket");
+  assert.deepEqual(
+    requests.map(({ type, password, cookie }) => ({ type, password, cookie })),
+    [
+      { type: "live", password: "synthetic-room-password", cookie: null },
+      { type: "aid", password: "synthetic-room-password", cookie: null },
+      { type: "live", password: "synthetic-room-password", cookie: "AuthTicket=synthetic-auth" },
+      { type: "aid", password: "synthetic-room-password", cookie: "AuthTicket=synthetic-auth" },
+    ],
+  );
+
+  await assert.rejects(
+    resolveNodeChannel("streamer", { signal, roomPassword: "synthetic-wrong-password" }),
+    (error) =>
+      error instanceof RestrictedRoomError &&
+      error.reason === "password" &&
+      error.message === "SOOP rejected the room password.",
   );
 });
 

@@ -6,6 +6,7 @@ import {
   createJoinPacket,
   createKeepAlivePacket,
   decodePacket,
+  isValidRoomPassword,
   messageDataToBytes,
   PacketStreamParser,
 } from "./protocol.js";
@@ -53,6 +54,14 @@ function reconnectOptions(value: SoopChatOptions["reconnect"]): Required<Reconne
   return merged;
 }
 
+function roomPassword(value: string | undefined): string {
+  if (value === undefined) return "";
+  if (!isValidRoomPassword(value)) {
+    throw new TypeError("roomPassword must not be empty or contain control characters.");
+  }
+  return value;
+}
+
 function validateChannel(channel: ChannelInfo): ChannelInfo {
   if (!channel.broadcastNo || !channel.chatNo)
     throw new TypeError("Channel info is missing broadcastNo or chatNo.");
@@ -96,6 +105,7 @@ export class SoopChatCore {
   #parser = new PacketStreamParser();
   #resolveChannel: ChannelResolver;
   #createWebSocket: WebSocketFactory;
+  #roomPassword: string;
   #reconnect: Required<ReconnectOptions>;
   #heartbeatIntervalMs: number;
   #random: () => number;
@@ -115,6 +125,7 @@ export class SoopChatCore {
     this.streamerId = options.streamerId.trim();
     this.#resolveChannel = options.resolveChannel;
     this.#createWebSocket = options.createWebSocket;
+    this.#roomPassword = roomPassword(options.roomPassword);
     this.#reconnect = reconnectOptions(options.reconnect);
     this.#heartbeatIntervalMs = options.heartbeatIntervalMs ?? 60_000;
     this.#random = options.random ?? Math.random;
@@ -183,7 +194,10 @@ export class SoopChatCore {
     this.#abortController = controller;
     this.#setState("resolving");
     const channel = validateChannel(
-      await this.#resolveChannel(this.streamerId, { signal: controller.signal }),
+      await this.#resolveChannel(this.streamerId, {
+        signal: controller.signal,
+        ...(this.#roomPassword ? { roomPassword: this.#roomPassword } : {}),
+      }),
     );
     if (this.#stopped) throw new DOMException("Connection was aborted.", "AbortError");
     this.#channel = channel;
@@ -268,7 +282,11 @@ export class SoopChatCore {
     this.#emit("raw", raw);
     if (raw.opcode === "0001" && this.#channel && socket.readyState === 1) {
       socket.send(
-        createJoinPacket(this.#channel.chatNo, getChannelAuthentication(this.#channel)?.fanTicket),
+        createJoinPacket(
+          this.#channel.chatNo,
+          getChannelAuthentication(this.#channel)?.fanTicket,
+          this.#roomPassword,
+        ),
       );
     }
 

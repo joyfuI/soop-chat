@@ -123,60 +123,68 @@ async function authenticate(credentials: SoopCredentials, signal: AbortSignal): 
 
 async function resolveChannel(
   streamerId: string,
-  { signal }: ChannelResolverContext,
+  { signal, roomPassword = "" }: ChannelResolverContext,
   authTicket?: string,
 ): Promise<ChannelResolution> {
-  const body = new URLSearchParams({
-    bid: streamerId,
-    type: "live",
-    pwd: "",
-    player_type: "html5",
-    stream_type: "common",
-    quality: "HD",
-    mode: "landing",
-    from_api: "0",
-    is_revive: "false",
-  });
-
-  let response: Response;
-  try {
-    response = await fetch(`${LIVE_API}?bjid=${encodeURIComponent(streamerId)}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        ...(authTicket ? { cookie: `AuthTicket=${authTicket}` } : {}),
-      },
-      body,
-      signal,
+  const request = async (type: "live" | "aid", broadcastNo = "") => {
+    const body = new URLSearchParams({
+      bid: streamerId,
+      bno: broadcastNo,
+      type,
+      pwd: roomPassword,
+      player_type: "html5",
+      stream_type: "common",
+      quality: "HD",
+      mode: "landing",
+      from_api: "0",
+      is_revive: "false",
     });
-  } catch (cause) {
-    if (cause instanceof Error && cause.name === "AbortError") throw cause;
-    throw new ChannelResolutionError("Failed to call the SOOP live-info API.", { cause });
-  }
-  if (!response.ok) {
-    throw new ChannelResolutionError(`SOOP live-info API returned HTTP ${response.status}.`);
-  }
 
-  let root: Record<string, unknown>;
-  try {
-    root = record(await response.json()) ?? {};
-  } catch (cause) {
-    throw new ChannelResolutionError("SOOP live-info API returned invalid JSON.", { cause });
-  }
-  const channel = record(root.CHANNEL) ?? root;
+    let response: Response;
+    try {
+      response = await fetch(`${LIVE_API}?bjid=${encodeURIComponent(streamerId)}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          ...(authTicket ? { cookie: `AuthTicket=${authTicket}` } : {}),
+        },
+        body,
+        signal,
+      });
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === "AbortError") throw cause;
+      throw new ChannelResolutionError("Failed to call the SOOP live-info API.", { cause });
+    }
+    if (!response.ok) {
+      throw new ChannelResolutionError(`SOOP live-info API returned HTTP ${response.status}.`);
+    }
+
+    try {
+      const root = record(await response.json()) ?? {};
+      return { root, channel: record(root.CHANNEL) ?? root };
+    } catch (cause) {
+      throw new ChannelResolutionError("SOOP live-info API returned invalid JSON.", { cause });
+    }
+  };
+
+  const { root, channel } = await request("live");
   const result = Number(channel.RESULT ?? root.RESULT ?? 0);
   const reason = text(channel.REASON ?? root.REASON);
   if (result !== 1) {
     if (result === 0 || /offline|not.?stream/i.test(reason))
       throw new BroadcastOfflineError(streamerId);
+    if (result === -1988) {
+      throw new RestrictedRoomError(
+        "password",
+        roomPassword ? "SOOP rejected the room password." : undefined,
+      );
+    }
     if (result === -6) throw new RestrictedRoomError("adult");
     if (result === -14) throw new RestrictedRoomError("subscriptionPlus");
     const restriction = restrictionFromReason(reason);
     if (restriction !== "unknown") throw new RestrictedRoomError(restriction, reason || undefined);
     throw new ChannelResolutionError(reason || `SOOP live-info API returned RESULT=${result}.`);
   }
-  if (text(channel.BPWD).toUpperCase() === "Y") throw new RestrictedRoomError("password");
-
   const info: ChannelInfo = {
     broadcastNo: text(channel.BNO),
     chatNo: text(channel.CHATNO),
@@ -185,6 +193,13 @@ async function resolveChannel(
   };
   if (!info.broadcastNo || !info.chatNo || !info.chatDomain || !Number.isInteger(info.chatPort)) {
     throw new ChannelResolutionError("SOOP live-info API omitted required channel fields.");
+  }
+  if (text(channel.BPWD).toUpperCase() === "Y") {
+    if (!roomPassword) throw new RestrictedRoomError("password");
+    const passwordCheck = await request("aid", info.broadcastNo);
+    if (Number(passwordCheck.channel.RESULT ?? passwordCheck.root.RESULT ?? 0) !== 1) {
+      throw new RestrictedRoomError("password", "SOOP rejected the room password.");
+    }
   }
   if (authTicket) {
     const ticket = text(channel.TK);

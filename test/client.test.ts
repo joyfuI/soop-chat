@@ -138,6 +138,39 @@ void test("uses and validates serialized browser channel authentication", async 
   await assert.rejects(invalidClient.connect(), /invalid authentication/);
 });
 
+void test("passes a room password to the resolver and password join packet", async () => {
+  const socket = new FakeSocket();
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    roomPassword: "synthetic-room-password",
+    resolveChannel: async (_streamerId, context) => {
+      assert.equal(context.roomPassword, "synthetic-room-password");
+      return channel;
+    },
+    createWebSocket: () => socket,
+  });
+
+  await join(client, socket);
+  const packet = new PacketStreamParser().push(socket.sent[1]!).packets[0];
+  assert.deepEqual(packet?.fields.slice(0, 4), ["2", "", "0", ""]);
+  assert.equal(
+    packet?.fields[4],
+    "log\x11\x12pwd\x11synthetic-room-password\x12auth_info\x11\x12pver\x112\x12access_system\x11html5\x12",
+  );
+  await client.disconnect();
+
+  assert.throws(
+    () =>
+      new SoopChatCore({
+        streamerId: "streamer",
+        roomPassword: "invalid\x0cpassword",
+        resolveChannel: async () => channel,
+        createWebSocket: () => new FakeSocket(),
+      }),
+    /roomPassword/,
+  );
+});
+
 void test("re-resolves channel information and reconnects after an unexpected close", async () => {
   const firstSocket = new FakeSocket();
   const secondSocket = new FakeSocket();

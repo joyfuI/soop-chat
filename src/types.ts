@@ -25,6 +25,7 @@ export interface AuthenticatedChannelInfo extends ChannelInfo {
 
 export interface ChannelResolverContext {
   signal: AbortSignal;
+  roomPassword?: string;
 }
 
 export type ChannelResolver = (
@@ -42,6 +43,7 @@ export interface ReconnectOptions {
 
 export interface SoopChatOptions {
   streamerId: string;
+  roomPassword?: string;
   reconnect?: boolean | ReconnectOptions;
   resolveChannel?: ChannelResolver;
 }
