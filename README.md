@@ -267,9 +267,11 @@ Node에서는 성인 인증이 완료된 계정의 19금 방과 권한 계정의
 
 ```sh
 npm install
-npm test
-npm run test:browser
 npm run typecheck
+npm run lint
+npm run format:check
+npm run test:unit
+npm run test:browser
 npm run pack:check
 ```
 
