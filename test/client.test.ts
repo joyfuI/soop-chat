@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SoopChatCore } from "../src/client.js";
-import { BroadcastOfflineError } from "../src/errors.js";
+import { deserializeChannelResolutionError } from "../src/errors.js";
 import { encodePacket, PacketStreamParser } from "../src/protocol.js";
 import type {
   AuthenticatedChannelInfo,
@@ -209,7 +209,15 @@ void test("stops reconnecting when the broadcast becomes offline", async () => {
     streamerId: "streamer",
     resolveChannel: async () => {
       resolverCalls += 1;
-      if (resolverCalls > 1) throw new BroadcastOfflineError("streamer");
+      if (resolverCalls > 1) {
+        throw deserializeChannelResolutionError(
+          {
+            code: "BROADCAST_OFFLINE",
+            message: 'SOOP broadcaster "streamer" is not live.',
+          },
+          { streamerId: "streamer" },
+        );
+      }
       return channel;
     },
     createWebSocket: () => socket,
@@ -222,6 +230,35 @@ void test("stops reconnecting when the broadcast becomes offline", async () => {
   socket.closeFromServer();
   await new Promise((resolve) => setTimeout(resolve, 8));
   assert.deepEqual(ended, ["offline"]);
+  assert.equal(client.state, "closed");
+});
+
+void test("stops reconnecting when a serialized room restriction is restored", async () => {
+  const socket = new FakeSocket();
+  let resolverCalls = 0;
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => {
+      resolverCalls += 1;
+      if (resolverCalls > 1) {
+        throw deserializeChannelResolutionError({
+          code: "RESTRICTED_ROOM",
+          message: "Access to this room is restricted (adult).",
+          reason: "adult",
+        });
+      }
+      return channel;
+    },
+    createWebSocket: () => socket,
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+  });
+  const ended: Array<{ reason: string; restriction?: string }> = [];
+  client.on("ended", (event) => ended.push(event));
+
+  await join(client, socket);
+  socket.closeFromServer();
+  await new Promise((resolve) => setTimeout(resolve, 8));
+  assert.deepEqual(ended, [{ reason: "restricted", restriction: "adult" }]);
   assert.equal(client.state, "closed");
 });
 

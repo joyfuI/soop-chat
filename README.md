@@ -74,10 +74,10 @@ Node에서도 별도 API나 캐시를 사용하려면 브라우저와 같은 형
 
 SOOP 라이브 정보 API는 임의 웹사이트의 CORS 요청을 허용하지 않습니다. 따라서 브라우저에서는 애플리케이션 서버가 제공하는 `ChannelResolver`가 필요합니다.
 
-브라우저 리졸버는 서버가 반환한 JSON을 그대로 반환합니다. 인증용 HttpOnly 쿠키도 보낼 수 있도록 `credentials: "include"`를 사용하세요.
+브라우저 리졸버는 서버가 반환한 채널 JSON을 그대로 반환하고, 오류 JSON은 `deserializeChannelResolutionError`로 기존 오류 클래스 인스턴스로 복원합니다. 인증용 HttpOnly 쿠키도 보낼 수 있도록 `credentials: "include"`를 사용하세요.
 
 ```ts
-import { SoopChat } from "soop-chat/browser";
+import { deserializeChannelResolutionError, SoopChat } from "soop-chat/browser";
 
 const roomPassword = getRoomPasswordFromUserInput(); // 애플리케이션 구현
 const chat = new SoopChat({
@@ -91,7 +91,9 @@ const chat = new SoopChat({
       signal,
       body: JSON.stringify({ streamerId, roomPassword }),
     });
-    if (!response.ok) throw new Error("채널 정보를 가져오지 못했습니다.");
+    if (!response.ok) {
+      throw deserializeChannelResolutionError(await response.json(), { streamerId });
+    }
     return response.json();
   },
 });
@@ -103,14 +105,32 @@ await chat.connect();
 익명 연결이라면 서버에서 요청 본문의 `streamerId`와 선택적인 `roomPassword`를 검증한 뒤 `resolveNodeChannel` 결과를 그대로 응답합니다.
 
 ```ts
-import { resolveNodeChannel } from "soop-chat";
+import {
+  AuthenticationError,
+  resolveNodeChannel,
+  RestrictedRoomError,
+  serializeChannelResolutionError,
+} from "soop-chat";
 
-const channel = await resolveNodeChannel(streamerId, {
-  signal: request.signal,
-  roomPassword,
-});
-return Response.json(channel);
+try {
+  const channel = await resolveNodeChannel(streamerId, {
+    signal: request.signal,
+    roomPassword,
+  });
+  return Response.json(channel);
+} catch (error) {
+  if (error instanceof AuthenticationError) {
+    return Response.json({ code: error.code, message: error.message }, { status: 401 });
+  }
+  return Response.json(serializeChannelResolutionError(error), {
+    status: error instanceof RestrictedRoomError ? 403 : 503,
+  });
+}
 ```
+
+`SerializedChannelResolutionError`는 서버와 브라우저가 공유하는 discriminated union입니다. 알 수 없거나 잘못된 payload는 브라우저에서 안전한 `ChannelResolutionError`로 복원됩니다. HTTP 상태 정책은 애플리케이션에 맞게 조정할 수 있습니다.
+
+이 wire type은 채널 해석 결과에만 사용합니다. `BroadcastOfflineError`와 `RestrictedRoomError`는 브라우저에서 클래스를 복원해야 재연결 중단 판정이 유지됩니다. `AuthenticationError`는 재연결이 직접 판별하는 오류가 아니므로 union에 포함하지 않습니다. 브라우저에서 인증 실패를 구분해야 한다면 `deserializeChannelResolutionError`를 호출하기 전에 HTTP `401` 또는 응답의 `AUTHENTICATION_FAILED` code를 읽어 로그인 갱신·이동 같은 애플리케이션 인증 흐름으로 처리하세요. `AuthenticationError`를 `serializeChannelResolutionError`에 전달하면 안전한 `CHANNEL_RESOLUTION_FAILED`로 일반화됩니다.
 
 이 응답은 다음 `ChannelInfo`만 포함합니다.
 

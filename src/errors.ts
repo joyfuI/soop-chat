@@ -67,3 +67,76 @@ export class ProtocolError extends SoopChatError {
     this.discarded = discarded;
   }
 }
+
+export type SerializedChannelResolutionError =
+  | {
+      code: "BROADCAST_OFFLINE";
+      message: string;
+    }
+  | {
+      code: "RESTRICTED_ROOM";
+      message: string;
+      reason: RestrictedRoomReason;
+    }
+  | {
+      code: "CHANNEL_RESOLUTION_FAILED";
+      message: string;
+    };
+
+const INVALID_SERIALIZED_ERROR_MESSAGE = "Invalid serialized channel resolution error.";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isRestrictedRoomReason(value: unknown): value is RestrictedRoomReason {
+  return (
+    value === "password" ||
+    value === "adult" ||
+    value === "subscriptionPlus" ||
+    value === "loginRequired" ||
+    value === "unknown"
+  );
+}
+
+export function serializeChannelResolutionError(error: unknown): SerializedChannelResolutionError {
+  if (error instanceof BroadcastOfflineError) {
+    return { code: "BROADCAST_OFFLINE", message: error.message };
+  }
+  if (error instanceof RestrictedRoomError) {
+    return { code: "RESTRICTED_ROOM", message: error.message, reason: error.reason };
+  }
+  if (error instanceof ChannelResolutionError) {
+    return { code: "CHANNEL_RESOLUTION_FAILED", message: error.message };
+  }
+  return { code: "CHANNEL_RESOLUTION_FAILED", message: "Channel resolution failed." };
+}
+
+export function deserializeChannelResolutionError(
+  input: unknown,
+  context?: { streamerId?: string },
+): BroadcastOfflineError | RestrictedRoomError | ChannelResolutionError {
+  if (!isRecord(input) || typeof input.message !== "string" || !input.message) {
+    return new ChannelResolutionError(INVALID_SERIALIZED_ERROR_MESSAGE);
+  }
+
+  switch (input.code) {
+    case "BROADCAST_OFFLINE": {
+      const streamerId =
+        typeof context?.streamerId === "string" && context.streamerId
+          ? context.streamerId
+          : "unknown";
+      const error = new BroadcastOfflineError(streamerId);
+      error.message = input.message;
+      return error;
+    }
+    case "RESTRICTED_ROOM":
+      return isRestrictedRoomReason(input.reason)
+        ? new RestrictedRoomError(input.reason, input.message)
+        : new ChannelResolutionError(INVALID_SERIALIZED_ERROR_MESSAGE);
+    case "CHANNEL_RESOLUTION_FAILED":
+      return new ChannelResolutionError(input.message);
+    default:
+      return new ChannelResolutionError(INVALID_SERIALIZED_ERROR_MESSAGE);
+  }
+}
