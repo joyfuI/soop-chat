@@ -112,9 +112,10 @@ WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않�
 - `0121`: 도전미션 또는 대결미션 JSON. 공식 플레이어에서 도전미션은 `CHALLENGE_GIFT`, `CHALLENGE_NOTICE`, `CHALLENGE_SETTLE`, 대결미션은 접두사 없는 `GIFT`, `NOTICE`, `SETTLE`로 분기합니다. 이를 `missionKind`와 `action` 판별 유니온으로 노출하고 원본 객체도 보존합니다.
 - 도전미션 `GIFT`는 `missionKey`, `uuid`, 후원자·방송인, chat number, relay 여부, 이미지, 제목과 후원 개수를 제공합니다. 화면의 개별 후원 문구에는 제목이 표시되지 않지만 패킷에는 들어 있습니다. `NOTICE`는 같은 `missionKey`의 제목과 `mission_status=SUCCESS|FAIL`, `SETTLE`은 제목과 `settle_count`를 전달합니다.
 - 3시간 41분의 미션 집중 캡처에서 94개 `GIFT`, 85개 `NOTICE`, 78개 `SETTLE`을 관찰했습니다. 성공 78건은 모두 `SUCCESS → SETTLE → 0125`로 이어졌고, 실패 7건에는 정산이 없었습니다. 같은 사용자의 100+33+67개 후원은 동일 `missionKey`로 묶여 200개로 정산됐으며, 관찰한 모든 성공 미션에서 후원 합계와 `settle_count`가 일치했습니다.
+- 추가 캡처에서도 100개 미션 실패는 `FAIL`과 화면의 실패 문구만 남고 정산되지 않았습니다. 200개·1,000개 미션 성공은 각각 `SUCCESS → SETTLE → 0125`와 화면의 같은 획득 개수로 이어졌습니다. 1,000개 미션은 후원부터 성공까지 약 8시간 42분 동안 같은 `missionKey`를 유지했습니다.
 - `missionKey`는 같은 미션의 여러 패킷에서 유지됩니다. `uuid`는 각 `0121` 알림마다 달랐지만 `CHALLENGE_SETTLE`과 이에 대응하는 `0125`는 같은 값을 사용하므로 두 정산 이벤트를 연결할 수 있습니다.
 - `GIFT` 뒤 `NOTICE`가 없는 사례도 있습니다. 추가 캡처에서는 `CHALLENGE_GIFT` 수신 뒤 화면이 수락 대기 상태였다가 스트리머가 수락했지만, 수락 순간에 대응하는 채팅 WebSocket 패킷은 없었습니다. 따라서 `CHALLENGE_GIFT`는 제안·후원 수신을 뜻할 뿐 수락 완료를 뜻하지 않습니다. 대기·수락·거절을 별도 상태로 추측하지 않으며, 결과 패킷이 없다는 이유로 `rejected` 상태를 만들지 않습니다. 도전미션 후원은 같은 시각의 일반 별풍선 `0018`로 중복 전송되지 않았습니다.
-- `0125`: 도전미션 정산 뒤 팬 상태를 전달하는 JSON입니다. `list`의 각 항목은 `[userId, nickname, contributionCount, becameFanClubFlag, becameTopFanFlag]`이며, `fanOrder`는 `becameFanClubFlag=1`인 경우에만 “N번째 팬클럽” 문구에 사용됩니다. 플래그가 0인 기존 팬에게 순번이 표시되지 않는 사례와, 플래그가 1일 때 3684번째·3689번째·7447번째·7495번째 팬클럽 문구가 표시되는 사례를 확인했습니다. 6,850개 정산의 `fanOrder=3722`, 500개 정산의 `fanOrder=5098`과 100개 정산의 `fanOrder=7489`도 참여자 팬클럽 플래그가 모두 0이었고 화면에 팬클럽 문구가 없었습니다. `chatNo`, `uuid`, 구조화한 참여자 목록과 원본 객체를 함께 보존합니다.
+- `0125`: 도전미션 정산 뒤 팬 상태를 전달하는 JSON입니다. `list`의 각 항목은 `[userId, nickname, contributionCount, becameFanClubFlag, becameTopFanFlag]`이며, `fanOrder`는 `becameFanClubFlag=1`인 경우에만 “N번째 팬클럽” 문구에 사용됩니다. 플래그가 0인 기존 팬에게 순번이 표시되지 않는 사례와, 플래그가 1일 때 3684번째·3689번째·7447번째·7495번째 팬클럽 문구가 표시되는 사례를 확인했습니다. 6,850개 정산의 `fanOrder=3722`, 500개 정산의 `fanOrder=5098`, 100개 정산의 `fanOrder=7489`과 추가 200개·1,000개 정산의 `fanOrder=3738`도 참여자 팬클럽 플래그가 모두 0이었고 화면에 팬클럽 문구가 없었습니다. `chatNo`, `uuid`, 구조화한 참여자 목록과 원본 객체를 함께 보존합니다.
 
 ## OGQ 이모티콘
 
@@ -174,7 +175,7 @@ animation, cheerTeamNumber
 ## 추가로 구조화한 플레이어 이벤트
 
 - `0001 login`, `0002 joinChannel`, `0003 quitChannel`: 공식 플레이어가 읽는 사용자 플래그, 방송인·패밀리 닉네임, 본인 강퇴 사유를 제공합니다. 연결 상태 전환은 기존처럼 클라이언트 코어가 담당합니다. `0013 setSubBj`는 공식 `flag1`·`flag2`와 독립 권한 판정을 제공하며, 실방송에서 `fixedManager` 비트가 유지된 사용자에게 입장 직후 `manager` 비트가 추가되는 과정이 두 번 관찰됐습니다.
-- `0014 setNickname`: 같은 사용자가 변경 전 닉네임으로 후원한 뒤 `changeType=1`을 받고 이후 새 닉네임으로 후원·채팅금지 대상에 나타났습니다. 화면에는 별도 시스템 안내가 없었으므로 안내 메시지를 합성하지 않습니다.
+- `0014 setNickname`: `changeType=1` 사례는 같은 사용자가 변경 전 닉네임으로 후원한 뒤 새 닉네임으로 후원·채팅금지 대상에 나타났습니다. `changeType=0` 사례도 79초 뒤 새 닉네임으로 후원·채팅했지만, 이후 재입장에서 이전 닉네임과 새 닉네임이 모두 관찰됐습니다. 화면에는 별도 시스템 안내가 없었으므로 숫자의 열거 의미나 안내 메시지를 합성하지 않습니다.
 - `0009 directChat`, `0023 slowMode`: 귓속말 양쪽 사용자와 운영자 여부, 자동·수동 슬로우모드 시간을 제공합니다.
 - `0020/0034 sendFanLetter`, `0033 sendBalloonSub`, `0037/0038 chocolate`: 일반·서브 채널 후원 필드와 릴레이 여부를 공식 분기대로 구조화합니다.
 - `0045 sendQuickView`: 공식 플레이어 분기대로 일반 퀵뷰 `1/2/3`을 `30/90/365`일, 퀵뷰 플러스 `100/101/102/103`을 `7/30/90/365`일로 구조화합니다. `itemType=100`은 실방송의 퀵뷰 플러스 7일 이용권 선물 화면과 대조했습니다. 추가 캡처에서 한 사용자가 보낸 `itemType=1` 20건은 각각 다른 수신자의 퀵뷰 30일 이용권 선물 화면과, 다른 사용자가 보낸 `itemType=101` 16건은 퀵뷰 플러스 30일 이용권 선물 화면과 일치했습니다. 같은 발신자와 수신자의 `itemType=100` 4건도 화면에 같은 선물 문구가 4번 표시됐습니다. 전체 개수의 합계 패킷은 없고 동일 내용이어도 중복 제거하지 않습니다.
@@ -182,7 +183,7 @@ animation, cheerTeamNumber
 - `0070/0071 buyGoods`, `0074 notifyVr`, `0075 notifyMobBroadPause`: 상품 구매, VR 연결 정보, 모바일 송출 일시정지·재개 상태를 제공합니다.
 - `0076 kickAndCancel`, `0077 kickUserList`, `0078 adminChatUser`: 강퇴 취소와 강퇴 대상·명령자 목록을 구조화합니다. `0078`은 공식 플레이어의 `flag1`·`flag2` 및 `isAdmin`, `isManager`, `isFixedManager`, `isEmployee`, `isEmployeeAdminChat`, `isCleanAti` 판정을 독립적으로 제공하며 여러 비트를 하나의 역할로 축약하지 않습니다.
 - `0092 itemSellEffect`, `0103 vodAdcon`, `0111 itemDrops`, `0126 setAdminFlag`: 판매 효과, VOD 애드벌룬, 드롭스, 운영자 플래그를 구조화합니다. `0111`은 같은 드롭스 상품명으로 약 20분 간격으로 6회 수신됐지만 다시보기에서 화면 문구를 확인하지 못해 공식 필드 이상을 합성하지 않습니다.
-- `0107 stationAdcon`: 실방송의 방송국 애드벌룬 2개·4개 화면과 `count=2/4`가 각각 일치했습니다. 공식 플레이어처럼 `senderNickname`, `count`, 원본 `title`을 분리해 제공하고 지역화된 화면 문구를 합성하지 않습니다.
+- `0107 stationAdcon`: 실방송의 방송국 애드벌룬 1개·2개·4개 화면과 `count=1/2/4`가 각각 일치했습니다. 공식 플레이어처럼 `senderNickname`, `count`, 원본 `title`을 분리해 제공하고 지역화된 화면 문구를 합성하지 않습니다.
 - 기존 구조화 이벤트 중 `0005 chatMessage`에는 캐리지 리턴 제거와 색상·누적 구독·대표 퍼스널콘·응원팀을, `0091 followItem`에는 티어·언어·URL 보정을 추가했습니다. `0107 stationAdcon.chatNo`는 공식 플레이어와 같은 원본 문자열로 바로잡았습니다.
 - `0121 mission`의 대결미션도 `GIFT`·`NOTICE`·`SETTLE`별 공식 필드를 제공하고, `0141 nightbotTimeout`은 사유 코드를 언어 중립 판별 값으로 함께 제공합니다.
 
