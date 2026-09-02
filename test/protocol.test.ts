@@ -50,6 +50,22 @@ void test("parses multiple packets and recovers after garbage", () => {
   assert.equal(decodePacket(result.packets[1]!).type, "unknown");
 });
 
+void test("rejects non-numeric header flags and recovers at the next packet", () => {
+  const invalid = encodePacket("0000");
+  invalid[12] = "x".charCodeAt(0);
+  const valid = encodePacket("0001");
+  const combined = new Uint8Array(invalid.length + valid.length);
+  combined.set(invalid);
+  combined.set(valid, invalid.length);
+
+  const result = new PacketStreamParser().push(combined);
+  assert.ok(result.errors.some((error) => error.message === "Invalid SOOP packet header."));
+  assert.deepEqual(
+    result.packets.map(({ opcode }) => opcode),
+    ["0001"],
+  );
+});
+
 void test("accepts every WebSocket message data representation", async () => {
   const value = "hello😀";
   const bytes = new TextEncoder().encode(value);

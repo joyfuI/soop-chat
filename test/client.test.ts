@@ -44,7 +44,7 @@ class FakeSocket implements WebSocketLike {
     this.onopen?.(new Event("open"));
   }
 
-  receive(data: Uint8Array): void {
+  receive(data: WebSocketMessageData): void {
     this.onmessage?.({ data } as unknown as MessageEvent<WebSocketMessageData>);
   }
 
@@ -55,6 +55,14 @@ class FakeSocket implements WebSocketLike {
 }
 
 const turn = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+async function waitFor(condition: () => boolean, timeoutMs = 250): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() >= deadline) assert.fail("Timed out waiting for test condition.");
+    await turn();
+  }
+}
 
 function sentOpcodes(socket: FakeSocket): string[] {
   const parser = new PacketStreamParser();
@@ -200,6 +208,197 @@ void test("re-resolves channel information and reconnects after an unexpected cl
   assert.deepEqual(reconnects, [1]);
   assert.equal(client.state, "connected");
   await client.disconnect();
+});
+
+void test("manual connect cancels a scheduled retry instead of opening a second session", async () => {
+  const firstSocket = new FakeSocket();
+  const secondSocket = new FakeSocket();
+  const sockets = [firstSocket, secondSocket];
+  let resolverCalls = 0;
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => {
+      resolverCalls += 1;
+      return channel;
+    },
+    createWebSocket: () => sockets.shift()!,
+    reconnect: { initialDelayMs: 40, maxDelayMs: 40, jitter: 0 },
+  });
+
+  await join(client, firstSocket);
+  firstSocket.closeFromServer();
+  const connecting = client.connect();
+  await turn();
+  secondSocket.open();
+  secondSocket.receive(encodePacket("0001"));
+  secondSocket.receive(encodePacket("0002"));
+  await connecting;
+  await new Promise((resolve) => setTimeout(resolve, 60));
+
+  assert.equal(resolverCalls, 2);
+  assert.equal(client.state, "connected");
+  await client.disconnect();
+});
+
+void test("manual connect joins an active reconnect attempt", async () => {
+  const firstSocket = new FakeSocket();
+  const secondSocket = new FakeSocket();
+  const sockets = [firstSocket, secondSocket];
+  let resolverCalls = 0;
+  let releaseReconnect!: (value: ChannelInfo) => void;
+  const reconnectChannel = new Promise<ChannelInfo>((resolve) => {
+    releaseReconnect = resolve;
+  });
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => {
+      resolverCalls += 1;
+      return resolverCalls === 1 ? channel : reconnectChannel;
+    },
+    createWebSocket: () => sockets.shift()!,
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+  });
+
+  await join(client, firstSocket);
+  firstSocket.closeFromServer();
+  await waitFor(() => resolverCalls === 2);
+  const connecting = client.connect();
+  await turn();
+  assert.equal(resolverCalls, 2);
+
+  releaseReconnect(channel);
+  await turn();
+  secondSocket.open();
+  secondSocket.receive(encodePacket("0001"));
+  secondSocket.receive(encodePacket("0002"));
+  await connecting;
+  assert.equal(client.state, "connected");
+  await client.disconnect();
+});
+
+void test("heartbeat send failures enter the reconnect flow without escaping the timer", async () => {
+  const firstSocket = new FakeSocket();
+  const secondSocket = new FakeSocket();
+  const sockets = [firstSocket, secondSocket];
+  const errors: string[] = [];
+  const reconnects: number[] = [];
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => sockets.shift()!,
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+    heartbeatIntervalMs: 5,
+  });
+  client.on("error", (error) => errors.push(error.message));
+  client.on("reconnecting", ({ attempt }) => reconnects.push(attempt));
+
+  await join(client, firstSocket);
+  firstSocket.throwOnSend = true;
+  await waitFor(() => sockets.length === 0);
+  secondSocket.open();
+  secondSocket.receive(encodePacket("0001"));
+  secondSocket.receive(encodePacket("0002"));
+  await waitFor(() => client.state === "connected");
+
+  assert.deepEqual(errors, ["synthetic send failure"]);
+  assert.deepEqual(reconnects, [1]);
+  assert.equal(firstSocket.readyState, 3);
+  await client.disconnect();
+});
+
+void test("times out and cleans up a stalled WebSocket handshake", async () => {
+  const socket = new FakeSocket();
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+    handshakeTimeoutMs: 5,
+  });
+
+  await assert.rejects(client.connect(), /handshake timed out after 5ms/);
+  assert.equal(socket.readyState, 3);
+  assert.equal(socket.onopen, null);
+  assert.equal(socket.onmessage, null);
+  assert.equal(socket.onclose, null);
+  assert.equal(socket.onerror, null);
+  assert.equal(client.state, "closed");
+});
+
+void test("ignores handshake data that finishes decoding after timeout", async () => {
+  const socket = new FakeSocket();
+  let release: ((value: ArrayBuffer) => void) | undefined;
+  const delayed = Object.assign(new Blob(), {
+    arrayBuffer: () =>
+      new Promise<ArrayBuffer>((resolve) => {
+        release = resolve;
+      }),
+  });
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+    handshakeTimeoutMs: 5,
+  });
+
+  const connecting = client.connect();
+  await turn();
+  socket.open();
+  socket.receive(delayed);
+  await assert.rejects(connecting, /handshake timed out/);
+  assert.ok(release);
+  release(encodePacket("0002").buffer);
+  await turn();
+  assert.equal(client.state, "closed");
+});
+
+void test("retries when a reconnect handshake times out", async () => {
+  const sockets: FakeSocket[] = [];
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => {
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket;
+    },
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+    handshakeTimeoutMs: 5,
+  });
+
+  const connecting = client.connect();
+  await waitFor(() => sockets.length === 1);
+  sockets[0]!.open();
+  sockets[0]!.receive(encodePacket("0001"));
+  sockets[0]!.receive(encodePacket("0002"));
+  await connecting;
+  sockets[0]!.closeFromServer();
+
+  await waitFor(() => sockets.length === 3);
+  assert.equal(sockets[1]!.readyState, 3);
+  assert.equal(client.state, "connecting");
+  await client.disconnect();
+});
+
+void test("rejects non-finite reconnect options and invalid handshake timeouts", () => {
+  const create = (options: Partial<ConstructorParameters<typeof SoopChatCore>[0]>) =>
+    new SoopChatCore({
+      streamerId: "streamer",
+      resolveChannel: async () => channel,
+      createWebSocket: () => new FakeSocket(),
+      ...options,
+    });
+
+  for (const reconnect of [
+    { initialDelayMs: Number.NaN },
+    { maxDelayMs: Number.POSITIVE_INFINITY },
+    { factor: Number.NaN },
+    { jitter: Number.NEGATIVE_INFINITY },
+  ]) {
+    assert.throws(() => create({ reconnect }), /must be finite/);
+  }
+  for (const handshakeTimeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => create({ handshakeTimeoutMs }), /positive finite number/);
+  }
 });
 
 void test("stops reconnecting when the broadcast becomes offline", async () => {

@@ -46,12 +46,13 @@
     "format:check": "oxfmt --check",
     "lint": "oxlint --type-aware --deny-warnings",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test:unit && npm run build",
     "test": "npm run test:unit",
     "test:unit": "npm run build:test && node --test .test-dist/test/*.test.js",
     "test:browser": "npm run build && playwright test",
     "test:live": "npm run build && node test/live-smoke.mjs",
     "pack:check": "npm run build && npm pack --dry-run",
-    "prepublishOnly": "npm run typecheck && npm run lint && npm run format:check && npm run test:unit && npm run build"
+    "prepublishOnly": "npm run check"
   },
   "dependencies": {
     "ws": "^8.21.3"

@@ -66,7 +66,7 @@ const chat = new SoopChat({
 await chat.connect();
 ```
 
-`credentials`와 `roomPassword`는 Node 프로세스 메모리에서만 사용합니다. 로그인 유지와 아이디 저장을 요청하지 않으며, 방 비밀번호, `AuthTicket`, `TK`, `FTK`를 `ChannelInfo`나 이벤트로 노출하지 않습니다. 자동 재연결은 같은 메모리 내 방 비밀번호와 로그인 티켓을 재사용합니다. `resolveChannel`을 직접 전달하면 사용자 리졸버가 우선하며 `credentials`는 사용하지 않습니다.
+`SoopChat`에 `credentials`를 직접 전달하는 Node 기본 경로에서는 `credentials`와 `roomPassword`를 프로세스 메모리에서만 사용합니다. 로그인 유지와 아이디 저장을 요청하지 않으며, 방 비밀번호, `AuthTicket`, `TK`, `FTK`를 공개 `ChannelInfo`나 이벤트로 노출하지 않습니다. 자동 재연결은 같은 메모리 내 방 비밀번호와 로그인 티켓을 재사용합니다. `resolveChannel`을 직접 전달하면 사용자 리졸버가 우선하며 `credentials`는 사용하지 않습니다. 아래의 서버 보조 브라우저 경로는 별도이며, 브라우저가 WebSocket에 접속할 수 있도록 `TK`와 `FTK`만 `AuthenticatedChannelInfo`에 일시적으로 포함합니다.
 
 Node에서도 별도 API나 캐시를 사용하려면 브라우저와 같은 형태의 `resolveChannel`을 생성자에 전달해 기본 조회를 대체할 수 있습니다.
 
@@ -257,6 +257,7 @@ console.log(EVENT_CATALOG["0005"]);
 ```ts
 const chat = new SoopChat({
   streamerId: "soopId",
+  handshakeTimeoutMs: 30_000,
   reconnect: {
     enabled: true,
     initialDelayMs: 1_000,
@@ -271,7 +272,9 @@ chat.on("reconnecting", ({ attempt, delayMs }) => {
 });
 ```
 
-`reconnect: false` 또는 `reconnect: { enabled: false }`로 자동 재연결을 끌 수 있습니다.
+`handshakeTimeoutMs`는 채널 해석이 끝난 뒤 WebSocket을 만들고 `0002` 입장 응답을 받을 때까지의 제한이며 기본값은 30초입니다. timeout이 자동 재연결 도중 발생하면 다음 retry로 이어집니다. 예약된 retry 중 `connect()`를 직접 호출하면 대기를 취소하고 즉시 연결하며, 이미 retry 연결이 진행 중이면 같은 연결 Promise를 사용합니다.
+
+`reconnect: false` 또는 `reconnect: { enabled: false }`로 자동 재연결을 끌 수 있습니다. timeout과 reconnect의 모든 숫자 옵션은 유한한 숫자여야 합니다.
 
 ## 오류와 제한
 
@@ -306,13 +309,13 @@ Node에서는 비밀번호 방, 성인 인증이 완료된 계정의 19금 방�
 
 ```sh
 npm install
-npm run typecheck
-npm run lint
-npm run format:check
-npm run test:unit
+npm run format
+npm run check
 npm run test:browser
 npm run pack:check
 ```
+
+`npm run check`는 typecheck, lint, format check, 단위 테스트와 build를 CI와 같은 순서로 실행합니다. 브라우저 테스트와 패키지 검사는 실행 환경이 달라 별도 명령으로 유지합니다.
 
 실제 공개 방송에 대한 선택 실행형 smoke test:
 

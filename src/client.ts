@@ -31,6 +31,7 @@ const DEFAULT_RECONNECT: Required<ReconnectOptions> = {
   factor: 2,
   jitter: 0.2,
 };
+const DEFAULT_HANDSHAKE_TIMEOUT_MS = 30_000;
 
 interface CoreOptions extends SoopChatOptions {
   resolveChannel: ChannelResolver;
@@ -43,6 +44,11 @@ function reconnectOptions(value: SoopChatOptions["reconnect"]): Required<Reconne
   if (value === false) return { ...DEFAULT_RECONNECT, enabled: false };
   if (value === true || value === undefined) return { ...DEFAULT_RECONNECT };
   const merged = { ...DEFAULT_RECONNECT, ...value };
+  if (
+    ![merged.initialDelayMs, merged.maxDelayMs, merged.factor, merged.jitter].every(Number.isFinite)
+  ) {
+    throw new RangeError("Reconnect numeric options must be finite.");
+  }
   if (merged.initialDelayMs < 0 || merged.maxDelayMs < merged.initialDelayMs) {
     throw new RangeError(
       "Reconnect delays must be non-negative and maxDelayMs must be >= initialDelayMs.",
@@ -107,6 +113,7 @@ export class SoopChatCore {
   #createWebSocket: WebSocketFactory;
   #roomPassword: string;
   #reconnect: Required<ReconnectOptions>;
+  #handshakeTimeoutMs: number;
   #heartbeatIntervalMs: number;
   #random: () => number;
   #socket: WebSocketLike | undefined;
@@ -127,6 +134,10 @@ export class SoopChatCore {
     this.#createWebSocket = options.createWebSocket;
     this.#roomPassword = roomPassword(options.roomPassword);
     this.#reconnect = reconnectOptions(options.reconnect);
+    this.#handshakeTimeoutMs = options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS;
+    if (!Number.isFinite(this.#handshakeTimeoutMs) || this.#handshakeTimeoutMs <= 0) {
+      throw new RangeError("handshakeTimeoutMs must be a positive finite number.");
+    }
     this.#heartbeatIntervalMs = options.heartbeatIntervalMs ?? 60_000;
     this.#random = options.random ?? Math.random;
   }
@@ -149,20 +160,30 @@ export class SoopChatCore {
   }
 
   async connect(): Promise<void> {
+    if (this.#retryTimer) clearTimeout(this.#retryTimer);
+    this.#retryTimer = undefined;
     if (this.#state === "connected") return;
     if (this.#connectPromise) return this.#connectPromise;
 
     this.#stopped = false;
     this.#reconnectAttempt = 0;
-    this.#connectPromise = this.#openSession();
     try {
-      await this.#connectPromise;
+      await this.#startSession();
     } catch (cause) {
       if (!this.#stopped) await this.disconnect();
       throw cause;
-    } finally {
-      this.#connectPromise = undefined;
     }
+  }
+
+  #startSession(): Promise<void> {
+    if (this.#connectPromise) return this.#connectPromise;
+    const promise = this.#openSession();
+    this.#connectPromise = promise;
+    const clear = () => {
+      if (this.#connectPromise === promise) this.#connectPromise = undefined;
+    };
+    void promise.then(clear, clear);
+    return promise;
   }
 
   async disconnect(): Promise<void> {
@@ -212,18 +233,37 @@ export class SoopChatCore {
     await new Promise<void>((resolve, reject) => {
       let joined = false;
       let settled = false;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
 
       const fail = (error: Error): void => {
         if (!settled) {
           settled = true;
+          if (timeout !== undefined) clearTimeout(timeout);
           this.#cancelPendingSession = undefined;
-          if (this.#socket === socket && socket.readyState < 2)
-            socket.close(1002, "Handshake failed");
+          if (this.#socket === socket) this.#socket = undefined;
+          socket.onopen = null;
+          socket.onmessage = null;
+          socket.onclose = null;
+          socket.onerror = null;
+          if (socket.readyState < 2) {
+            try {
+              socket.close(1002, "Handshake failed");
+            } catch {
+              // Preserve the original handshake error.
+            }
+          }
           reject(error);
         }
       };
       this.#cancelPendingSession = () =>
         fail(new DOMException("Connection was aborted.", "AbortError"));
+      timeout = setTimeout(
+        () =>
+          fail(
+            new Error(`SOOP WebSocket handshake timed out after ${this.#handshakeTimeoutMs}ms.`),
+          ),
+        this.#handshakeTimeoutMs,
+      );
 
       socket.onopen = () => {
         try {
@@ -237,6 +277,7 @@ export class SoopChatCore {
         this.#messageQueue = this.#messageQueue
           .then(async () => {
             const bytes = await messageDataToBytes(message.data);
+            if (settled && !joined) return;
             const batch = this.#parser.push(bytes);
             for (const error of batch.errors) this.#emit("protocolError", { error });
             for (const raw of batch.packets) {
@@ -244,6 +285,7 @@ export class SoopChatCore {
               if (!joined && raw.opcode === "0002") {
                 joined = true;
                 settled = true;
+                if (timeout !== undefined) clearTimeout(timeout);
                 this.#cancelPendingSession = undefined;
                 this.#reconnectAttempt = 0;
                 this.#setState("connected");
@@ -253,6 +295,7 @@ export class SoopChatCore {
             }
           })
           .catch((cause) => {
+            if (settled && !joined) return;
             const error = cause instanceof Error ? cause : new Error(String(cause));
             this.#emit("error", error);
             fail(error);
@@ -264,15 +307,13 @@ export class SoopChatCore {
       };
 
       socket.onclose = (event) => {
-        this.#clearHeartbeat();
-        if (this.#socket === socket) this.#socket = undefined;
         const error = new Error(
           `SOOP WebSocket closed (${event.code}${event.reason ? `: ${event.reason}` : ""}).`,
         );
         if (!joined) {
           fail(error);
         } else if (!this.#stopped) {
-          this.#scheduleReconnect(error);
+          this.#recoverTransport(socket, error);
         }
       };
     });
@@ -335,13 +376,37 @@ export class SoopChatCore {
   #startHeartbeat(socket: WebSocketLike): void {
     this.#clearHeartbeat();
     this.#heartbeat = setInterval(() => {
-      if (socket.readyState === 1) socket.send(createKeepAlivePacket());
+      try {
+        if (socket.readyState === 1) socket.send(createKeepAlivePacket());
+      } catch (cause) {
+        const error = cause instanceof Error ? cause : new Error(String(cause));
+        this.#emit("error", error);
+        this.#recoverTransport(socket, error);
+      }
     }, this.#heartbeatIntervalMs);
   }
 
   #clearHeartbeat(): void {
     if (this.#heartbeat) clearInterval(this.#heartbeat);
     this.#heartbeat = undefined;
+  }
+
+  #recoverTransport(socket: WebSocketLike, error: Error): void {
+    if (this.#socket !== socket || this.#stopped) return;
+    this.#clearHeartbeat();
+    this.#socket = undefined;
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onclose = null;
+    socket.onerror = null;
+    if (socket.readyState < 2) {
+      try {
+        socket.close(1011, "Transport failed");
+      } catch {
+        // Reconnect even if the failed transport cannot be closed cleanly.
+      }
+    }
+    this.#scheduleReconnect(error);
   }
 
   #scheduleReconnect(error: Error): void {
@@ -362,7 +427,7 @@ export class SoopChatCore {
     this.#retryTimer = setTimeout(() => {
       this.#retryTimer = undefined;
       if (this.#stopped) return;
-      void this.#openSession().catch((cause: unknown) => {
+      void this.#startSession().catch((cause: unknown) => {
         const nextError = cause instanceof Error ? cause : new Error(String(cause));
         if (nextError instanceof BroadcastOfflineError) {
           this.#stopped = true;

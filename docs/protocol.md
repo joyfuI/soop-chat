@@ -217,7 +217,9 @@ animation, cheerTeamNumber
 
 공식 플레이어는 `0002`의 마지막 필드에 접속 로그와 `pwd`, `auth_info`, `pver`, `access_system` 값을 조합하지만, 두 실방송의 읽기 전용 입장에는 빈 값으로 충분했습니다. 라이브러리는 확인된 최소 필드만 보냅니다.
 
-`createNodeChannelResolver`는 계정 정보를 받아 `AuthTicket`을 Node 프로세스 메모리에서만 재사용합니다. `TK`와 `FTK`도 `ChannelInfo`의 열거 필드나 이벤트에 넣지 않고 내부 `WeakMap`에 연결하므로 JSON 직렬화로 유출되지 않습니다.
+`createNodeChannelResolver`는 계정 정보를 받아 첫 인증에서 얻은 `AuthTicket`을 resolver closure가 살아 있는 동안 Node 프로세스 메모리에서 재사용합니다. `TK`와 `FTK`도 `ChannelInfo`의 열거 필드나 이벤트에 넣지 않고 내부 `WeakMap`에 연결하므로 JSON 직렬화로 유출되지 않습니다.
+
+현재 구현은 `AuthTicket`의 만료 시간을 알지 못하며 자동 갱신이나 인증 실패 후 재로그인을 시도하지 않습니다. 서버에서 티켓이 만료되거나 무효화되면 이후 라이브 정보 조회 오류가 호출자에게 전달됩니다. 장시간 실행 서비스는 이 상황을 애플리케이션 인증 수명주기로 처리해 resolver 또는 `SoopChat` 인스턴스를 새로 만들어야 합니다. 정확한 TTL과 무효화 응답 형태가 실증되지 않았으므로 추측에 기반한 refresh 로직은 추가하지 않습니다.
 
 서버 보조 브라우저 연결에서는 `authenticateNode`가 서버에 보관할 `AuthTicket`을 반환하고, `resolveNodeChannel`의 두 번째 인수에 이를 `authentication`으로 전달합니다. 이 호출은 직렬화 가능한 `AuthenticatedChannelInfo`에 `TK`와 `FTK`를 포함합니다. 브라우저 클라이언트는 두 값을 검증하고 내부 `WeakMap`으로 옮긴 뒤 위와 같은 인증 패킷을 보냅니다. `AuthTicket`은 브라우저에 전달하지 않습니다. 애플리케이션 서버를 무상태로 운영하려면 `AuthTicket`만 인증된 암호화 방식으로 봉인한 HttpOnly 쿠키를 사용하며, 계정 비밀번호나 평문·서명 전용 토큰은 쿠키에 저장하지 않습니다. 로그인 API 오류는 계정 정보나 응답 본문을 포함하지 않는 `AuthenticationError`로 전달합니다.
 

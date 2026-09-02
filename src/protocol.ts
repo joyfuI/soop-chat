@@ -177,7 +177,7 @@ export class PacketStreamParser {
       const lengthText = ascii(this.#buffer.slice(6, 12));
       const flags = ascii(this.#buffer.slice(12, 14));
 
-      if (!/^\d{4}$/.test(opcode) || !/^\d{6}$/.test(lengthText)) {
+      if (!/^\d{4}$/.test(opcode) || !/^\d{6}$/.test(lengthText) || !/^\d{2}$/.test(flags)) {
         const discarded = this.#buffer.slice(0, 2);
         this.#buffer = this.#buffer.slice(2);
         errors.push(new ProtocolError("Invalid SOOP packet header.", discarded));

@@ -44,6 +44,7 @@ export interface ReconnectOptions {
 export interface SoopChatOptions {
   streamerId: string;
   roomPassword?: string;
+  handshakeTimeoutMs?: number;
   reconnect?: boolean | ReconnectOptions;
   resolveChannel?: ChannelResolver;
 }
