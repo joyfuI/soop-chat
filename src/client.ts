@@ -123,7 +123,6 @@ export class SoopChatCore {
   #heartbeat: ReturnType<typeof setInterval> | undefined;
   #retryTimer: ReturnType<typeof setTimeout> | undefined;
   #cancelPendingSession: (() => void) | undefined;
-  #messageQueue = Promise.resolve();
   #stopped = true;
   #reconnectAttempt = 0;
 
@@ -234,6 +233,7 @@ export class SoopChatCore {
       let joined = false;
       let settled = false;
       let timeout: ReturnType<typeof setTimeout> | undefined;
+      let messageQueue = Promise.resolve();
 
       const fail = (error: Error): void => {
         if (!settled) {
@@ -274,10 +274,10 @@ export class SoopChatCore {
       };
 
       socket.onmessage = (message) => {
-        this.#messageQueue = this.#messageQueue
+        messageQueue = messageQueue
           .then(async () => {
             const bytes = await messageDataToBytes(message.data);
-            if (settled && !joined) return;
+            if (this.#socket !== socket || (settled && !joined)) return;
             const batch = this.#parser.push(bytes);
             for (const error of batch.errors) this.#emit("protocolError", { error });
             for (const raw of batch.packets) {
@@ -295,7 +295,7 @@ export class SoopChatCore {
             }
           })
           .catch((cause) => {
-            if (settled && !joined) return;
+            if (this.#socket !== socket || (settled && !joined)) return;
             const error = cause instanceof Error ? cause : new Error(String(cause));
             this.#emit("error", error);
             fail(error);
@@ -368,9 +368,26 @@ export class SoopChatCore {
   }
 
   #emitProtocol(event: Exclude<SoopEvent, { type: "unknown" }>): void {
-    const listeners = this.#listeners.get(event.type);
+    this.#emitListeners(event.type, event);
+  }
+
+  #emitListeners(type: string, event: unknown): void {
+    const listeners = this.#listeners.get(type);
     if (!listeners) return;
-    for (const listener of Array.from(listeners)) listener(event as never);
+    for (const listener of Array.from(listeners)) {
+      try {
+        listener(event as never);
+      } catch (cause) {
+        if (type !== "error") {
+          this.#emit(
+            "error",
+            cause instanceof Error
+              ? cause
+              : new Error("SOOP event listener threw a non-Error value.", { cause }),
+          );
+        }
+      }
+    }
   }
 
   #startHeartbeat(socket: WebSocketLike): void {
@@ -456,8 +473,6 @@ export class SoopChatCore {
   }
 
   #emit<K extends SoopChatEventType>(type: K, event: SoopChatEventMap[K]): void {
-    const listeners = this.#listeners.get(type);
-    if (!listeners) return;
-    for (const listener of Array.from(listeners)) listener(event as never);
+    this.#emitListeners(type, event);
   }
 }

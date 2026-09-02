@@ -239,6 +239,8 @@ off();
 
 `connect()` 자체의 실패는 Promise에서 예외로 전달됩니다. WebSocket이나 비동기 처리 오류는 `error`, 연결 후 확인된 방송 종료나 접근 제한은 `ended`, 복구 가능한 연결 종료는 `reconnecting`으로 구분할 수 있습니다. 수동 `disconnect()`는 `ended`를 발생시키지 않습니다.
 
+사용자 listener가 던진 예외는 내부 연결 상태를 중단시키지 않고 등록된 `error` listener로 전달됩니다. 재귀 오류를 막기 위해 `error` listener 자체가 던진 예외는 다시 전달하지 않으며, 같은 이벤트의 다른 listener는 계속 실행됩니다.
+
 공개 `EVENT_CATALOG`로 지원하는 opcode의 이벤트 이름, 설명과 근거 수준을 실행 중 조회할 수 있습니다.
 
 ```ts
@@ -252,7 +254,7 @@ console.log(EVENT_CATALOG["0005"]);
 
 예기치 않은 종료에는 채널 정보를 다시 조회하고 1초부터 최대 30초까지 지수 백오프로 재연결합니다. 채팅 서버가 `0088 closeBroad`를 보내면 `closeBroad`와 `ended: { reason: "offline" }`을 발생시키고 연결을 정상 종료하며 재시도하지 않습니다. 접근 제한도 재시도하지 않습니다.
 
-`chatNo`는 방송 인스턴스마다 새로 발급됩니다. 실방송에서 같은 방송인이 약 5분 사이 세 번 방송을 켰다 끈 사례도 `1694`, `2347`, `4253`으로 매번 바뀌었습니다. `0088` 이후 다음 방송을 읽으려면 `connect()`를 다시 호출하세요. 이때 리졸버가 다시 실행되므로 이전 `ChannelInfo`를 방송 간에 캐시하지 마세요.
+`chatNo`는 방송 인스턴스마다 달라집니다. `0088` 이후 다음 방송을 읽으려면 `connect()`를 다시 호출하세요. 이때 리졸버가 다시 실행되므로 이전 `ChannelInfo`를 방송 간에 캐시하지 마세요. 관찰 근거는 [프로토콜 문서](docs/protocol.md)에 기록되어 있습니다.
 
 ```ts
 const chat = new SoopChat({

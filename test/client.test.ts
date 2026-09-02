@@ -64,6 +64,37 @@ async function waitFor(condition: () => boolean, timeoutMs = 250): Promise<void>
   }
 }
 
+async function settlesWithin<T>(promise: Promise<T>, timeoutMs = 250): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("Promise remained pending.")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+function delayedMessage(): { data: Blob; resolve(bytes: Uint8Array<ArrayBuffer>): void } {
+  let release: ((value: ArrayBuffer) => void) | undefined;
+  const data = Object.assign(new Blob(), {
+    arrayBuffer: () =>
+      new Promise<ArrayBuffer>((resolve) => {
+        release = resolve;
+      }),
+  });
+  return {
+    data,
+    resolve(bytes) {
+      assert.ok(release);
+      release(bytes.buffer);
+    },
+  };
+}
+
 function sentOpcodes(socket: FakeSocket): string[] {
   const parser = new PacketStreamParser();
   return socket.sent.flatMap((packet) => parser.push(packet).packets.map((raw) => raw.opcode));
@@ -306,6 +337,118 @@ void test("heartbeat send failures enter the reconnect flow without escaping the
   await client.disconnect();
 });
 
+void test("a pending decode from an old session does not block or mutate a reconnect", async () => {
+  const firstSocket = new FakeSocket();
+  const secondSocket = new FakeSocket();
+  const sockets = [firstSocket, secondSocket];
+  const delayed = delayedMessage();
+  const ended: string[] = [];
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => sockets.shift()!,
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+  });
+  client.on("ended", ({ reason }) => ended.push(reason));
+
+  await join(client, firstSocket);
+  firstSocket.receive(delayed.data);
+  await turn();
+  try {
+    firstSocket.closeFromServer();
+    await waitFor(() => sockets.length === 0);
+
+    secondSocket.open();
+    secondSocket.receive(encodePacket("0001"));
+    secondSocket.receive(encodePacket("0002"));
+    await waitFor(() => client.state === "connected");
+
+    delayed.resolve(encodePacket("0088", ""));
+    await turn();
+    assert.equal(client.state, "connected");
+    assert.deepEqual(ended, []);
+    assert.equal(secondSocket.readyState, 1);
+  } finally {
+    delayed.resolve(encodePacket("0088", ""));
+    await turn();
+    await client.disconnect();
+  }
+});
+
+void test("state listener failures do not stall connect or reconnect", async () => {
+  const firstSocket = new FakeSocket();
+  const secondSocket = new FakeSocket();
+  const sockets = [firstSocket, secondSocket];
+  const errors: string[] = [];
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => sockets.shift()!,
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+    heartbeatIntervalMs: 5,
+  });
+  client.on("stateChange", ({ current }) => {
+    if (current === "connected") throw new Error("synthetic state listener failure");
+  });
+  client.on("error", (error) => errors.push(error.message));
+
+  try {
+    await settlesWithin(join(client, firstSocket));
+    firstSocket.closeFromServer();
+    await waitFor(() => sockets.length === 0);
+    secondSocket.open();
+    secondSocket.receive(encodePacket("0001"));
+    secondSocket.receive(encodePacket("0002"));
+    await waitFor(() => client.state === "connected");
+
+    assert.deepEqual(errors, [
+      "synthetic state listener failure",
+      "synthetic state listener failure",
+    ]);
+  } finally {
+    await client.disconnect();
+  }
+  assert.equal(firstSocket.readyState, 3);
+  assert.equal(secondSocket.readyState, 3);
+  const sentCount = secondSocket.sent.length;
+  await new Promise((resolve) => setTimeout(resolve, 12));
+  assert.equal(secondSocket.sent.length, sentCount);
+});
+
+void test("protocol listener failures do not block other listeners or later packets", async () => {
+  const socket = new FakeSocket();
+  const messages: string[] = [];
+  const errors: string[] = [];
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+  });
+  client.on("chatMessage", () => {
+    throw new Error("synthetic protocol listener failure");
+  });
+  client.on("chatMessage", ({ data }) => messages.push(data.message));
+  client.on("error", () => {
+    throw new Error("synthetic error listener failure");
+  });
+  client.on("error", (error) => errors.push(error.message));
+
+  try {
+    await join(client, socket);
+    socket.receive(encodePacket("0005", "\x0cfirst\x0cuser\x0c\x0c1\x0c2\x0cnick\x0cflag\x0c0"));
+    socket.receive(encodePacket("0005", "\x0csecond\x0cuser\x0c\x0c1\x0c2\x0cnick\x0cflag\x0c0"));
+    await waitFor(() => messages.length === 2);
+
+    assert.deepEqual(messages, ["first", "second"]);
+    assert.deepEqual(errors, [
+      "synthetic protocol listener failure",
+      "synthetic protocol listener failure",
+    ]);
+  } finally {
+    await client.disconnect();
+  }
+});
+
 void test("times out and cleans up a stalled WebSocket handshake", async () => {
   const socket = new FakeSocket();
   const client = new SoopChatCore({
@@ -326,13 +469,7 @@ void test("times out and cleans up a stalled WebSocket handshake", async () => {
 
 void test("ignores handshake data that finishes decoding after timeout", async () => {
   const socket = new FakeSocket();
-  let release: ((value: ArrayBuffer) => void) | undefined;
-  const delayed = Object.assign(new Blob(), {
-    arrayBuffer: () =>
-      new Promise<ArrayBuffer>((resolve) => {
-        release = resolve;
-      }),
-  });
+  const delayed = delayedMessage();
   const client = new SoopChatCore({
     streamerId: "streamer",
     resolveChannel: async () => channel,
@@ -343,10 +480,9 @@ void test("ignores handshake data that finishes decoding after timeout", async (
   const connecting = client.connect();
   await turn();
   socket.open();
-  socket.receive(delayed);
+  socket.receive(delayed.data);
   await assert.rejects(connecting, /handshake timed out/);
-  assert.ok(release);
-  release(encodePacket("0002").buffer);
+  delayed.resolve(encodePacket("0002"));
   await turn();
   assert.equal(client.state, "closed");
 });
