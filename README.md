@@ -70,6 +70,8 @@ await chat.connect();
 
 Node에서도 별도 API나 캐시를 사용하려면 브라우저와 같은 형태의 `resolveChannel`을 생성자에 전달해 기본 조회를 대체할 수 있습니다.
 
+Node와 브라우저의 사용자 정의 `ChannelResolver`는 전달받은 `AbortSignal`을 `fetch` 등 모든 대기 작업에 반드시 전달해야 합니다. `disconnect()`나 새 lifecycle 전환 시 pending resolution을 빠르게 중단하기 위한 계약이며, signal을 무시하면 이전 `connect()` Promise가 resolver 완료까지 남을 수 있습니다.
+
 ## 브라우저
 
 SOOP 라이브 정보 API는 임의 웹사이트의 CORS 요청을 허용하지 않습니다. 따라서 브라우저에서는 애플리케이션 서버가 제공하는 `ChannelResolver`가 필요합니다.
@@ -239,7 +241,7 @@ off();
 
 `connect()` 자체의 실패는 Promise에서 예외로 전달됩니다. WebSocket이나 비동기 처리 오류는 `error`, 연결 후 확인된 방송 종료나 접근 제한은 `ended`, 복구 가능한 연결 종료는 `reconnecting`으로 구분할 수 있습니다. 수동 `disconnect()`는 `ended`를 발생시키지 않습니다.
 
-사용자 listener가 던진 예외는 내부 연결 상태를 중단시키지 않고 등록된 `error` listener로 전달됩니다. 재귀 오류를 막기 위해 `error` listener 자체가 던진 예외는 다시 전달하지 않으며, 같은 이벤트의 다른 listener는 계속 실행됩니다.
+사용자 listener가 던진 예외나 반환한 Promise의 rejection은 내부 연결 상태를 중단시키지 않고 등록된 `error` listener로 전달됩니다. listener Promise는 기다리지 않습니다. 재귀 오류를 막기 위해 `error` listener 자체의 예외와 rejection은 다시 전달하지 않으며, 같은 이벤트의 다른 listener는 계속 실행됩니다.
 
 공개 `EVENT_CATALOG`로 지원하는 opcode의 이벤트 이름, 설명과 근거 수준을 실행 중 조회할 수 있습니다.
 

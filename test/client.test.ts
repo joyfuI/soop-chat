@@ -307,6 +307,52 @@ void test("manual connect joins an active reconnect attempt", async () => {
   await client.disconnect();
 });
 
+void test("reconnecting listener manual connect starts exactly one new session", async () => {
+  const sockets: FakeSocket[] = [];
+  let resolverCalls = 0;
+  let manualConnecting: Promise<void> | undefined;
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => {
+      resolverCalls += 1;
+      return channel;
+    },
+    createWebSocket: () => {
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket;
+    },
+    reconnect: { initialDelayMs: 40, maxDelayMs: 40, jitter: 0 },
+  });
+  client.on("reconnecting", () => {
+    manualConnecting = client.connect();
+  });
+
+  try {
+    const connecting = client.connect();
+    await waitFor(() => sockets.length === 1);
+    sockets[0]!.open();
+    sockets[0]!.receive(encodePacket("0001"));
+    sockets[0]!.receive(encodePacket("0002"));
+    await connecting;
+
+    sockets[0]!.closeFromServer();
+    await waitFor(() => sockets.length === 2);
+    sockets[1]!.open();
+    sockets[1]!.receive(encodePacket("0001"));
+    sockets[1]!.receive(encodePacket("0002"));
+    assert.ok(manualConnecting);
+    await settlesWithin(manualConnecting);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    assert.equal(resolverCalls, 2);
+    assert.equal(sockets.length, 2);
+    assert.equal(client.state, "connected");
+  } finally {
+    await client.disconnect();
+  }
+});
+
 void test("heartbeat send failures enter the reconnect flow without escaping the timer", async () => {
   const firstSocket = new FakeSocket();
   const secondSocket = new FakeSocket();
@@ -445,6 +491,117 @@ void test("protocol listener failures do not block other listeners or later pack
       "synthetic protocol listener failure",
     ]);
   } finally {
+    await client.disconnect();
+  }
+});
+
+void test("join listener disconnect cannot revive a completed handshake", async () => {
+  const socket = new FakeSocket();
+  const states: string[] = [];
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+    heartbeatIntervalMs: 5,
+  });
+  client.on("stateChange", ({ current }) => states.push(current));
+  client.on("joinChannel", () => {
+    void client.disconnect();
+  });
+
+  try {
+    const connecting = client.connect();
+    await turn();
+    socket.open();
+    socket.receive(encodePacket("0001"));
+    await turn();
+    socket.receive(
+      encodePacket("0002", "\x0c2\x0cstreamer\x0c1\x0c10\x0c2]family\x0cignored\x0c16|0"),
+    );
+    await assert.rejects(settlesWithin(connecting), { name: "AbortError" });
+    await turn();
+
+    assert.equal(client.state, "closed");
+    assert.equal(socket.readyState, 3);
+    assert.equal(states.includes("connected"), false);
+    const sentCount = socket.sent.length;
+    await new Promise((resolve) => setTimeout(resolve, 12));
+    assert.equal(socket.sent.length, sentCount);
+  } finally {
+    await client.disconnect();
+  }
+});
+
+void test("connected state listener disconnect leaves no heartbeat or extra session", async () => {
+  const socket = new FakeSocket();
+  const states: string[] = [];
+  let socketCalls = 0;
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => {
+      socketCalls += 1;
+      return socket;
+    },
+    heartbeatIntervalMs: 5,
+  });
+  client.on("stateChange", ({ current }) => {
+    states.push(current);
+    if (current === "connected") void client.disconnect();
+  });
+
+  const connecting = client.connect();
+  await turn();
+  socket.open();
+  socket.receive(encodePacket("0001"));
+  socket.receive(encodePacket("0002"));
+  await assert.rejects(settlesWithin(connecting), { name: "AbortError" });
+  await turn();
+
+  assert.equal(client.state, "closed");
+  assert.equal(states.at(-1), "closed");
+  assert.equal(socket.readyState, 3);
+  assert.equal(socketCalls, 1);
+  const sentCount = socket.sent.length;
+  await new Promise((resolve) => setTimeout(resolve, 12));
+  assert.equal(socket.sent.length, sentCount);
+});
+
+void test("async listener rejections follow the error policy without blocking events", async () => {
+  const socket = new FakeSocket();
+  const messages: string[] = [];
+  const errors: string[] = [];
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => unhandled.push(reason);
+  process.on("unhandledRejection", onUnhandled);
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+  });
+  client.on("chatMessage", async () => {
+    await Promise.resolve();
+    throw new Error("synthetic async listener failure");
+  });
+  client.on("chatMessage", ({ data }) => messages.push(data.message));
+  client.on("error", async (error) => {
+    errors.push(error.message);
+    await Promise.resolve();
+    throw new Error("synthetic async error listener failure");
+  });
+
+  try {
+    await join(client, socket);
+    socket.receive(encodePacket("0005", "\x0chello\x0cuser\x0c\x0c1\x0c2\x0cnick\x0cflag\x0c0"));
+    await waitFor(() => errors.length === 1);
+    await turn();
+
+    assert.deepEqual(messages, ["hello"]);
+    assert.deepEqual(errors, ["synthetic async listener failure"]);
+    assert.deepEqual(unhandled, []);
+    assert.equal(client.state, "connected");
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
     await client.disconnect();
   }
 });

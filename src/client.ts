@@ -107,7 +107,7 @@ export class SoopChatCore {
   readonly streamerId: string;
 
   #state: ConnectionState = "idle";
-  #listeners = new Map<string, Set<(event: never) => void>>();
+  #listeners = new Map<string, Set<(event: never) => unknown>>();
   #parser = new PacketStreamParser();
   #resolveChannel: ChannelResolver;
   #createWebSocket: WebSocketFactory;
@@ -151,9 +151,9 @@ export class SoopChatCore {
       listeners = new Set();
       this.#listeners.set(type, listeners);
     }
-    listeners.add(listener as (event: never) => void);
+    listeners.add(listener as (event: never) => unknown);
     return () => {
-      listeners?.delete(listener as (event: never) => void);
+      listeners?.delete(listener as (event: never) => unknown);
       if (listeners?.size === 0) this.#listeners.delete(type);
     };
   }
@@ -176,7 +176,7 @@ export class SoopChatCore {
 
   #startSession(): Promise<void> {
     if (this.#connectPromise) return this.#connectPromise;
-    const promise = this.#openSession();
+    const promise = Promise.resolve().then(() => this.#openSession());
     this.#connectPromise = promise;
     const clear = () => {
       if (this.#connectPromise === promise) this.#connectPromise = undefined;
@@ -209,20 +209,29 @@ export class SoopChatCore {
   }
 
   async #openSession(): Promise<void> {
+    if (this.#stopped) throw new DOMException("Connection was aborted.", "AbortError");
     this.#abortController?.abort();
     const controller = new AbortController();
     this.#abortController = controller;
     this.#setState("resolving");
+    if (this.#stopped || this.#abortController !== controller) {
+      throw new DOMException("Connection was aborted.", "AbortError");
+    }
     const channel = validateChannel(
       await this.#resolveChannel(this.streamerId, {
         signal: controller.signal,
         ...(this.#roomPassword ? { roomPassword: this.#roomPassword } : {}),
       }),
     );
-    if (this.#stopped) throw new DOMException("Connection was aborted.", "AbortError");
+    if (this.#stopped || this.#abortController !== controller) {
+      throw new DOMException("Connection was aborted.", "AbortError");
+    }
     this.#channel = channel;
     this.#parser.reset();
     this.#setState("connecting");
+    if (this.#stopped || this.#abortController !== controller) {
+      throw new DOMException("Connection was aborted.", "AbortError");
+    }
 
     const url = `wss://${channel.chatDomain.toLowerCase()}:${channel.chatPort + 1}/Websocket/${encodeURIComponent(this.streamerId)}`;
     const socket = this.#createWebSocket(url, "chat");
@@ -279,16 +288,24 @@ export class SoopChatCore {
             const bytes = await messageDataToBytes(message.data);
             if (this.#socket !== socket || (settled && !joined)) return;
             const batch = this.#parser.push(bytes);
-            for (const error of batch.errors) this.#emit("protocolError", { error });
+            for (const error of batch.errors) {
+              this.#emit("protocolError", { error });
+              if (this.#socket !== socket || this.#stopped) return;
+            }
             for (const raw of batch.packets) {
               this.#handlePacket(raw, socket);
+              if (this.#socket !== socket || this.#stopped) return;
               if (!joined && raw.opcode === "0002") {
                 joined = true;
+                this.#reconnectAttempt = 0;
+                this.#setState("connected");
+                if (this.#socket !== socket || this.#stopped) {
+                  fail(new DOMException("Connection was aborted.", "AbortError"));
+                  return;
+                }
                 settled = true;
                 if (timeout !== undefined) clearTimeout(timeout);
                 this.#cancelPendingSession = undefined;
-                this.#reconnectAttempt = 0;
-                this.#setState("connected");
                 this.#startHeartbeat(socket);
                 resolve();
               }
@@ -321,6 +338,7 @@ export class SoopChatCore {
 
   #handlePacket(raw: RawPacket, socket: WebSocketLike): void {
     this.#emit("raw", raw);
+    if (this.#socket !== socket || this.#stopped) return;
     if (raw.opcode === "0001" && this.#channel && socket.readyState === 1) {
       socket.send(
         createJoinPacket(
@@ -345,7 +363,9 @@ export class SoopChatCore {
 
     if (event.type === "unknown") this.#emit("unknown", event);
     else this.#emitProtocol(event);
+    if (this.#socket !== socket || this.#stopped) return;
     this.#emit("event", event);
+    if (this.#socket !== socket || this.#stopped) return;
     if (event.type === "closeBroad") this.#finishBroadcast(socket);
   }
 
@@ -374,18 +394,24 @@ export class SoopChatCore {
   #emitListeners(type: string, event: unknown): void {
     const listeners = this.#listeners.get(type);
     if (!listeners) return;
+    const report = (cause: unknown): void => {
+      if (type !== "error") {
+        this.#emit(
+          "error",
+          cause instanceof Error
+            ? cause
+            : new Error("SOOP event listener failed with a non-Error value.", { cause }),
+        );
+      }
+    };
     for (const listener of Array.from(listeners)) {
       try {
-        listener(event as never);
-      } catch (cause) {
-        if (type !== "error") {
-          this.#emit(
-            "error",
-            cause instanceof Error
-              ? cause
-              : new Error("SOOP event listener threw a non-Error value.", { cause }),
-          );
+        const result = listener(event as never);
+        if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+          void Promise.resolve(result).catch(report);
         }
+      } catch (cause) {
+        report(cause);
       }
     }
   }
@@ -440,7 +466,9 @@ export class SoopChatCore {
     const multiplier = 1 + (this.#random() * 2 - 1) * this.#reconnect.jitter;
     const delayMs = Math.max(0, Math.round(base * multiplier));
     this.#setState("reconnecting");
+    if (this.#stopped || this.#state !== "reconnecting" || this.#connectPromise) return;
     this.#emit("reconnecting", { attempt: this.#reconnectAttempt, delayMs, error });
+    if (this.#stopped || this.#state !== "reconnecting" || this.#connectPromise) return;
     this.#retryTimer = setTimeout(() => {
       this.#retryTimer = undefined;
       if (this.#stopped) return;
