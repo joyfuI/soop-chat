@@ -475,7 +475,7 @@ interface ChatUserExtendData {
 | `senderNickname` | `string` | 발신자 닉네임 |
 | `message` | `string` | 주 메시지 |
 | `secondaryMessage` | `string` | 보조 메시지 |
-| `title` | `string` | 효과 제목 |
+| `title` | `string` | 화면에 표시할 애드벌룬 출처·상품 제목. 값이 없을 수 있음 |
 | `imageUrl` | `string` | 효과 이미지 URL |
 | `defaultImageUrl` | `string` | 기본 효과 이미지 URL |
 | `count` | `number` | 전송 개수 |
@@ -488,6 +488,8 @@ interface ChatUserExtendData {
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
 실방송에서 애드벌룬 1개와 `fanOrder=10325`가 함께 왔고 화면에 “10,325번째 팬클럽” 문구가 표시됐습니다. 공식 플레이어도 `fanOrder > 0`을 같은 문구의 조건으로 사용합니다. 애드벌룬 10개 표본에서는 `fanOrder=16`, `isTopFan=true`와 화면의 팬클럽 가입·열혈팬 가입 문구가 차례로 일치했고, 직후 `0012 setUserFlag`도 두 상태 비트를 같은 순서로 추가했습니다.
+
+추가 애드벌룬 11개 표본에서 화면의 발신자 닉네임, 애드벌룬 개수, “숲토어” 문구가 각각 `senderNickname`, `count=11`, `title="숲토어"`와 일치했습니다. 같은 캡처의 일반 애드벌룬 두 건은 `title`이 비어 있었으며, 별도의 숲토어 opcode나 플래그는 없었습니다.
 
 구독플러스 방송에서 관찰한 두 이벤트는 모두 `isSubRoom=false`였으므로 이 값을 방의 구독플러스 제한 여부로 사용하지 않습니다.
 
