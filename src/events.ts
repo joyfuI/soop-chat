@@ -27,7 +27,7 @@ export const EVENT_CATALOG = {
   "0017": { type: "clubColor", description: "Club Color", provenance: "reference" },
   "0018": { type: "sendBalloon", description: "Send Star Balloon", provenance: "observed" },
   "0019": { type: "iceMode", description: "Ice Mode", provenance: "observed" },
-  "0020": { type: "sendFanLetter", description: "Send Fan Letter", provenance: "player" },
+  "0020": { type: "sendFanLetter", description: "Send Sticker", provenance: "observed" },
   "0021": { type: "iceModeEx", description: "Extended Ice Mode", provenance: "observed" },
   "0022": { type: "getIceModeRelay", description: "Get Ice Mode Relay", provenance: "reference" },
   "0023": { type: "slowMode", description: "Slow Mode", provenance: "player" },
@@ -41,7 +41,7 @@ export const EVENT_CATALOG = {
   "0031": { type: "snsMessage", description: "SNS Message", provenance: "reference" },
   "0032": { type: "snsMode", description: "SNS Mode", provenance: "reference" },
   "0033": { type: "sendBalloonSub", description: "Send Star Balloon (Sub)", provenance: "player" },
-  "0034": { type: "sendFanLetterSub", description: "Send Fan Letter (Sub)", provenance: "player" },
+  "0034": { type: "sendFanLetterSub", description: "Send Sticker (Sub)", provenance: "player" },
   "0035": { type: "topFanSub", description: "Top Fan (Sub)", provenance: "reference" },
   "0036": { type: "bjStickerItem", description: "BJ Sticker Item", provenance: "reference" },
   "0037": { type: "chocolate", description: "Chocolate", provenance: "player" },
@@ -407,7 +407,7 @@ export interface FanLetterData {
   senderNickname: string;
   itemType: number;
   count: number;
-  supporterOrder: string;
+  supporterOrder: number;
   senderLanguage: string;
   relay: boolean;
 }

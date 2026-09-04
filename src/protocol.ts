@@ -623,7 +623,7 @@ function fanLetter(raw: RawPacket, relay = false): FanLetterData {
     senderNickname: fields[relay ? 4 : 3] ?? "",
     itemType: integer(fields[relay ? 6 : 5]),
     count: integer(fields[relay ? 8 : 7]),
-    supporterOrder: fields[relay ? 9 : 8] ?? "",
+    supporterOrder: integer(fields[relay ? 9 : 8]),
     senderLanguage: fields[11] ?? "",
     relay,
   };

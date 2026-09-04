@@ -34,7 +34,7 @@ interface FieldEventData {
 
 필드 의미를 확인하지 못한 경우에는 이름을 추측하지 않습니다. 문자열 필드는 빈 문자열일 수 있고, 원본 숫자·플래그의 열거 의미가 확인되지 않은 경우 아래 표에 따로 표시합니다. `raw`와 `data.fields`에는 사용자 ID, 닉네임, 메시지 등 개인정보가 포함될 수 있습니다.
 
-서버가 보내는 사용자 ID에는 기본 ID 뒤에 `(2)`처럼 `(<숫자>)` 형태의 접미사가 붙을 수 있습니다. 발생 조건과 동일성 규칙은 확인되지 않았으므로 라이브러리는 접미사를 제거하지 않고 원본 문자열을 제공합니다.
+서버가 보내는 사용자 ID에는 기본 ID 뒤에 `(2)`처럼 `(<숫자>)` 형태의 접미사가 붙을 수 있습니다. 7시간 44분 캡처에서는 입장 2,115건과 메시지 4,954건에 접미사가 있었고, 추가 두 세션을 포함해 `(2)`부터 `(9)`, `(11)`까지 관찰됐습니다. 발생 조건과 동일성 규칙은 확인되지 않았으므로 라이브러리는 접미사를 제거하지 않고 원본 문자열을 제공합니다.
 
 ## 사용자 상태
 
@@ -65,9 +65,9 @@ interface FieldEventData {
 
 `login.userStatus`, `joinChannel.userStatus`, `chatUser`의 사용자별 `userStatus`, `setNickname.userStatus`, `setSubBj.userStatus`, `adminChatUser`의 사용자별 `userStatus`, `setAdminFlag.userStatus`, `nightbotTimeout.userStatus`에서 사용합니다. 발신자 플래그는 `chatMessage.senderStatus`, `directChat.senderStatus`, `managerChat.senderStatus`, `ogqEmoticon.senderStatus`로, 강퇴 명령자는 `kickUserList.users[].commanderStatus`로 제공합니다. `setUserFlag`는 변경 후 `userStatus`와 변경 전 `previousUserStatus`를 모두 제공합니다.
 
-구독플러스 방송의 13시간 5분 캡처에서 일반 채팅 31,715건의 발신자 155명은 모두 `followerTier=2`였습니다. `chatUser` 입장 사용자 1,362건 중 1,358건도 티어 2였고 나머지 4건은 방송인이었습니다. 이는 공식 `FOLLOW_TIER2` 판정과 구독플러스 방의 실제 참여자를 대조한 결과이며, 다른 티어의 일반적인 구독 의미를 방 접근 권한으로 확대 해석하지 않습니다.
+구독플러스 방송의 13시간 5분 캡처에서 일반 채팅 31,715건의 발신자 155명은 모두 `followerTier=2`였습니다. `chatUser` 입장 사용자 1,362건 중 1,358건도 티어 2였고 나머지 4건은 방송인이었습니다. 추가 2시간 35분 캡처에서도 비방송인의 일반·OGQ 채팅 10,396건과 입장 257건이 모두 티어 2였지만, 직전 19금 전용 방송에는 비방송인 티어 0·1·2가 모두 있었습니다. 이는 공식 `FOLLOW_TIER2` 판정과 구독플러스 방의 실제 참여자를 대조한 결과이며, 다른 티어의 일반적인 구독 의미를 방 접근 권한으로 확대 해석하지 않습니다.
 
-플레이어의 `allowWhisper(false)`는 `NODIRECT` 비트를 추가하고 `allowWhisper(true)`는 제거합니다. 실방송 캡처의 `0012` 18건에서 이 비트가 추가되는 변경을 확인했습니다.
+플레이어의 `allowWhisper(false)`는 `NODIRECT` 비트를 추가하고 `allowWhisper(true)`는 제거합니다. 두 실방송 캡처의 `0012` 198건에서 이 비트가 추가되는 변경을 확인했으며, 추가 180건은 서로 다른 사용자 147명에게서 발생했습니다.
 
 ## 근거 수준
 
@@ -106,7 +106,7 @@ interface FieldEventData {
 | `0017` | `clubColor` | 클럽 색상 | fields | reference |
 | `0018` | `sendBalloon` | 별풍선 후원 | object | observed |
 | `0019` | `iceMode` | 아이스 모드 | fields | observed |
-| `0020` | `sendFanLetter` | 팬레터 전송 | object | player |
+| `0020` | `sendFanLetter` | 스티커 전송 | object | observed |
 | `0021` | `iceModeEx` | 확장 아이스 모드 | object | observed |
 | `0022` | `getIceModeRelay` | 아이스 모드 릴레이 조회 | fields | reference |
 | `0023` | `slowMode` | 슬로우 모드 | object | player |
@@ -120,7 +120,7 @@ interface FieldEventData {
 | `0031` | `snsMessage` | SNS 메시지 | fields | reference |
 | `0032` | `snsMode` | SNS 모드 | fields | reference |
 | `0033` | `sendBalloonSub` | 별풍선 후원(서브 채널) | object | player |
-| `0034` | `sendFanLetterSub` | 팬레터 전송(서브 채널) | object | player |
+| `0034` | `sendFanLetterSub` | 스티커 전송(서브 채널) | object | player |
 | `0035` | `topFanSub` | 열혈팬(서브 채널) | fields | reference |
 | `0036` | `bjStickerItem` | 방송인 스티커 아이템 | fields | reference |
 | `0037` | `chocolate` | 초콜릿 | object | player |
@@ -255,7 +255,7 @@ type ChatUserData =
 
 ### `setBjStat` (`0007`)
 
-공식 이름이 `SVC_SETBJSTAT`인 방송인 상태 이벤트입니다. 새 캡처의 263건 중 마지막 종료 패킷과 함께 온 1건을 제외한 262건이 방송인 계정의 `0004` 입장·퇴장과 거의 같은 시각에 발생했습니다. 추가 캡처에서는 `status=0`과 `1`이 방송인 표시 계정과 기본 ID 계정의 교체에 각각 맞물렸고, 사용자 확인상 `status=0` 시점의 실방송 화면에는 아무 변화가 없었습니다. 다른 3시간 47분 캡처의 3,624건 중 3,575건도 100ms 안에 방송인 플래그 사용자의 입장과 퇴장이 모두 발생했습니다. 종료 10초 전의 `status=0`도 실제 종료 신호가 아니었습니다. 실제 방송 중에도 반복되므로 방송 대기, 영상 송출, 화면 또는 종료 상태로 해석하면 안 됩니다.
+공식 이름이 `SVC_SETBJSTAT`인 방송인 상태 이벤트입니다. 새 캡처의 263건 중 마지막 종료 패킷과 함께 온 1건을 제외한 262건이 방송인 계정의 `0004` 입장·퇴장과 거의 같은 시각에 발생했습니다. 추가 캡처에서는 `status=0`과 `1`이 방송인 표시 계정과 기본 ID 계정의 교체에 각각 맞물렸고, 사용자 확인상 `status=0` 시점의 실방송 화면에는 아무 변화가 없었습니다. 다른 캡처에서는 같은 방송인의 접미사 없는 ID와 `(2)` ID가 `status=1`일 때 기본 ID에서 `(2)`로, `status=0`일 때 반대로 교체됐습니다. 다른 3시간 47분 캡처의 3,624건 중 3,575건도 100ms 안에 방송인 플래그 사용자의 입장과 퇴장이 모두 발생했습니다. 종료 10초 전의 `status=0`도 실제 종료 신호가 아니었습니다. 실제 방송 중에도 반복되므로 방송 대기, 영상 송출, 화면 또는 종료 상태로 해석하면 안 됩니다.
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
@@ -339,6 +339,24 @@ type ChatUserData =
 
 실방송 화면과 공식 플레이어를 대조해 `fanOrder > 0`일 때 신규 팬클럽 문구가 표시되는 것을 확인했습니다. 별풍선 50개와 1개 표본에서는 각각 `fanOrder=17/18`, `topFanLevel=1`이 왔고 화면에 팬클럽 가입 문구와 열혈팬 가입 문구가 차례로 표시됐습니다. 각 패킷 직후 `0012 setUserFlag`도 팬클럽 비트와 열혈팬 비트를 같은 순서로 추가했습니다.
 
+### `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`)
+
+공개 이벤트명은 공식 opcode `SVC_SENDFANLETTER`와 `SVC_SENDFANLETTER_SUB`를 따르지만 현재 화면에서는 스티커로 표시됩니다. 일반 채널의 `sendFanLetter`는 `relay=false`, 서브 채널의 `sendFanLetterSub`는 `relay=true`입니다.
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `streamerId` | `string` | 스티커를 받은 방송인 ID |
+| `streamerNickname` | `string` | 방송인 닉네임 |
+| `senderId` | `string` | 스티커를 보낸 사용자 ID |
+| `senderNickname` | `string` | 발신자 닉네임 |
+| `itemType` | `number` | 스티커 상품의 원본 종류 값 |
+| `count` | `number` | 보낸 스티커 개수 |
+| `supporterOrder` | `number` | 서포터 가입 순번 |
+| `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
+| `relay` | `boolean` | 일반 채널은 `false`, 서브 채널은 `true` |
+
+실방송의 `itemType=702`, `count=20`은 “스티커 20개” 문구와 일치했고, 같은 패킷의 `supporterOrder=45`는 직후의 서포터 가입 안내와 방송 후 확인한 서포터 수 45명에 일치했습니다. 4ms 뒤 같은 사용자의 `setUserFlag`도 `isSupporter=false`에서 `true`로 바뀌었습니다. `sendFanLetterSub`는 아직 실방송 화면과 대조하지 않았습니다.
+
 ### `iceModeEx` (`0021`)
 
 채팅창 얼음 상태입니다. 실방송에서 방송인의 `!얼음` 일반 채팅 직후 `0021`이 수신되고 화면에 “채팅창을 얼렸습니다.”가 표시되는 것을 대조했습니다. 추가 캡처의 `allowedRoleMask=528`도 “스트리머, 매니저만 채팅에 참여할 수 있습니다.” 문구와 일치했습니다. 화면 문구는 플레이어가 상태로부터 만드는 것이며 별도 메시지 필드가 아닙니다.
@@ -405,14 +423,13 @@ type ChatUserData =
 | 이벤트 | 공개 필드 |
 |---|---|
 | `directChat` (`0009`) | `message`, `senderId`, `receiverId`, `senderNickname`, `receiverNickname`, `userFlag: string`, `senderStatus: UserStatus`, `messageType`, `chatLanguage: number`, `isAdmin: boolean` |
-| `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`) | `streamerId`, `streamerNickname`, `senderId`, `senderNickname`, `supporterOrder`, `senderLanguage: string`, `itemType`, `count: number`, `relay: boolean` |
 | `slowMode` (`0023`) | `automaticSeconds: number`, `manualSeconds: number` |
 | `sendBalloonSub` (`0033`) | `sendBalloon`과 같은 필드. 서브 채널 필드 순서를 적용하고 `relay: true` 제공 |
 | `chocolate` (`0037`), `chocolateSub` (`0038`) | `streamerId`, `senderId`, `senderNickname: string`, `count: number`, `relay: boolean` |
 | `itemUsing` (`0047`) | `remainingSeconds: number`, 플레이어와 같은 `Math.round(seconds / 60)` 결과인 `remainingMinutes: number` |
 | `sendQuickView` (`0045`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `itemType: number`, `quickViewProduct: "quickView" \| "quickViewPlus" \| "unknown"`, `durationDays: number \| null` |
 | `notifyPoll` (`0050`) | `status`, `show: number`, `pollState: "started" \| "closed" \| "hidden" \| "unknown"`, `visible: boolean`, `streamerId: string`, `pollNo: number` |
-| `banWord` (`0054`) | `replacement: string`, `banWordList: readonly string[]`. 서버의 `0x06` 구분자로 목록을 분리 |
+| `banWord` (`0054`) | `replacement: string`, `banWordList: readonly string[]`. 서버의 `0x06` 구분자로 목록을 분리하며 빈 목록은 `[]` |
 | `buyGoods` (`0070`), `buyGoodsSub` (`0071`) | `goodsType`, `count: number`, `streamerId`, `buyerId`, `buyerNickname`, `goodsName: string`, `relay: boolean` |
 | `notifyVr` (`0074`) | `action`, `vrType: number`, `streamerId`, `vrId`, `rtmpUrl`, `hlsUrl: string` |
 | `notifyMobBroadPause` (`0075`) | `state: number`, `action: "pause" \| "resume" \| "unknown"` |
@@ -424,14 +441,14 @@ type ChatUserData =
 | `vodAdcon` (`0103`) | `stationAdcon`과 같은 방송인·발신자·개수·이미지·제목·채팅방·언어·URL 보정 필드 |
 | `itemDrops` (`0111`) | `streamerId`, `name`, `message`, `imageUrl: string` |
 | `ogqEmoticonGift` (`0118`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `title: string`, `imageUrl: string` |
+| `gemItemSend` (`0120`) | `receiverId: string`, `receiverNickname: string`, `itemName: string` |
+| `setAdminFlag` (`0126`) | `userFlag: string`, `userStatus: UserStatus` |
 
 `itemDrops`는 새 실방송 캡처에서 같은 이벤트 이름으로 약 20분 간격으로 6회 수신됐습니다. `name`에는 드롭스 상품명이 있었고 `message`와 `imageUrl`은 비어 있었습니다. 방송에서 드롭스 제공을 안내했고 수신 직후 축하 채팅이 이어졌지만 다시보기 채팅에는 해당 안내가 남지 않아 화면 문구는 확정하지 않습니다.
 
 `ogqEmoticonGift`는 실방송에서 동일한 발신자가 서로 다른 두 사용자에게 같은 이모티콘을 선물한 화면과 대조했습니다. `senderNickname`, `receiverNickname`, `title`은 각각 화면의 `from.`, `To.`, “이모티콘 선물” 앞 상품명과 일치했고 `imageUrl`에는 해당 이모티콘 이미지가 왔습니다.
 
 `notifyPoll`은 같은 투표 번호의 실방송 흐름에서 `status=1, show=1`이 투표 시작, `status=4, show=1`이 투표 마감과 결과 공개, `status=2, show=0`이 투표 UI 제거와 일치했습니다. 원본 숫자를 유지하면서 각각 `started`, `closed`, `hidden`으로 제공하고 `show !== 0`을 `visible`로 제공합니다. 질문·선택지·득표수는 채팅 WebSocket 패킷에 포함되지 않았습니다.
-| `gemItemSend` (`0120`) | `receiverId: string`, `receiverNickname: string`, `itemName: string` |
-| `setAdminFlag` (`0126`) | `userFlag: string`, `userStatus: UserStatus` |
 
 `adInBroadJson` (`0119`)은 첫 필드를 JSON 객체로 검증해 `{ payload: Readonly<Record<string, unknown>> }`로 제공합니다. 객체의 내부 필드는 안정적인 공개 스키마로 확인되지 않았으므로 더 세분화하지 않습니다.
 
@@ -454,7 +471,7 @@ interface ChatUserExtendData {
 
 플레이어의 query-string 키 `p`, `fw`, `afw`를 위 필드로 정규화합니다. 키가 없거나 숫자로 해석할 수 없으면 `null`이며, 서버가 보내는 `-1`은 의미를 추측하지 않고 그대로 유지합니다.
 
-이 이벤트는 입장 시점의 메타데이터입니다. 실방송에서 입장 당시 `fw=-1, afw=-1`이던 사용자가 구독한 뒤 일반 채팅에는 `subscriptionMonth=1, accumulatedSubscriptionMonth=1`이 전달됐지만 기존 `chuserExtend` 값은 갱신되지 않았습니다. 지속적인 최신 상태로 간주하지 마세요. 실제 입장 배치에서 한 패킷에 사용자 17명이 들어온 사례도 있으므로 `users` 배열 전체를 처리해야 합니다.
+이 이벤트는 입장 시점의 메타데이터입니다. 실방송에서 입장 당시 `fw=-1, afw=-1`이던 사용자가 구독한 뒤 일반 채팅에는 `subscriptionMonth=1, accumulatedSubscriptionMonth=1`이 전달됐지만 기존 `chuserExtend` 값은 갱신되지 않았습니다. 추가 캡처에서도 11명의 채팅 50건에서 같은 변화가 확인됐습니다. 지속적인 최신 상태로 간주하지 마세요. 실제 입장 배치에서 한 패킷에 사용자 28명이 들어온 사례도 있으므로 `users` 배열 전체를 처리해야 합니다.
 
 ### `sendAdminNotice` (`0058`)
 
@@ -463,6 +480,8 @@ interface ChatUserExtendData {
 | 필드 | 타입 | 의미 |
 |---|---|---|
 | `message` | `string` | 운영자 공지 본문 |
+
+7시간 12분 캡처에서 수신된 한 건은 같은 본문의 일반·OGQ 채팅 없이 독립 이벤트로 전달됐습니다.
 
 실방송의 실시간 핫이슈 선정 및 별별랭킹 1위 안내와 대조했습니다. 패킷에는 공지 본문, 공식 플레이어가 무시하는 `0`, 빈 종결 필드가 들어 있었으며 화면의 “SOOP 안내” 제목은 패킷이 아니라 플레이어 UI가 붙입니다.
 
@@ -777,7 +796,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `missionKind` | `"challenge"` | 도전미션 정산 판별 값 |
 | `chatNo` | `number` | 채팅방 번호 |
 | `uuid` | `string` | 대응하는 `mission`의 `action: "settle"` 이벤트와 같은 식별자 |
-| `fanOrder` | `number` | 이번 정산에서 신규 팬클럽이 된 참여자의 가입 순번 |
+| `fanOrder` | `number` | 팬클럽 순번 관련 원본 값. `becameFanClub=true`인 참여자가 있을 때만 가입 순번으로 사용 |
 | `participants` | `readonly ChallengeMissionSettlementParticipant[]` | 참여자별 정산 결과 |
 | `payload` | `Readonly<Record<string, unknown>>` | 파싱한 원본 JSON 객체 |
 
@@ -791,7 +810,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `becameFanClub` | `boolean` | 이번 정산으로 팬클럽에 새로 가입했는지 여부 |
 | `becameTopFan` | `boolean` | 이번 정산으로 열혈팬이 되었는지 여부 |
 
-`fanOrder`는 `becameFanClub`이 참인 참여자에게만 화면의 가입 순번으로 사용됩니다. 같은 캡처에서 각각 100개로 정산된 두 미션 중 기존 팬은 순번 문구가 없었고, 신규 팬은 `becameFanClub=true`, `fanOrder=7447`과 화면의 7,447번째 팬클럽 문구가 일치했습니다. 추가 500개 정산의 `becameFanClub=true`, `fanOrder=7495`도 화면의 7,495번째 팬클럽 문구와 일치했습니다. 반대로 `fanOrder=3722`인 6,850개 정산, `fanOrder=5098`인 500개 정산, `fanOrder=7489`인 100개 정산과 `fanOrder=3738`인 200개·1,000개 정산은 모든 참여자의 `becameFanClub`이 거짓이었고 화면에 팬클럽 문구가 없었습니다.
+`fanOrder`는 `becameFanClub`이 참인 참여자에게만 화면의 가입 순번으로 사용됩니다. 같은 캡처에서 각각 100개로 정산된 두 미션 중 기존 팬은 순번 문구가 없었고, 신규 팬은 `becameFanClub=true`, `fanOrder=7447`과 화면의 7,447번째 팬클럽 문구가 일치했습니다. 추가 500개 정산의 `becameFanClub=true`, `fanOrder=7495`도 화면의 7,495번째 팬클럽 문구와 일치했습니다. 반대로 `fanOrder=3722`인 6,850개 정산, `fanOrder=5098`인 500개 정산, `fanOrder=7489`인 100개 정산과 `fanOrder=3738`인 200개·1,000개 정산은 모든 참여자의 `becameFanClub`이 거짓이었고 화면에 팬클럽 문구가 없었습니다. 다른 세 정산에서도 서로 다른 참여자 모두 플래그가 거짓인데 `fanOrder=4946`이 반복됐고, 약 5시간 뒤 실제 신규 팬클럽 별풍선에서 같은 순번이 사용됐습니다. 플래그가 거짓이면 이 값은 다음 가입 순번 후보일 수 있으므로 단독으로 가입 여부나 순번을 판정하지 않습니다.
 
 ### `subscriptionCeremonyButton` (`0130`)
 

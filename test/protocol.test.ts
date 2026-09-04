@@ -751,7 +751,7 @@ void test("decodes every field-reading official player branch", () => {
       "0020",
       `${separator}bj${separator}bjNick${separator}sender${separator}senderNick${separator}ignored${separator}1${separator}ignored${separator}10${separator}2${separator}ignored${separator}ignored${separator}ko_KR`,
       "sendFanLetter",
-      { streamerNickname: "bjNick", count: 10, relay: false },
+      { streamerNickname: "bjNick", count: 10, supporterOrder: 2, relay: false },
     ],
     ["0023", `${separator}5${separator}10`, "slowMode", { automaticSeconds: 5, manualSeconds: 10 }],
     [
@@ -764,7 +764,7 @@ void test("decodes every field-reading official player branch", () => {
       "0034",
       `${separator}ignored${separator}bj${separator}bjNick${separator}sender${separator}senderNick${separator}ignored${separator}1${separator}ignored${separator}10${separator}2${separator}ignored${separator}ko_KR`,
       "sendFanLetterSub",
-      { senderNickname: "senderNick", count: 10, relay: true },
+      { senderNickname: "senderNick", count: 10, supporterOrder: 2, relay: true },
     ],
     [
       "0037",
