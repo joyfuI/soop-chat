@@ -5,4 +5,4 @@ dist/
 playwright-report/
 test-results/
 *.tgz
-captures.sqlite*
+*.sqlite*

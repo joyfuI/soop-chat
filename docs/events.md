@@ -34,6 +34,8 @@ interface FieldEventData {
 
 필드 의미를 확인하지 못한 경우에는 이름을 추측하지 않습니다. 문자열 필드는 빈 문자열일 수 있고, 원본 숫자·플래그의 열거 의미가 확인되지 않은 경우 아래 표에 따로 표시합니다. `raw`와 `data.fields`에는 사용자 ID, 닉네임, 메시지 등 개인정보가 포함될 수 있습니다.
 
+서버가 보내는 사용자 ID에는 기본 ID 뒤에 `(2)`처럼 `(<숫자>)` 형태의 접미사가 붙을 수 있습니다. 발생 조건과 동일성 규칙은 확인되지 않았으므로 라이브러리는 접미사를 제거하지 않고 원본 문자열을 제공합니다.
+
 ## 사용자 상태
 
 사용자 원본 플래그가 있는 이벤트는 공식 플레이어와 SOOP Chat SDK의 판정을 `UserStatus`로 제공합니다. 각 권한은 동시에 설정될 수 있으므로 하나의 역할로 축약하지 않습니다.
@@ -253,7 +255,7 @@ type ChatUserData =
 
 ### `setBjStat` (`0007`)
 
-공식 이름이 `SVC_SETBJSTAT`인 방송인 상태 이벤트입니다. 새 캡처의 263건 중 마지막 종료 패킷과 함께 온 1건을 제외한 262건이 방송인 계정의 `0004` 입장·퇴장과 거의 같은 시각에 발생했습니다. 추가 캡처에서는 `status=0`과 `1`이 방송인 표시 계정과 기본 ID 계정의 교체에 각각 맞물렸고, 사용자 확인상 `status=0` 시점의 실방송 화면에는 아무 변화가 없었습니다. 종료 10초 전의 `status=0`도 실제 종료 신호가 아니었습니다. 실제 방송 중에도 반복되므로 방송 대기, 영상 송출, 화면 또는 종료 상태로 해석하면 안 됩니다.
+공식 이름이 `SVC_SETBJSTAT`인 방송인 상태 이벤트입니다. 새 캡처의 263건 중 마지막 종료 패킷과 함께 온 1건을 제외한 262건이 방송인 계정의 `0004` 입장·퇴장과 거의 같은 시각에 발생했습니다. 추가 캡처에서는 `status=0`과 `1`이 방송인 표시 계정과 기본 ID 계정의 교체에 각각 맞물렸고, 사용자 확인상 `status=0` 시점의 실방송 화면에는 아무 변화가 없었습니다. 다른 3시간 47분 캡처의 3,624건 중 3,575건도 100ms 안에 방송인 플래그 사용자의 입장과 퇴장이 모두 발생했습니다. 종료 10초 전의 `status=0`도 실제 종료 신호가 아니었습니다. 실제 방송 중에도 반복되므로 방송 대기, 영상 송출, 화면 또는 종료 상태로 해석하면 안 됩니다.
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
@@ -393,7 +395,7 @@ type ChatUserData =
 | `itemUsing` (`0047`) | `remainingSeconds: number`, 플레이어와 같은 `Math.round(seconds / 60)` 결과인 `remainingMinutes: number` |
 | `sendQuickView` (`0045`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `itemType: number`, `quickViewProduct: "quickView" \| "quickViewPlus" \| "unknown"`, `durationDays: number \| null` |
 | `notifyPoll` (`0050`) | `status`, `show: number`, `pollState: "started" \| "closed" \| "hidden" \| "unknown"`, `visible: boolean`, `streamerId: string`, `pollNo: number` |
-| `banWord` (`0054`) | `replacement: string`, `banWordList: string` |
+| `banWord` (`0054`) | `replacement: string`, `banWordList: string`. 목록 구분자의 의미가 확정되지 않아 원본 문자열을 유지 |
 | `buyGoods` (`0070`), `buyGoodsSub` (`0071`) | `goodsType`, `count: number`, `streamerId`, `buyerId`, `buyerNickname`, `goodsName: string`, `relay: boolean` |
 | `notifyVr` (`0074`) | `action`, `vrType: number`, `streamerId`, `vrId`, `rtmpUrl`, `hlsUrl: string` |
 | `notifyMobBroadPause` (`0075`) | `state: number`, `action: "pause" \| "resume" \| "unknown"` |
@@ -436,6 +438,8 @@ interface ChatUserExtendData {
 ```
 
 플레이어의 query-string 키 `p`, `fw`, `afw`를 위 필드로 정규화합니다. 키가 없거나 숫자로 해석할 수 없으면 `null`이며, 서버가 보내는 `-1`은 의미를 추측하지 않고 그대로 유지합니다.
+
+이 이벤트는 입장 시점의 메타데이터입니다. 실방송에서 입장 당시 `fw=-1, afw=-1`이던 사용자가 구독한 뒤 일반 채팅에는 `subscriptionMonth=1, accumulatedSubscriptionMonth=1`이 전달됐지만 기존 `chuserExtend` 값은 갱신되지 않았습니다. 지속적인 최신 상태로 간주하지 마세요. 실제 입장 배치에서 한 패킷에 사용자 17명이 들어온 사례도 있으므로 `users` 배열 전체를 처리해야 합니다.
 
 ### `sendAdminNotice` (`0058`)
 
@@ -571,7 +575,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-`itemType=201/203/211/200`의 플러스 표본은 각각 화면의 25/9/11/4개월째 구독 문구와, `itemType=100/101`의 베이직 표본은 9·27/12개월째 구독 문구와 대조됐습니다. 추가 `itemType=201, month=19, accumulatedMonth=23` 표본은 “플러스 19개월째 구독 중”으로 표시돼 화면의 개월이 `accumulatedMonth`가 아니라 `month`임을 재확인했습니다. `itemType=101, month=2, accumulatedMonth=2` 표본도 “베이직 2개월째 구독 중” 문구와 “2개월 구독” 이미지에 일치했습니다. 화면의 “N개월째”는 `month`이고 상품표의 1개월권·3개월권은 이번 상품 기간이므로 서로 다른 값입니다. 커스텀 베이직·플러스 구독자 명칭은 이 패킷에 없고 플레이어가 별도 채널 설정에서 가져오므로 합성하지 않습니다. 화면은 티어와 연속 개월을 확인하지만 상품표의 레벨·자동 결제·선물 플래그까지 실방송으로 확정하지는 않습니다.
+`itemType=201/203/211/200`의 플러스 표본은 각각 화면의 25/9/11/4개월째 구독 문구와, `itemType=100/101`의 베이직 표본은 9·27/12개월째 구독 문구와 대조됐습니다. 추가 `itemType=201, month=19, accumulatedMonth=23` 표본은 “플러스 19개월째 구독 중”으로 표시돼 화면의 개월이 `accumulatedMonth`가 아니라 `month`임을 재확인했습니다. `itemType=101, month=2, accumulatedMonth=2` 표본도 “베이직 2개월째 구독 중” 문구와 “2개월 구독” 이미지에 일치했습니다. 다른 실방송에서 `itemType=9201, tier=2, month=10, accumulatedMonth=10`도 수신됐으며 공식 상품표의 `vodItemType=9201`인 플러스 상품과 연결됐습니다. 해당 표본은 화면과 대조하지 않았으므로 상품표 이상의 의미는 부여하지 않습니다. 화면의 “N개월째”는 `month`이고 상품표의 1개월권·3개월권은 이번 상품 기간이므로 서로 다른 값입니다. 커스텀 베이직·플러스 구독자 명칭은 이 패킷에 없고 플레이어가 별도 채널 설정에서 가져오므로 합성하지 않습니다. 화면은 티어와 연속 개월을 확인하지만 상품표의 레벨·자동 결제·선물 플래그까지 실방송으로 확정하지는 않습니다.
 
 ### `bjNotice` (`0104`)
 
