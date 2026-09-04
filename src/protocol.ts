@@ -574,16 +574,6 @@ function setUserFlag(raw: RawPacket): SetUserFlagData {
     nickname: fields[2] ?? "",
     userFlag,
     previousUserFlag,
-    flag1: userStatus.flag1,
-    flag2: userStatus.flag2,
-    previousFlag1: previousUserStatus.flag1,
-    previousFlag2: previousUserStatus.flag2,
-    isFanClub: userStatus.isFan,
-    wasFanClub: previousUserStatus.isFan,
-    isFollower: userStatus.isFollower,
-    wasFollower: previousUserStatus.isFollower,
-    followerTier: userStatus.followerTier,
-    previousFollowerTier: previousUserStatus.followerTier,
     userStatus,
     previousUserStatus,
   };
@@ -693,14 +683,6 @@ function setSubBj(raw: RawPacket): SetSubBjData {
     nickname: fields[3] ?? "",
     hide,
     hidden: hide !== 0,
-    flag1: userStatus.flag1,
-    flag2: userStatus.flag2,
-    isAdmin: userStatus.isAdmin,
-    isManager: userStatus.isManager,
-    isFixedManager: userStatus.isFixedManager,
-    isEmployee: userStatus.isEmployee,
-    isEmployeeAdminChat: userStatus.isEmployeeAdminChat,
-    isCleanAti: userStatus.isCleanAti,
     userStatus,
   };
 }
@@ -771,9 +753,10 @@ function pollNotification(raw: RawPacket): PollNotificationData {
 
 function banWord(raw: RawPacket): BanWordData {
   const fields = requireFields(raw, 2);
+  const banWordList = fields[1] ?? "";
   return {
     replacement: fields[0] ?? "",
-    banWordList: fields[1] ?? "",
+    banWordList: banWordList ? banWordList.split("\x06") : [],
   };
 }
 
@@ -891,8 +874,6 @@ function kickUserList(raw: RawPacket): KickUserListData {
       commanderId: fields[index + 3] ?? "",
       commanderNickname: fields[index + 4] ?? "",
       commanderFlag,
-      commanderPrimaryFlag: commanderStatus.flag1,
-      commanderSecondaryFlag: commanderStatus.flag2,
       commanderStatus,
     });
   }
@@ -911,14 +892,6 @@ function adminChatUser(raw: RawPacket): AdminChatUserData {
         userId: fields[index] ?? "",
         nickname: fields[index + 1] ?? "",
         userFlag,
-        flag1: userStatus.flag1,
-        flag2: userStatus.flag2,
-        isAdmin: userStatus.isAdmin,
-        isManager: userStatus.isManager,
-        isFixedManager: userStatus.isFixedManager,
-        isEmployee: userStatus.isEmployee,
-        isEmployeeAdminChat: userStatus.isEmployeeAdminChat,
-        isCleanAti: userStatus.isCleanAti,
         userStatus,
       });
     }
@@ -1032,8 +1005,6 @@ function giftSubscription(raw: RawPacket): GiftSubscriptionData {
     senderNickname: fields[2] ?? "",
     receiverId: fields[3] ?? "",
     receiverNickname: fields[4] ?? "",
-    subscriptionId: fields[5] ?? "",
-    subscriptionNickname: fields[6] ?? "",
     streamerId: fields[5] ?? "",
     streamerNickname: fields[6] ?? "",
     itemType,

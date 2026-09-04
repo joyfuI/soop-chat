@@ -252,16 +252,6 @@ export interface SetUserFlagData {
   nickname: string;
   userFlag: string;
   previousUserFlag: string;
-  flag1: number;
-  flag2: number;
-  previousFlag1: number;
-  previousFlag2: number;
-  isFanClub: boolean;
-  wasFanClub: boolean;
-  isFollower: boolean;
-  wasFollower: boolean;
-  followerTier: 0 | 1 | 2 | 3;
-  previousFollowerTier: 0 | 1 | 2 | 3;
   userStatus: UserStatus;
   previousUserStatus: UserStatus;
 }
@@ -326,7 +316,7 @@ export interface PollNotificationData {
 
 export interface BanWordData {
   replacement: string;
-  banWordList: string;
+  banWordList: readonly string[];
 }
 
 export interface KickMessageStateData {
@@ -492,14 +482,6 @@ export interface SetSubBjData {
   nickname: string;
   hide: number;
   hidden: boolean;
-  flag1: number;
-  flag2: number;
-  isAdmin: boolean;
-  isManager: boolean;
-  isFixedManager: boolean;
-  isEmployee: boolean;
-  isEmployeeAdminChat: boolean;
-  isCleanAti: boolean;
   userStatus: UserStatus;
 }
 
@@ -591,8 +573,6 @@ export interface KickUserListEntry {
   commanderId: string;
   commanderNickname: string;
   commanderFlag: string;
-  commanderPrimaryFlag: number;
-  commanderSecondaryFlag: number;
   commanderStatus: UserStatus;
 }
 
@@ -604,14 +584,6 @@ export interface AdminChatUserInfo {
   userId: string;
   nickname: string;
   userFlag: string;
-  flag1: number;
-  flag2: number;
-  isAdmin: boolean;
-  isManager: boolean;
-  isFixedManager: boolean;
-  isEmployee: boolean;
-  isEmployeeAdminChat: boolean;
-  isCleanAti: boolean;
   userStatus: UserStatus;
 }
 
@@ -662,8 +634,6 @@ export interface GiftSubscriptionData {
   senderNickname: string;
   receiverId: string;
   receiverNickname: string;
-  subscriptionId: string;
-  subscriptionNickname: string;
   streamerId: string;
   streamerNickname: string;
   itemType: number;

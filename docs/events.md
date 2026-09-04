@@ -286,12 +286,6 @@ type ChatUserData =
 | `nickname` | `string` | 대상 사용자 닉네임 |
 | `userFlag` | `string` | 변경 후 원본 복합 플래그 |
 | `previousUserFlag` | `string` | 변경 전 원본 복합 플래그 |
-| `flag1`, `flag2` | `number` | 변경 후 공식 주·보조 플래그 숫자 |
-| `previousFlag1`, `previousFlag2` | `number` | 변경 전 공식 주·보조 플래그 숫자 |
-| `isFanClub` | `boolean` | 변경 후 팬클럽 비트 `32` 설정 여부 |
-| `wasFanClub` | `boolean` | 변경 전 팬클럽 비트 `32` 설정 여부 |
-| `isFollower`, `wasFollower` | `boolean` | 변경 후·전 구독자 여부. 공식 플레이어의 `isFollower` 판정과 같은 값 |
-| `followerTier`, `previousFollowerTier` | `0 \| 1 \| 2 \| 3` | 변경 후·전 공식 `FOLLOW_TIER1/2/3` 비트 판정. `0`은 구독 아님 |
 | `userStatus`, `previousUserStatus` | `UserStatus` | 변경 후·전 원본 플래그의 전체 공식 상태 판정 |
 
 ### `setSubBj` (`0013`)
@@ -305,14 +299,6 @@ type ChatUserData =
 | `nickname` | `string` | 대상 사용자 닉네임 |
 | `hide` | `number` | 플레이어가 전달하는 숨김 상태 원본 숫자 |
 | `hidden` | `boolean` | 플레이어가 전달하는 숨김 상태 |
-| `flag1` | `number` | 공식 플레이어의 첫 번째 사용자 플래그 숫자 |
-| `flag2` | `number` | 공식 플레이어의 두 번째 사용자 플래그 숫자 |
-| `isAdmin` | `boolean` | 공식 `admin` 비트 설정 여부 |
-| `isManager` | `boolean` | `userFlag`의 매니저 비트 `256` 설정 여부 |
-| `isFixedManager` | `boolean` | 공식 `fixedManager` 비트 `64` 설정 여부 |
-| `isEmployee` | `boolean` | 공식 `employee` 비트 설정 여부 |
-| `isEmployeeAdminChat` | `boolean` | 공식 `employeeAdminChat` 비트 설정 여부 |
-| `isCleanAti` | `boolean` | 공식 `cleanati` 비트 설정 여부 |
 | `userStatus` | `UserStatus` | 원본 플래그의 전체 공식 상태 판정 |
 
 실방송에서 한 사용자가 입장할 때 `fixedManager` 비트만 포함된 `0004`가 온 직후 `0013`에서 `manager` 비트 `256`이 추가됐고, 퇴장·재입장 뒤에도 같은 순서가 반복됐습니다. 화면상 별도 명칭이나 안내는 확인되지 않았으므로 플래그 이상의 의미를 합성하지 않습니다.
@@ -381,6 +367,37 @@ type ChatUserData =
 | `senderStatus` | `UserStatus` | 원본 플래그의 전체 공식 발신자 상태 판정 |
 | `subscriptionMonth` | `string` | 구독 개월 관련 원본 값 |
 
+### `kickUserList` (`0077`)
+
+강제 퇴장된 사용자와 명령 주체의 목록입니다. 공식 플레이어에서 필드 순서를 확인했으며 실방송 화면과는 대조하지 않았습니다.
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `users` | `readonly KickUserListEntry[]` | 강제 퇴장 사용자 목록 |
+
+`KickUserListEntry`는 다음 필드를 제공합니다.
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `userId` | `string` | 강제 퇴장된 사용자 ID |
+| `nickname` | `string` | 강제 퇴장된 사용자 닉네임 |
+| `time` | `string` | 서버가 전달한 시각 원본 문자열 |
+| `commanderId` | `string` | 명령 주체 ID |
+| `commanderNickname` | `string` | 명령 주체 닉네임 |
+| `commanderFlag` | `string` | 명령 주체의 원본 복합 플래그 |
+| `commanderStatus` | `UserStatus` | 명령 주체 플래그의 전체 공식 상태 판정 |
+
+### `adminChatUser` (`0078`)
+
+관리자 채팅 사용자 목록입니다. `state === 1`일 때 패킷에 포함된 사용자를 구조화하며 다른 `state` 값의 의미는 확인하지 않고 원본 숫자로 제공합니다.
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `state` | `number` | 목록 상태 원본 값 |
+| `users` | `readonly AdminChatUserInfo[]` | 관리자 채팅 사용자 목록 |
+
+`AdminChatUserInfo`는 사용자 `userId`, `nickname`, 원본 `userFlag`와 이를 판정한 전체 `userStatus: UserStatus`를 제공합니다.
+
 ### 플레이어에서 직접 확인한 기타 이벤트
 
 다음 이벤트도 공식 플레이어가 실제로 읽는 필드 순서만 구조화했습니다. 의미가 확정되지 않은 열거 값은 숫자나 문자열 원본을 유지합니다.
@@ -395,13 +412,11 @@ type ChatUserData =
 | `itemUsing` (`0047`) | `remainingSeconds: number`, 플레이어와 같은 `Math.round(seconds / 60)` 결과인 `remainingMinutes: number` |
 | `sendQuickView` (`0045`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `itemType: number`, `quickViewProduct: "quickView" \| "quickViewPlus" \| "unknown"`, `durationDays: number \| null` |
 | `notifyPoll` (`0050`) | `status`, `show: number`, `pollState: "started" \| "closed" \| "hidden" \| "unknown"`, `visible: boolean`, `streamerId: string`, `pollNo: number` |
-| `banWord` (`0054`) | `replacement: string`, `banWordList: string`. 목록 구분자의 의미가 확정되지 않아 원본 문자열을 유지 |
+| `banWord` (`0054`) | `replacement: string`, `banWordList: readonly string[]`. 서버의 `0x06` 구분자로 목록을 분리 |
 | `buyGoods` (`0070`), `buyGoodsSub` (`0071`) | `goodsType`, `count: number`, `streamerId`, `buyerId`, `buyerNickname`, `goodsName: string`, `relay: boolean` |
 | `notifyVr` (`0074`) | `action`, `vrType: number`, `streamerId`, `vrId`, `rtmpUrl`, `hlsUrl: string` |
 | `notifyMobBroadPause` (`0075`) | `state: number`, `action: "pause" \| "resume" \| "unknown"` |
 | `kickAndCancel` (`0076`) | `state: number`, `cancelled: boolean`, `userId`, `nickname: string` |
-| `kickUserList` (`0077`) | `users` 배열에 대상·명령자 ID/닉네임, 시각, 명령자 원본·1차·2차 플래그와 `commanderStatus` 제공 |
-| `adminChatUser` (`0078`) | `state: number`, `users` 배열에 ID·닉네임·원본 `userFlag`, 기존 독립 권한 판정과 전체 `userStatus` 제공 |
 | `kickMsgState` (`0090`) | `chatNo: number`, `hideKickMessage: boolean` |
 | `itemSellEffect` (`0092`) | `chatNo`, `count: number`, 방송인·발신자, 주·보조 메시지, 제목, 이미지·기본 이미지 URL |
 | `translation` (`0095`) | `messageIndex: number`, `mode: number`, `message: string`, `originalLanguage: number`, `translatedLanguage: number` |
@@ -635,10 +650,8 @@ interface ChatUserExtendData {
 | `senderNickname` | `string` | 선물한 사용자 닉네임 |
 | `receiverId` | `string` | 선물받은 사용자 ID |
 | `receiverNickname` | `string` | 선물받은 사용자 닉네임 |
-| `subscriptionId` | `string` | 공식 플레이어의 원본 속성명. 관찰 표본에서는 구독 대상 방송인 ID |
-| `subscriptionNickname` | `string` | 공식 플레이어의 원본 속성명. 관찰 표본에서는 구독 대상 방송인 닉네임 |
-| `streamerId` | `string` | `subscriptionId`를 역할 중심 이름으로 제공한 값 |
-| `streamerNickname` | `string` | `subscriptionNickname`을 역할 중심 이름으로 제공한 값 |
+| `streamerId` | `string` | 구독 대상 방송인 ID |
+| `streamerNickname` | `string` | 구독 대상 방송인 닉네임 |
 | `itemType` | `number` | 구독 상품의 원본 종류 값. 관찰된 `11`은 베이직 1개월 선물권 |
 | `subscriptionTier` | `"basic" \| "plus" \| "unknown"` | 공식 상품표의 티어. 알 수 없는 상품은 `unknown` |
 | `subscriptionMonth` | `number \| null` | 공식 상품표의 상품 기간. 알 수 없는 상품은 `null` |

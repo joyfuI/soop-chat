@@ -104,7 +104,7 @@ void test("catalog exposes 101 known opcodes plus the unknown variant", () => {
     "0045": `${separator}ignored${separator}sender${separator}senderNick${separator}receiver${separator}receiverNick${separator}1`,
     "0047": `${separator}ignored${separator}bj${separator}itemType${separator}120`,
     "0050": `${separator}1${separator}bj${separator}123${separator}1`,
-    "0054": `${separator}replacement${separator}word1,word2`,
+    "0054": `${separator}replacement${separator}word1\x06word2`,
     "0058": `${separator}admin notice`,
     "0070": `${separator}ignored${separator}1${separator}bj${separator}ignored${separator}buyer${separator}buyerNick${separator}goods${separator}2`,
     "0071": `${separator}ignored${separator}1${separator}bj${separator}ignored${separator}buyer${separator}buyerNick${separator}goods${separator}2`,
@@ -264,16 +264,16 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   assert.equal(userFlag.type, "setUserFlag");
   if (userFlag.type === "setUserFlag") {
     assert.equal(userFlag.data.previousUserFlag, "65536|163840");
-    assert.equal(userFlag.data.flag1, 196640);
-    assert.equal(userFlag.data.flag2, 425984);
-    assert.equal(userFlag.data.previousFlag1, 65536);
-    assert.equal(userFlag.data.previousFlag2, 163840);
-    assert.equal(userFlag.data.isFanClub, true);
-    assert.equal(userFlag.data.wasFanClub, false);
-    assert.equal(userFlag.data.isFollower, true);
-    assert.equal(userFlag.data.wasFollower, false);
-    assert.equal(userFlag.data.followerTier, 1);
-    assert.equal(userFlag.data.previousFollowerTier, 0);
+    assert.equal(userFlag.data.userStatus.flag1, 196640);
+    assert.equal(userFlag.data.userStatus.flag2, 425984);
+    assert.equal(userFlag.data.previousUserStatus.flag1, 65536);
+    assert.equal(userFlag.data.previousUserStatus.flag2, 163840);
+    assert.equal(userFlag.data.userStatus.isFan, true);
+    assert.equal(userFlag.data.previousUserStatus.isFan, false);
+    assert.equal(userFlag.data.userStatus.isFollower, true);
+    assert.equal(userFlag.data.previousUserStatus.isFollower, false);
+    assert.equal(userFlag.data.userStatus.followerTier, 1);
+    assert.equal(userFlag.data.previousUserStatus.followerTier, 0);
     assert.equal(userFlag.data.userStatus.isWhisperAllowed, false);
     assert.equal(userFlag.data.previousUserStatus.isWhisperAllowed, true);
   }
@@ -291,7 +291,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
       ),
     );
     assert.equal(event.type, "setUserFlag");
-    if (event.type === "setUserFlag") assert.equal(event.data.followerTier, tier);
+    if (event.type === "setUserFlag") assert.equal(event.data.userStatus.followerTier, tier);
   }
 
   const nickname = decodePacket(
@@ -378,9 +378,15 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     assert.equal(hiddenPoll.data.visible, false);
   }
 
-  const banned = decodePacket(rawPacket("0054", `${separator}replacement${separator}word1,word2`));
+  const banned = decodePacket(
+    rawPacket("0054", `${separator}replacement${separator}word1\x06word2`),
+  );
   assert.equal(banned.type, "banWord");
-  if (banned.type === "banWord") assert.equal(banned.data.banWordList, "word1,word2");
+  if (banned.type === "banWord") assert.deepEqual(banned.data.banWordList, ["word1", "word2"]);
+
+  const emptyBanWords = decodePacket(rawPacket("0054", `${separator}replacement${separator}`));
+  assert.equal(emptyBanWords.type, "banWord");
+  if (emptyBanWords.type === "banWord") assert.deepEqual(emptyBanWords.data.banWordList, []);
 
   const balloon = decodePacket(
     rawPacket(
@@ -409,11 +415,11 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   if (manager.type === "setSubBj") {
     assert.equal(manager.data.nickname, "manager");
     assert.equal(manager.data.hidden, true);
-    assert.equal(manager.data.flag1, 269025632);
-    assert.equal(manager.data.flag2, 688128);
-    assert.equal(manager.data.isManager, true);
-    assert.equal(manager.data.isFixedManager, true);
-    assert.equal(manager.data.isEmployee, false);
+    assert.equal(manager.data.userStatus.flag1, 269025632);
+    assert.equal(manager.data.userStatus.flag2, 688128);
+    assert.equal(manager.data.userStatus.isManager, true);
+    assert.equal(manager.data.userStatus.isFixedManager, true);
+    assert.equal(manager.data.userStatus.isEmployee, false);
   }
 
   const adminNotice = decodePacket(rawPacket("0058", `${separator}운영자 공지`));
@@ -840,8 +846,7 @@ void test("decodes every field-reading official player branch", () => {
   if (kickList.type === "kickUserList")
     assert.partialDeepStrictEqual(kickList.data.users[0], {
       userId: "user",
-      commanderPrimaryFlag: 256,
-      commanderSecondaryFlag: 1024,
+      commanderStatus: { flag1: 256, flag2: 1024 },
     });
 
   const adminUsers = decodePacket(
@@ -854,18 +859,15 @@ void test("decodes every field-reading official player branch", () => {
   if (adminUsers.type === "adminChatUser") {
     assert.partialDeepStrictEqual(adminUsers.data.users[0], {
       userId: "adminCleanAti",
-      isAdmin: true,
-      isCleanAti: true,
+      userStatus: { isAdmin: true, isCleanAti: true },
     });
     assert.partialDeepStrictEqual(adminUsers.data.users[1], {
       userId: "fixedManager",
-      isManager: true,
-      isFixedManager: true,
+      userStatus: { isManager: true, isFixedManager: true },
     });
     assert.partialDeepStrictEqual(adminUsers.data.users[2], {
       userId: "employeeAdminChat",
-      isEmployee: true,
-      isEmployeeAdminChat: true,
+      userStatus: { isEmployee: true, isEmployeeAdminChat: true },
     });
     assert.equal(adminUsers.data.users[2]?.userStatus.isEmployee, true);
   }
