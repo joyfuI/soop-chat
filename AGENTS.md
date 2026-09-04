@@ -37,6 +37,7 @@
 
 ## 코드와 문서 위치
 
+- `package.json`의 `exports`가 공개 API 경계다. `.`과 `./browser`에서 export하는 class, function, type, error, event를 공개 계약으로 취급한다.
 - `src/client.ts`: 연결 상태, handshake, heartbeat와 reconnect 수명주기
 - `src/protocol.ts`: framing, packet codec와 event decoder
 - `src/events.ts`: 공개 event/opcode catalog와 데이터 타입
@@ -44,10 +45,11 @@
 - `src/errors.ts`: 공개 오류 계층과 서버/브라우저 직렬화
 - `test/`: 합성 단위 테스트와 브라우저·선택 실행형 live smoke test
 - `README.md`: 설치, 공개 API, 보안 및 운영 사용법
+- `docs/browser.md`: 브라우저 resolver 서버, 인증과 ticket 보안 계약
 - `docs/events.md`: 공개 이벤트 필드와 provenance
 - `docs/protocol.md`: wire protocol 조사 결과, 관찰 근거와 미확인 사항
 
-새 프로토콜 사실은 기본적으로 `docs/protocol.md`에, 공개 이벤트 필드 변경은 `docs/events.md`에 기록한다. 사용자 사용법이나 공개 옵션이 바뀌면 `README.md`도 갱신한다.
+새 프로토콜 사실은 `docs/protocol.md`와 관련 테스트에, 공개 이벤트 필드 변경은 `docs/events.md`에 기록한다. 사용자용 option이나 export가 바뀌면 해당 JSDoc과 README의 API 안내를, 브라우저 인증 계약이 바뀌면 `docs/browser.md`를 함께 갱신한다. 공개되는 주요 symbol에는 IDE만으로 사용 계약, 기본값, runtime 경계와 보안 제약을 알 수 있는 짧은 JSDoc을 유지한다.
 
 ## 필수 검증
 

@@ -1,3 +1,4 @@
+/** 알려진 opcode 정의를 뒷받침하는 근거 수준입니다. */
 export type EventProvenance = "observed" | "player" | "reference";
 
 interface EventDefinition {
@@ -6,6 +7,7 @@ interface EventDefinition {
   provenance: EventProvenance;
 }
 
+/** 알려진 채팅 opcode, 공개 이벤트 이름, 설명과 근거 수준입니다. */
 export const EVENT_CATALOG = {
   "0000": { type: "keepAlive", description: "Keep Alive", provenance: "observed" },
   "0001": { type: "login", description: "Login Handshake", provenance: "observed" },
@@ -130,9 +132,12 @@ export const EVENT_CATALOG = {
   "0141": { type: "nightbotTimeout", description: "Nightbot Timeout", provenance: "player" },
 } as const satisfies Record<string, EventDefinition>;
 
+/** {@link EVENT_CATALOG}에 등록된 네 자리 opcode입니다. */
 export type KnownSoopOpcode = keyof typeof EVENT_CATALOG;
+/** 알려진 opcode에 대응하는 공개 이벤트 이름입니다. */
 export type KnownSoopEventType = (typeof EVENT_CATALOG)[KnownSoopOpcode]["type"];
 
+/** stream framing 뒤 손실 없이 보존한 패킷입니다. */
 export interface RawPacket {
   opcode: string;
   flags: string;
@@ -141,10 +146,12 @@ export interface RawPacket {
   fields: readonly string[];
 }
 
+/** 필드 의미가 이름을 붙일 만큼 확실하지 않을 때 제공하는 payload입니다. */
 export interface FieldEventData {
   fields: readonly string[];
 }
 
+/** SOOP의 숫자 플래그 두 그룹에서 독립적으로 판정한 사용자 상태입니다. */
 export interface UserStatus {
   flag1: number;
   flag2: number;
@@ -169,12 +176,14 @@ export interface UserStatus {
   isCleanAti: boolean;
 }
 
+/** decoding한 `0001` 로그인 handshake payload입니다. */
 export interface LoginData {
   userId: string;
   userFlag: string;
   userStatus: UserStatus;
 }
 
+/** decoding한 `0002` 채널 입장 payload입니다. */
 export interface JoinChannelData {
   chatNo: string;
   streamerId: string;
@@ -185,8 +194,10 @@ export interface JoinChannelData {
   userStatus: UserStatus;
 }
 
+/** 현재 사용자 강퇴 응답에서 판정한 명령 주체입니다. */
 export type QuitChannelActor = "streamer" | "manager" | "admin" | "unknown";
 
+/** 현재 시청자가 강제 퇴장될 때 받는 `0003` payload입니다. */
 export interface QuitChannelData {
   kickType: number;
   actor: QuitChannelActor;
@@ -196,6 +207,7 @@ export interface QuitChannelData {
   bannedRoomStreamerNickname: string;
 }
 
+/** 채널 입장 batch에 포함된 사용자 정보입니다. */
 export interface ChatUserInfo {
   userId: string;
   nickname: string;
@@ -203,6 +215,7 @@ export interface ChatUserInfo {
   userStatus: UserStatus;
 }
 
+/** 사용자 입장 또는 퇴장 payload입니다. 입장 패킷에는 여러 사용자가 포함될 수 있습니다. */
 export type ChatUserData =
   | {
       action: "join";
@@ -219,10 +232,12 @@ export type ChatUserData =
       isKicked: boolean;
     };
 
+/** 숫자의 세부 의미를 확정하지 않고 원본으로 제공하는 방송인 상태 payload입니다. */
 export interface BroadcasterStatusData {
   status: number;
 }
 
+/** decoding한 귓속말 payload입니다. */
 export interface DirectChatData {
   message: string;
   senderId: string;
@@ -236,6 +251,7 @@ export interface DirectChatData {
   isAdmin: boolean;
 }
 
+/** 채팅금지 대상, 시간, 누적 횟수와 명령 주체입니다. */
 export interface SetDumbData {
   targetId: string;
   targetNickname: string;
@@ -247,6 +263,7 @@ export interface SetDumbData {
   commanderLabel: string;
 }
 
+/** 변경 전후의 사용자 상태 플래그입니다. */
 export interface SetUserFlagData {
   userId: string;
   nickname: string;
@@ -256,6 +273,7 @@ export interface SetUserFlagData {
   previousUserStatus: UserStatus;
 }
 
+/** 원본 숫자 변경 종류를 포함한 닉네임 변경 payload입니다. */
 export interface NicknameChangeData {
   userId: string;
   newNickname: string;
@@ -265,6 +283,7 @@ export interface NicknameChangeData {
   userStatus: UserStatus;
 }
 
+/** 확장 얼음 상태에서도 채팅할 수 있는 역할입니다. */
 export type IceModeRole =
   | "streamer"
   | "fanClub"
@@ -273,6 +292,7 @@ export type IceModeRole =
   | "subscriber"
   | "manager";
 
+/** 확장 채팅 얼음 상태와 허용 역할 bitmask입니다. */
 export interface IceModeExData {
   frozen: boolean;
   allowedRoleMask: number;
@@ -281,6 +301,7 @@ export interface IceModeExData {
   subscriptionLimitCount: number;
 }
 
+/** 매니저 또는 운영자 채팅 메시지 payload입니다. */
 export interface ManagerChatData {
   message: string;
   senderId: string;
@@ -291,8 +312,10 @@ export interface ManagerChatData {
   subscriptionMonth: string;
 }
 
+/** 정규화한 퀵뷰 상품 종류입니다. */
 export type QuickViewProduct = "quickView" | "quickViewPlus" | "unknown";
 
+/** 퀵뷰 선물의 발신자, 수신자, 상품과 기간입니다. */
 export interface QuickViewGiftData {
   senderId: string;
   senderNickname: string;
@@ -303,8 +326,10 @@ export interface QuickViewGiftData {
   durationDays: number | null;
 }
 
+/** 정규화한 투표 표시 상태입니다. */
 export type PollState = "started" | "closed" | "hidden" | "unknown";
 
+/** 투표 상태 알림입니다. 질문과 결과는 이 패킷에 포함되지 않습니다. */
 export interface PollNotificationData {
   status: number;
   pollState: PollState;
@@ -314,16 +339,19 @@ export interface PollNotificationData {
   visible: boolean;
 }
 
+/** 대체 문구와 서버가 제공한 금칙어 목록입니다. */
 export interface BanWordData {
   replacement: string;
   banWordList: readonly string[];
 }
 
+/** 채팅 채널에서 강퇴 메시지를 숨기는지 나타냅니다. */
 export interface KickMessageStateData {
   chatNo: number;
   hideKickMessage: boolean;
 }
 
+/** 번역 메시지와 원본 숫자 언어 식별자입니다. */
 export interface TranslationData {
   messageIndex: number;
   mode: number;
@@ -332,6 +360,7 @@ export interface TranslationData {
   translatedLanguage: number;
 }
 
+/** 발신자와 수신자 정보가 있는 불투명한 선물 티켓 payload입니다. */
 export interface GiftTicketData {
   senderId: string;
   senderNickname: string;
@@ -340,6 +369,7 @@ export interface GiftTicketData {
   ticketData: string;
 }
 
+/** OGQ 이모티콘 선물의 발신자, 수신자, 제목과 이미지입니다. */
 export interface OgqEmoticonGiftData {
   senderId: string;
   senderNickname: string;
@@ -349,12 +379,14 @@ export interface OgqEmoticonGiftData {
   imageUrl: string;
 }
 
+/** 젬 아이템 수신자와 아이템 이름입니다. */
 export interface GemItemSendData {
   receiverId: string;
   receiverNickname: string;
   itemName: string;
 }
 
+/** 사용자 입장 시점의 구독과 퍼스널콘 메타데이터입니다. */
 export interface ChatUserExtendInfo {
   userId: string;
   representativePersonalconMonth: number | null;
@@ -362,10 +394,12 @@ export interface ChatUserExtendInfo {
   accumulatedSubscriptionMonth: number | null;
 }
 
+/** 입장 시점의 확장 사용자 메타데이터 batch입니다. */
 export interface ChatUserExtendData {
   users: readonly ChatUserExtendInfo[];
 }
 
+/** 일반 채팅 메시지, 발신자 상태, 색상과 구독 메타데이터입니다. */
 export interface ChatMessageData {
   message: string;
   senderId: string;
@@ -383,6 +417,7 @@ export interface ChatMessageData {
   cheerTeamNumber: number;
 }
 
+/** 일반 채널과 relay 채널에서 사용하는 별풍선 후원 payload입니다. */
 export interface BalloonData {
   streamerId: string;
   senderId: string;
@@ -400,6 +435,7 @@ export interface BalloonData {
   relay: boolean;
 }
 
+/** 스티커 후원 payload입니다. 공개 이름은 공식 fan-letter opcode를 유지합니다. */
 export interface FanLetterData {
   streamerId: string;
   streamerNickname: string;
@@ -412,11 +448,13 @@ export interface FanLetterData {
   relay: boolean;
 }
 
+/** 자동·수동 슬로우 모드의 초 단위 시간입니다. */
 export interface SlowModeData {
   automaticSeconds: number;
   manualSeconds: number;
 }
 
+/** 일반 채널과 relay 채널에서 사용하는 초콜릿 후원 payload입니다. */
 export interface ChocolateData {
   streamerId: string;
   senderId: string;
@@ -425,11 +463,13 @@ export interface ChocolateData {
   relay: boolean;
 }
 
+/** 사용 중인 아이템의 남은 시간입니다. */
 export interface ItemUsingData {
   remainingSeconds: number;
   remainingMinutes: number;
 }
 
+/** 확인된 경우 정규화한 상품 메타데이터를 포함하는 신규 구독 payload입니다. */
 export interface FollowItemData {
   chatNo: number;
   receiverId: string;
@@ -445,8 +485,10 @@ export interface FollowItemData {
   urlModify: string;
 }
 
+/** 정규화한 구독 티어입니다. */
 export type SubscriptionTier = "basic" | "plus" | "unknown";
 
+/** 공식 플레이어의 구독 상품표에서 가져온 상품 메타데이터입니다. */
 export interface SubscriptionProduct {
   itemType: number;
   vodItemType: number | null;
@@ -461,6 +503,7 @@ export interface SubscriptionProduct {
   isTrial: boolean;
 }
 
+/** 현재 개월과 누적 개월을 포함한 연속 구독 효과입니다. */
 export interface FollowItemEffectData {
   streamerId: string;
   senderId: string;
@@ -476,6 +519,7 @@ export interface FollowItemEffectData {
   urlModify: string;
 }
 
+/** 매니저 상태 변경과 판정된 사용자 상태입니다. */
 export interface SetSubBjData {
   userId: string;
   userFlag: string;
@@ -485,10 +529,12 @@ export interface SetSubBjData {
   userStatus: UserStatus;
 }
 
+/** 독립적으로 전달되는 운영자 공지 본문입니다. */
 export interface AdminNoticeData {
   message: string;
 }
 
+/** VOD에서 후원되고 다음 라이브 방송에서 전달되는 별풍선 정보입니다. */
 export interface VodBalloonData {
   streamerId: string;
   senderId: string;
@@ -501,6 +547,7 @@ export interface VodBalloonData {
   urlModify: string;
 }
 
+/** 애드벌룬 효과, 발신자, 팬 상태와 표시 리소스입니다. */
 export interface AdconEffectData {
   chatNo: number;
   streamerId: string;
@@ -521,6 +568,7 @@ export interface AdconEffectData {
   urlModify: string;
 }
 
+/** 방송국 애드벌룬의 발신자와 표시 리소스입니다. */
 export interface StationAdconData {
   streamerId: string;
   senderId: string;
@@ -533,6 +581,7 @@ export interface StationAdconData {
   urlModify: string;
 }
 
+/** 일반 채널과 relay 채널에서 사용하는 상품 구매 payload입니다. */
 export interface GoodsPurchaseData {
   goodsType: number;
   streamerId: string;
@@ -543,6 +592,7 @@ export interface GoodsPurchaseData {
   relay: boolean;
 }
 
+/** 원본 동작 값과 stream URL이 있는 VR 방송 알림입니다. */
 export interface VrNotificationData {
   action: number;
   streamerId: string;
@@ -552,13 +602,16 @@ export interface VrNotificationData {
   vrType: number;
 }
 
+/** 정규화한 모바일 방송 일시정지 동작입니다. */
 export type MobileBroadcastPauseAction = "pause" | "resume" | "unknown";
 
+/** 모바일 방송 일시정지 상태와 정규화한 동작입니다. */
 export interface MobileBroadcastPauseData {
   state: number;
   action: MobileBroadcastPauseAction;
 }
 
+/** 강퇴 취소 상태와 대상 사용자 정보입니다. */
 export interface KickAndCancelData {
   state: number;
   cancelled: boolean;
@@ -566,6 +619,7 @@ export interface KickAndCancelData {
   nickname: string;
 }
 
+/** 강퇴된 사용자와 명령을 실행한 주체입니다. */
 export interface KickUserListEntry {
   userId: string;
   nickname: string;
@@ -576,10 +630,12 @@ export interface KickUserListEntry {
   commanderStatus: UserStatus;
 }
 
+/** 강퇴된 사용자 batch입니다. */
 export interface KickUserListData {
   users: readonly KickUserListEntry[];
 }
 
+/** 관리자 채팅 사용자 목록의 개별 사용자입니다. */
 export interface AdminChatUserInfo {
   userId: string;
   nickname: string;
@@ -587,11 +643,13 @@ export interface AdminChatUserInfo {
   userStatus: UserStatus;
 }
 
+/** 정규화하지 않은 상태값을 포함한 관리자 채팅 사용자 목록입니다. */
 export interface AdminChatUserData {
   state: number;
   users: readonly AdminChatUserInfo[];
 }
 
+/** 아이템 판매 효과의 발신자, 메시지와 표시 리소스입니다. */
 export interface ItemSellEffectData {
   chatNo: number;
   streamerId: string;
@@ -605,6 +663,7 @@ export interface ItemSellEffectData {
   count: number;
 }
 
+/** VOD 애드벌룬의 발신자와 표시 리소스입니다. */
 export interface VodAdconData {
   streamerId: string;
   senderId: string;
@@ -617,6 +676,7 @@ export interface VodAdconData {
   urlModify: string;
 }
 
+/** 아이템 드롭의 이름, 메시지와 표시 이미지입니다. */
 export interface ItemDropsData {
   streamerId: string;
   name: string;
@@ -624,11 +684,13 @@ export interface ItemDropsData {
   imageUrl: string;
 }
 
+/** 운영자 상태 플래그 변경입니다. */
 export interface AdminFlagData {
   userFlag: string;
   userStatus: UserStatus;
 }
 
+/** 발신자, 수신자와 정규화한 상품 메타데이터가 있는 구독 선물입니다. */
 export interface GiftSubscriptionData {
   senderId: string;
   senderNickname: string;
@@ -648,6 +710,7 @@ export interface GiftSubscriptionData {
   subscriptionPayCount: number;
 }
 
+/** 영상풍선 후원과 표시 리소스 메타데이터입니다. */
 export interface VideoBalloonData {
   chatNo: string;
   streamerId: string;
@@ -663,6 +726,7 @@ export interface VideoBalloonData {
   extraData: string;
 }
 
+/** 발신자와 구독 메타데이터가 있는 OGQ 이미지 채팅 메시지입니다. */
 export interface OgqEmoticonData {
   chatNo: string;
   message: string;
@@ -686,12 +750,15 @@ export interface OgqEmoticonData {
   cheerTeamNumber: number;
 }
 
+/** 방송인 공지의 표시 상태와 본문입니다. */
 export interface BjNoticeData {
   show: number;
   message: string;
 }
 
+/** 알려진 미션 payload가 나타내는 동작입니다. */
 export type MissionAction = "gift" | "notice" | "settle";
+/** 정규화한 도전미션 결과입니다. */
 export type ChallengeMissionStatus = "success" | "fail" | "unknown";
 
 interface MissionBaseData {
@@ -704,6 +771,7 @@ interface ChallengeMissionBaseData extends MissionBaseData {
   uuid: string;
 }
 
+/** 도전미션 후원 payload입니다. */
 export interface ChallengeMissionGiftData extends ChallengeMissionBaseData {
   action: "gift";
   title: string;
@@ -717,12 +785,14 @@ export interface ChallengeMissionGiftData extends ChallengeMissionBaseData {
   streamerNickname: string;
 }
 
+/** 도전미션 결과 알림입니다. */
 export interface ChallengeMissionNoticeData extends ChallengeMissionBaseData {
   action: "notice";
   title: string;
   status: ChallengeMissionStatus;
 }
 
+/** 도전미션 정산 알림입니다. */
 export interface ChallengeMissionSettleData extends ChallengeMissionBaseData {
   action: "settle";
   title: string;
@@ -737,6 +807,7 @@ interface BattleMissionBaseData extends MissionBaseData {
   missionKind: "battle";
 }
 
+/** 대결미션 후원 payload입니다. */
 export interface BattleMissionGiftData extends BattleMissionBaseData {
   action: "gift";
   title: string;
@@ -749,6 +820,7 @@ export interface BattleMissionGiftData extends BattleMissionBaseData {
   topFanLevel: number;
 }
 
+/** 대결미션 결과 알림입니다. */
 export interface BattleMissionNoticeData extends BattleMissionBaseData {
   action: "notice";
   draw: boolean;
@@ -757,6 +829,7 @@ export interface BattleMissionNoticeData extends BattleMissionBaseData {
   myTeamName: string;
 }
 
+/** 대결미션 정산 알림입니다. */
 export interface BattleMissionSettleData extends BattleMissionBaseData {
   action: "settle";
   title: string;
@@ -764,16 +837,19 @@ export interface BattleMissionSettleData extends BattleMissionBaseData {
   image: string;
 }
 
+/** 알려진 대결미션 동작의 union입니다. */
 export type BattleMissionData =
   | BattleMissionGiftData
   | BattleMissionNoticeData
   | BattleMissionSettleData;
 
+/** 현재 버전이 해석하지 못하는 미션 JSON `type`의 fallback입니다. */
 export interface UnknownMissionData extends MissionBaseData {
   missionKind: "unknown";
   action: "unknown";
 }
 
+/** 도전, 대결과 미확인 미션 payload의 판별 union입니다. */
 export type MissionData =
   | ChallengeMissionGiftData
   | ChallengeMissionNoticeData
@@ -781,6 +857,7 @@ export type MissionData =
   | BattleMissionData
   | UnknownMissionData;
 
+/** 도전미션 정산에 포함된 참여자 결과입니다. */
 export interface ChallengeMissionSettlementParticipant {
   userId: string;
   nickname: string;
@@ -789,6 +866,7 @@ export interface ChallengeMissionSettlementParticipant {
   becameTopFan: boolean;
 }
 
+/** 도전미션 정산 참여자와 보존한 JSON payload입니다. */
 export interface ChallengeMissionSettlementData {
   missionKind: "challenge";
   chatNo: number;
@@ -798,20 +876,24 @@ export interface ChallengeMissionSettlementData {
   payload: Readonly<Record<string, unknown>>;
 }
 
+/** 내부 schema를 모델링할 만큼 안정적이지 않아 객체로만 검증한 JSON입니다. */
 export interface JsonObjectData {
   payload: Readonly<Record<string, unknown>>;
 }
 
+/** 구독 세리머니 버튼 상태입니다. */
 export interface SubscriptionCeremonyButtonData {
   subscriptionMonth: string;
 }
 
+/** Savvy 영상 알림입니다. */
 export interface SavvyNoticeData {
   streamerId: string;
   userId: string;
   videoNumber: string;
 }
 
+/** 전역 자막 본문과 원본 timestamp입니다. */
 export interface GlobalSubtitleData {
   chatNo: string;
   streamerId: string;
@@ -820,16 +902,19 @@ export interface GlobalSubtitleData {
   timestamp: string;
 }
 
+/** 꽃가루 효과 종류와 효과를 발생시킨 사용자입니다. */
 export interface ConfettiData {
   confettiType: number;
   senderId: string;
 }
 
+/** 사용자의 응원팀 변경입니다. */
 export interface CheerTeamChangeData {
   userId: string;
   teamNumber: string;
 }
 
+/** Nightbot timeout 대상, 정규화한 사유와 원본 메타데이터입니다. */
 export interface NightbotTimeoutData {
   userId: string;
   nickname: string;
@@ -842,6 +927,7 @@ export interface NightbotTimeoutData {
   userStatus: UserStatus;
 }
 
+/** 정규화한 Nightbot timeout 사유입니다. */
 export type NightbotTimeoutReason =
   | "blacklist"
   | "excessCaps"
@@ -920,6 +1006,7 @@ type DecodedData<O extends KnownSoopOpcode> = O extends keyof DecodedDataByOpcod
   ? DecodedDataByOpcode[O]
   : FieldEventData;
 
+/** 알려진 opcode 하나의 typed event이며 `O`를 생략하면 전체 union입니다. */
 export type KnownSoopEvent<O extends KnownSoopOpcode = KnownSoopOpcode> = O extends KnownSoopOpcode
   ? {
       type: (typeof EVENT_CATALOG)[O]["type"];
@@ -930,6 +1017,7 @@ export type KnownSoopEvent<O extends KnownSoopOpcode = KnownSoopOpcode> = O exte
     }
   : never;
 
+/** {@link EVENT_CATALOG}에 없는 opcode를 손실 없이 제공하는 fallback입니다. */
 export interface UnknownSoopEvent {
   type: "unknown";
   opcode: string;
@@ -938,8 +1026,10 @@ export interface UnknownSoopEvent {
   data: FieldEventData;
 }
 
+/** 모든 알려진 이벤트와 미래 호환용 unknown 이벤트의 union입니다. */
 export type SoopEvent = KnownSoopEvent | UnknownSoopEvent;
 
+/** 알려진 공개 이벤트 이름을 각 이벤트 payload에 연결합니다. */
 export type SoopProtocolEventMap = {
   [O in KnownSoopOpcode as (typeof EVENT_CATALOG)[O]["type"]]: KnownSoopEvent<O>;
 };

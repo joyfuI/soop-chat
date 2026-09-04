@@ -12,6 +12,19 @@ SOOP 라이브 방송의 채팅을 읽는 TypeScript 라이브러리입니다. N
 npm install soop-chat
 ```
 
+## 공개 API
+
+| Export                      | Import              | Runtime  | 용도                                                             |
+| --------------------------- | ------------------- | -------- | ---------------------------------------------------------------- |
+| `SoopChat`                  | `soop-chat`         | Node.js  | 기본 채널 조회와 선택적 계정 인증을 포함한 채팅 클라이언트       |
+| `SoopChat`                  | `soop-chat/browser` | 브라우저 | 애플리케이션 서버의 `ChannelResolver`를 사용하는 채팅 클라이언트 |
+| `resolveNodeChannel`        | `soop-chat`         | Node.js  | 현재 방송의 채널 정보를 한 번 조회                               |
+| `authenticateNode`          | `soop-chat`         | Node.js  | 서버에 보관할 계정 `AuthTicket` 발급                             |
+| `createNodeChannelResolver` | `soop-chat`         | Node.js  | 인증 상태를 메모리에 유지하는 resolver 생성                      |
+| 오류·이벤트·공통 타입       | 두 entrypoint       | 공통     | typed event, lifecycle, resolver 오류 처리                       |
+
+브라우저 서버 계약과 인증은 [브라우저 리졸버 가이드](docs/browser.md), 이벤트별 필드는 [이벤트 레퍼런스](docs/events.md), wire-level 근거와 미확인 사항은 [프로토콜 조사 노트](docs/protocol.md)를 참고하세요.
+
 ## Node.js
 
 Node에서는 SOOP 아이디만으로 방송 정보를 조회하고 채팅에 연결합니다.
@@ -66,25 +79,21 @@ const chat = new SoopChat({
 await chat.connect();
 ```
 
-`SoopChat`에 `credentials`를 직접 전달하는 Node 기본 경로에서는 `credentials`와 `roomPassword`를 프로세스 메모리에서만 사용합니다. 로그인 유지와 아이디 저장을 요청하지 않으며, 방 비밀번호, `AuthTicket`, `TK`, `FTK`를 공개 `ChannelInfo`나 이벤트로 노출하지 않습니다. 자동 재연결은 같은 메모리 내 방 비밀번호와 로그인 티켓을 재사용합니다. `resolveChannel`을 직접 전달하면 사용자 리졸버가 우선하며 `credentials`는 사용하지 않습니다. 아래의 서버 보조 브라우저 경로는 별도이며, 브라우저가 WebSocket에 접속할 수 있도록 `TK`와 `FTK`만 `AuthenticatedChannelInfo`에 일시적으로 포함합니다.
+Node 기본 경로는 credential과 인증 티켓을 프로세스 메모리에만 유지하고 공개 `ChannelInfo`나 이벤트로 노출하지 않습니다. `resolveChannel`을 직접 전달하면 사용자 resolver가 우선하며 `credentials`는 사용하지 않습니다.
 
 Node에서도 별도 API나 캐시를 사용하려면 브라우저와 같은 형태의 `resolveChannel`을 생성자에 전달해 기본 조회를 대체할 수 있습니다.
 
-Node와 브라우저의 사용자 정의 `ChannelResolver`는 전달받은 `AbortSignal`을 `fetch` 등 모든 대기 작업에 반드시 전달해야 합니다. `disconnect()`나 새 lifecycle 전환 시 pending resolution을 빠르게 중단하기 위한 계약이며, signal을 무시하면 이전 `connect()` Promise가 resolver 완료까지 남을 수 있습니다.
+사용자 정의 `ChannelResolver`는 전달받은 `AbortSignal`을 모든 대기 작업에 전달해야 합니다. `disconnect()`나 새 lifecycle 전환 시 pending resolution을 빠르게 중단하기 위한 계약이며, signal을 무시하면 이전 `connect()` Promise가 resolver 완료까지 남을 수 있습니다. 방송이 바뀔 수 있는 `ChannelInfo`는 방송 간에 캐시하지 않아야 합니다.
 
 ## 브라우저
 
 SOOP 라이브 정보 API는 임의 웹사이트의 CORS 요청을 허용하지 않습니다. 따라서 브라우저에서는 애플리케이션 서버가 제공하는 `ChannelResolver`가 필요합니다.
 
-브라우저 리졸버는 서버가 반환한 채널 JSON을 그대로 반환하고, 오류 JSON은 `deserializeChannelResolutionError`로 기존 오류 클래스 인스턴스로 복원합니다. 인증용 HttpOnly 쿠키도 보낼 수 있도록 `credentials: "include"`를 사용하세요.
-
 ```ts
 import { deserializeChannelResolutionError, SoopChat } from "soop-chat/browser";
 
-const roomPassword = getRoomPasswordFromUserInput(); // 애플리케이션 구현
 const chat = new SoopChat({
   streamerId: "soopId",
-  roomPassword,
   resolveChannel: async (streamerId, { signal, roomPassword }) => {
     const response = await fetch("/api/soop-channel", {
       method: "POST",
@@ -104,86 +113,7 @@ chat.on("chatMessage", ({ data }) => console.log(data.message));
 await chat.connect();
 ```
 
-익명 연결이라면 서버에서 요청 본문의 `streamerId`와 선택적인 `roomPassword`를 검증한 뒤 `resolveNodeChannel` 결과를 그대로 응답합니다.
-
-```ts
-import {
-  AuthenticationError,
-  resolveNodeChannel,
-  RestrictedRoomError,
-  serializeChannelResolutionError,
-} from "soop-chat";
-
-try {
-  const channel = await resolveNodeChannel(streamerId, {
-    signal: request.signal,
-    roomPassword,
-  });
-  return Response.json(channel);
-} catch (error) {
-  if (error instanceof AuthenticationError) {
-    return Response.json({ code: error.code, message: error.message }, { status: 401 });
-  }
-  return Response.json(serializeChannelResolutionError(error), {
-    status: error instanceof RestrictedRoomError ? 403 : 503,
-  });
-}
-```
-
-`SerializedChannelResolutionError`는 서버와 브라우저가 공유하는 discriminated union입니다. 알 수 없거나 잘못된 payload는 브라우저에서 안전한 `ChannelResolutionError`로 복원됩니다. HTTP 상태 정책은 애플리케이션에 맞게 조정할 수 있습니다.
-
-이 wire type은 채널 해석 결과에만 사용합니다. `BroadcastOfflineError`와 `RestrictedRoomError`는 브라우저에서 클래스를 복원해야 재연결 중단 판정이 유지됩니다. `AuthenticationError`는 재연결이 직접 판별하는 오류가 아니므로 union에 포함하지 않습니다. 브라우저에서 인증 실패를 구분해야 한다면 `deserializeChannelResolutionError`를 호출하기 전에 HTTP `401` 또는 응답의 `AUTHENTICATION_FAILED` code를 읽어 로그인 갱신·이동 같은 애플리케이션 인증 흐름으로 처리하세요. `AuthenticationError`를 `serializeChannelResolutionError`에 전달하면 안전한 `CHANNEL_RESOLUTION_FAILED`로 일반화됩니다.
-
-이 응답은 다음 `ChannelInfo`만 포함합니다.
-
-```ts
-interface ChannelInfo {
-  broadcastNo: string;
-  chatNo: string;
-  chatDomain: string;
-  chatPort: number;
-}
-```
-
-성인 인증 계정으로 19금 방에 연결하거나 구독플러스 권한 계정으로 해당 방에 연결할 때는 애플리케이션 서버가 로그인과 쿠키를 담당합니다. 로그인 API에서 `authenticateNode`를 호출하고, 반환된 `authTicket`을 인증된 암호화 방식으로 봉인해 `HttpOnly`, `Secure`, 적절한 `SameSite` 속성의 쿠키에 저장하세요. 평문 또는 서명만 한 JWT로 저장하면 안 됩니다.
-
-```ts
-import { authenticateNode } from "soop-chat";
-
-const authentication = await authenticateNode({ username, password }, { signal: request.signal });
-
-await encryptAndSetHttpOnlyCookie(authentication); // 애플리케이션 구현
-```
-
-채널 API는 쿠키를 복호화하고 같은 `resolveNodeChannel`의 `authentication` 옵션에 전달합니다.
-
-```ts
-import { resolveNodeChannel } from "soop-chat";
-
-const authentication = await readEncryptedHttpOnlyCookie(request); // 애플리케이션 구현
-const channel = await resolveNodeChannel(streamerId, {
-  signal: request.signal,
-  roomPassword,
-  authentication,
-});
-
-return Response.json(channel, {
-  headers: { "cache-control": "no-store" },
-});
-```
-
-인증된 호출은 `AuthenticatedChannelInfo`를 반환합니다. `AuthTicket`은 포함하지 않으며, 브라우저가 SOOP WebSocket에 직접 연결하는 데 필요한 단기 티켓만 포함합니다.
-
-```ts
-interface AuthenticatedChannelInfo extends ChannelInfo {
-  authentication: {
-    ticket: string; // TK, 0001에 사용
-    fanTicket: string; // FTK, 0002에 사용
-  };
-}
-```
-
-브라우저 클라이언트는 두 티켓을 검증한 뒤 열거 가능한 채널 정보에서 제거하고 메모리의 내부 저장소로 옮깁니다. 서버와 브라우저 모두 방 비밀번호, 로그인 본문, `AuthTicket`, `TK`, `FTK`를 URL, 로그나 영구 저장소에 남기지 말고 채널 응답에는 `Cache-Control: no-store`를 적용하세요. 재연결 시 `resolveChannel`이 채널 API를 다시 호출하므로 `chatNo`와 단기 티켓을 캐시하지 않습니다. 로그인·상태 확인·로그아웃 HTTP API와 쿠키 암호화는 사용하는 서버 프레임워크에 맞게 애플리케이션에서 구현합니다.
+서버는 요청을 검증하고 매번 최신 채널 정보를 반환해야 합니다. 19금·구독플러스 방의 로그인, HttpOnly 쿠키, 오류 직렬화와 티켓 보안 계약은 [브라우저 리졸버 가이드](docs/browser.md)에 정리되어 있습니다.
 
 ## 연결 상태
 
@@ -225,9 +155,9 @@ chat.on("protocolError", ({ error, raw }) => console.error(error, raw));
 off();
 ```
 
-모든 프로토콜 이벤트에는 `type`, `opcode`, `receivedAt`, `raw`, `data`가 있습니다. 현재 알려진 네트워크 opcode 101개와 미래 opcode용 `unknown`을 합쳐 102개 판별 타입을 제공합니다. 이벤트별 의미, 근거 수준, 구조화된 `data` 필드는 [이벤트 레퍼런스](docs/events.md)에서 확인할 수 있습니다.
+모든 프로토콜 이벤트에는 `type`, `opcode`, `receivedAt`, `raw`, `data`가 있습니다. 알려진 opcode는 개별 판별 타입으로, 미래 opcode는 `unknown`으로 손실 없이 제공합니다. 이벤트별 의미, 근거 수준, 구조화된 `data` 필드는 [이벤트 레퍼런스](docs/events.md)에서 확인할 수 있습니다.
 
-의미가 확인되지 않은 payload 필드는 이름을 추측하지 않고 `data.fields`와 `raw.fields`에 보존합니다. 현재 62개 opcode가 구조화되어 있으며, 공식 플레이어가 실제로 읽는 로그인·입장 응답, 귓속말, 슬로우모드, 강퇴 목록, 모바일 방송 일시정지, 별풍선·팬레터·상품·애드벌룬·드롭스와 미션 필드를 제공합니다. `chatUser` 퇴장 이벤트의 `isKicked`로 일반 퇴장과 강퇴도 구분할 수 있습니다.
+의미가 확인되지 않은 payload 필드는 이름을 추측하지 않고 `data.fields`와 `raw.fields`에 보존합니다. `chatUser` 퇴장 이벤트의 `isKicked`로 일반 퇴장과 강퇴를 구분할 수 있습니다.
 
 연결 수명주기 이벤트는 프로토콜 이벤트와 다른 payload를 사용합니다.
 

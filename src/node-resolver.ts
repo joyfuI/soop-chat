@@ -17,16 +17,25 @@ import type {
 const LIVE_API = "https://live.sooplive.com/afreeca/player_live_api.php";
 const LOGIN_API = "https://login.sooplive.com/app/LoginAction.php";
 
+/** Node 전용 SOOP 계정 정보입니다. 메모리에만 두고 로그나 영구 저장소에 남기지 마세요. */
 export interface SoopCredentials {
+  /** SOOP 계정 ID입니다. */
   username: string;
+  /** SOOP 계정 비밀번호입니다. */
   password: string;
 }
 
+/**
+ * {@link authenticateNode}가 반환하는 Node 전용 계정 인증 정보입니다.
+ * `AuthTicket`은 서버에만 보관하고 브라우저로 보내지 마세요.
+ */
 export interface SoopAuthentication {
+  /** 계정 session 티켓입니다. 서버 메모리에만 두고 로그나 영구 저장소에 남기지 마세요. */
   authTicket: string;
 }
 
 interface AuthenticatedChannelResolverContext extends ChannelResolverContext {
+  /** {@link authenticateNode}가 만든 서버 측 계정 인증 정보입니다. */
   authentication: SoopAuthentication;
 }
 
@@ -212,6 +221,13 @@ async function resolveChannel(
   return { channel: info };
 }
 
+/**
+ * ID 저장이나 로그인 유지를 요청하지 않고 Node.js에서 SOOP에 로그인합니다.
+ * `signal`이 중단되면 요청은 `AbortError`로 거부됩니다.
+ *
+ * @throws {TypeError} 계정 ID나 비밀번호가 비어 있을 때 발생합니다.
+ * @throws {AuthenticationError} 로그인 요청이나 응답에 실패할 때 발생합니다.
+ */
 export async function authenticateNode(
   credentials: SoopCredentials,
   { signal }: ChannelResolverContext,
@@ -219,6 +235,18 @@ export async function authenticateNode(
   return { authTicket: await authenticate(normalizedCredentials(credentials), signal) };
 }
 
+/**
+ * Node.js에서 SOOP 라이브 정보 API를 통해 최신 채팅 접속 정보를 조회합니다.
+ *
+ * `authentication`은 신뢰할 수 있는 서버에서만 전달하세요. 인증 호출은 브라우저 클라이언트용
+ * 단기 `TK`와 `FTK`를 반환하지만 계정 수준의 `AuthTicket`은 반환하지 않습니다.
+ * `context.signal`이 중단되면 요청은 `AbortError`로 거부됩니다.
+ *
+ * @throws {BroadcastOfflineError} 방송 중이 아닐 때 발생합니다.
+ * @throws {RestrictedRoomError} 비밀번호나 계정 권한이 필요한 방일 때 발생합니다.
+ * @throws {AuthenticationError} 전달된 인증 티켓이 유효하지 않을 때 발생합니다.
+ * @throws {ChannelResolutionError} SOOP이 유효한 채널 정보를 제공하지 못할 때 발생합니다.
+ */
 export function resolveNodeChannel(
   streamerId: string,
   context: AuthenticatedChannelResolverContext,
@@ -245,6 +273,14 @@ export async function resolveNodeChannel(
   return { ...resolution.channel, authentication: resolution.authentication };
 }
 
+/**
+ * 인증이 필요한 방을 위한 Node.js resolver를 만듭니다.
+ *
+ * resolver는 처음 필요할 때 로그인하고 계정 정보와 `AuthTicket`을 closure에 보관해 재연결에
+ * 재사용합니다. 티켓 만료를 추측하거나 실패한 인증을 자동 갱신하지 않습니다.
+ *
+ * @throws {TypeError} 계정 ID나 비밀번호가 비어 있을 때 발생합니다.
+ */
 export function createNodeChannelResolver(credentials: SoopCredentials): ChannelResolver {
   const normalized = normalizedCredentials(credentials);
 

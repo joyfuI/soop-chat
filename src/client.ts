@@ -103,7 +103,9 @@ function validateChannel(channel: ChannelInfo): ChannelInfo {
   return info;
 }
 
+/** 공개 Node.js·브라우저 클라이언트가 상속하는 공통 lifecycle 구현입니다. */
 export class SoopChatCore {
+  /** 생성 시 전달되어 정규화된 방송인 ID입니다. */
   readonly streamerId: string;
 
   #state: ConnectionState = "idle";
@@ -141,10 +143,17 @@ export class SoopChatCore {
     this.#random = options.random ?? Math.random;
   }
 
+  /** 현재 연결 lifecycle 상태입니다. */
   get state(): ConnectionState {
     return this.#state;
   }
 
+  /**
+   * 타입이 지정된 프로토콜 또는 lifecycle 이벤트를 구독합니다.
+   *
+   * 반환된 함수를 호출하면 listener를 제거합니다. listener가 던진 예외와 반환한 Promise의
+   * rejection은 연결을 중단하지 않고 `error` listener로 전달되며 Promise 완료를 기다리지 않습니다.
+   */
   on<K extends SoopChatEventType>(type: K, listener: SoopChatListener<K>): () => void {
     let listeners = this.#listeners.get(type);
     if (!listeners) {
@@ -158,6 +167,13 @@ export class SoopChatCore {
     };
   }
 
+  /**
+   * 현재 채널 정보를 조회하고 서버가 채팅 입장을 확인하면 완료됩니다.
+   *
+   * 동시에 호출하면 하나의 연결 시도를 공유합니다. 재시도 대기 중 호출하면 즉시 시작합니다.
+   * resolver, 검증, 접근 제한, transport와 handshake timeout 오류는 Promise rejection으로
+   * 전달됩니다. 연결 도중 `disconnect()`를 호출하면 `AbortError`로 거부됩니다.
+   */
   async connect(): Promise<void> {
     if (this.#retryTimer) clearTimeout(this.#retryTimer);
     this.#retryTimer = undefined;
@@ -185,6 +201,10 @@ export class SoopChatCore {
     return promise;
   }
 
+  /**
+   * 재연결을 중단하고 진행 중인 채널 조회를 취소한 뒤 socket을 닫고 `closed` 상태가 됩니다.
+   * 여러 번 호출해도 안전하며 수동 종료는 `ended` 이벤트를 발생시키지 않습니다.
+   */
   async disconnect(): Promise<void> {
     this.#stopped = true;
     this.#abortController?.abort();
