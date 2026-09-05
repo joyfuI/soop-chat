@@ -635,19 +635,26 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     assert.equal(missionSettle.data.participants[1]?.becameFanClub, false);
   }
 
-  const ogq = decodePacket(
-    rawPacket(
-      "0109",
-      `${separator}123${separator}이미지와 함께 표시${separator}group${separator}20${separator}1${separator}user${separator}nickname${separator}flag${separator}1122867${separator}-1${separator}0${separator}png${separator}4${separator}123456${separator}654321${separator}8${separator}-1${separator}0${separator}-1`,
-    ),
-  );
-  assert.equal(ogq.type, "ogqEmoticon");
-  if (ogq.type === "ogqEmoticon") {
-    assert.equal(ogq.data.message, "이미지와 함께 표시");
-    assert.equal(ogq.data.senderNickname, "nickname");
-    assert.equal(ogq.data.color, "#332211");
-    assert.equal(ogq.data.extension, "png");
-    assert.equal(ogq.data.cheerTeamNumber, -1);
+  for (const [message, animation] of [
+    ["이미지와 함께 표시", "0"],
+    ["", "1"],
+    ["이미지와 함께 표시", "1"],
+  ]) {
+    const ogq = decodePacket(
+      rawPacket(
+        "0109",
+        `${separator}123${separator}${message}${separator}group${separator}20${separator}1${separator}user${separator}nickname${separator}flag${separator}1122867${separator}-1${separator}0${separator}png${separator}4${separator}123456${separator}654321${separator}8${separator}-1${separator}${animation}${separator}-1`,
+      ),
+    );
+    assert.equal(ogq.type, "ogqEmoticon");
+    if (ogq.type === "ogqEmoticon") {
+      assert.equal(ogq.data.message, message);
+      assert.equal(ogq.data.senderNickname, "nickname");
+      assert.equal(ogq.data.color, "#332211");
+      assert.equal(ogq.data.extension, "png");
+      assert.equal(ogq.data.animation, animation);
+      assert.equal(ogq.data.cheerTeamNumber, -1);
+    }
   }
 
   const ogqGift = decodePacket(
@@ -934,6 +941,23 @@ void test("decodes every field-reading official player branch", () => {
 });
 
 void test("connects subscription item types to the official player product table", () => {
+  const follow = decodePacket(
+    rawPacket(
+      "0093",
+      `${separator}bj${separator}user${separator}nickname${separator}12${separator}123${separator}106${separator}12${separator}1`,
+    ),
+  );
+  assert.equal(follow.type, "followItemEffect");
+  if (follow.type === "followItemEffect") {
+    assert.partialDeepStrictEqual(follow.data, {
+      itemType: 106,
+      subscriptionTier: "basic",
+      month: 12,
+      accumulatedMonth: 12,
+      subscriptionProduct: { itemType: 106, subscriptionTier: "basic", month: 6 },
+    });
+  }
+
   const regularGift = decodePacket(
     rawPacket(
       "0108",

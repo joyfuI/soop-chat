@@ -599,7 +599,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-화면의 “N개월째”는 `month`이고 상품표의 1개월권·3개월권은 이번 상품 기간이므로 서로 다른 값입니다. 커스텀 구독자 명칭은 별도 채널 설정에서 가져오므로 합성하지 않습니다.
+화면의 “N개월째”는 `month`이고 `subscriptionProduct.month`는 상품 기간이므로 서로 다른 값입니다. 실방송의 `itemType=106`은 상품 기간이 6개월인 메타데이터와 연결되지만, `month=12`여서 화면에는 “베이직 12개월째 구독 중!”으로 표시됐습니다. 커스텀 구독자 명칭은 별도 채널 설정에서 가져오므로 합성하지 않습니다.
 
 ### `bjNotice` (`0104`)
 
@@ -700,6 +700,8 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `representativePersonalconMonth` | `string` | 대표 퍼스널콘 개월 관련 원본 값 |
 | `animation` | `string` | 애니메이션 관련 원본 값 |
 | `cheerTeamNumber` | `number` | 응원팀 번호. 필드가 없으면 `-1` |
+
+`animation="1", extension="png"`인 두 표본에서 실제 움직이는 이미지를 확인했습니다. 이미지 단독과 텍스트 동반 표시가 모두 관찰됐으므로 확장자만으로 정지 이미지로 판정하지 않습니다. 다른 `animation` 값의 화면 동작은 확인되지 않아 원본 문자열로 제공합니다. 대조 근거는 [OGQ 이모티콘 조사](protocol.md#ogq-이모티콘)를 참고하세요.
 
 ### `mission` (`0121`)
 

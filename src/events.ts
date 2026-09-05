@@ -495,6 +495,7 @@ export interface SubscriptionProduct {
   tier: 1 | 2;
   subscriptionTier: Exclude<SubscriptionTier, "unknown">;
   level: 1 | 2 | 3 | 4 | 5;
+  /** 상품 기간(개월). 연속 구독 효과의 화면 표시 개월과 별개입니다. */
   month: 1 | 3 | 6 | 12;
   isAutoPay: boolean;
   isLegacy: boolean;
@@ -508,6 +509,7 @@ export interface FollowItemEffectData {
   streamerId: string;
   senderId: string;
   senderNickname: string;
+  /** 화면에 표시되는 “N개월째” 값입니다. */
   month: number;
   chatNo: number;
   itemType: number;
@@ -740,12 +742,14 @@ export interface OgqEmoticonData {
   color: string;
   chatLanguage: number;
   emoticonType: number;
+  /** 이미지 확장자. `png`인 움직이는 이미지도 관찰됐습니다. */
   extension: string;
   subscriptionMonth: string;
   nicknameColor: string;
   nicknameColorDark: string;
   accumulatedSubscriptionMonth: string;
   representativePersonalconMonth: string;
+  /** 애니메이션 관련 원본 값. `"1"` 표본은 실제 움직이는 이미지와 대조됐습니다. */
   animation: string;
   cheerTeamNumber: number;
 }
