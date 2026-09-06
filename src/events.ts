@@ -480,7 +480,7 @@ export interface FollowItemData {
   itemType: number;
   tier: number;
   subscriptionTier: SubscriptionTier;
-  subscriptionMonth: number | null;
+  /** 상품 기간은 `subscriptionProduct.month`에 있습니다. 알 수 없는 상품은 `null`입니다. */
   subscriptionProduct: SubscriptionProduct | null;
   subscriptionSource: "live" | "vod" | "unknown";
   senderLanguage: string;
@@ -574,7 +574,7 @@ export interface AdconEffectData {
   urlModify: string;
 }
 
-/** 방송국 애드벌룬의 발신자와 표시 리소스입니다. */
+/** 방송국·VOD 애드벌룬의 발신자와 표시 리소스입니다. */
 export interface StationAdconData {
   streamerId: string;
   senderId: string;
@@ -669,19 +669,6 @@ export interface ItemSellEffectData {
   count: number;
 }
 
-/** VOD 애드벌룬의 발신자와 표시 리소스입니다. */
-export interface VodAdconData {
-  streamerId: string;
-  senderId: string;
-  senderNickname: string;
-  count: number;
-  imageUrl: string;
-  title: string;
-  chatNo: string;
-  senderLanguage: string;
-  urlModify: string;
-}
-
 /** 아이템 드롭의 이름, 메시지와 표시 이미지입니다. */
 export interface ItemDropsData {
   streamerId: string;
@@ -705,8 +692,7 @@ export interface GiftSubscriptionData {
   streamerId: string;
   streamerNickname: string;
   itemType: number;
-  subscriptionTier: SubscriptionTier;
-  subscriptionMonth: number | null;
+  /** 상품 티어와 기간은 이 메타데이터에서 읽습니다. 알 수 없는 상품은 `null`입니다. */
   subscriptionProduct: SubscriptionProduct | null;
   itemCode: string;
   isSubscription: number;
@@ -986,7 +972,7 @@ interface DecodedDataByOpcode {
   "0093": FollowItemEffectData;
   "0095": TranslationData;
   "0102": GiftTicketData;
-  "0103": VodAdconData;
+  "0103": StationAdconData;
   "0104": BjNoticeData;
   "0105": VideoBalloonData;
   "0107": StationAdconData;

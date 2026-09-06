@@ -1,14 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SoopChatCore } from "../src/client.js";
+import { SoopChatCore, type WebSocketLike } from "../src/client.js";
 import { deserializeChannelResolutionError } from "../src/errors.js";
 import { encodePacket, PacketStreamParser } from "../src/protocol.js";
-import type {
-  AuthenticatedChannelInfo,
-  ChannelInfo,
-  WebSocketLike,
-  WebSocketMessageData,
-} from "../src/types.js";
+import type { AuthenticatedChannelInfo, ChannelInfo } from "../src/types.js";
 
 const channel: ChannelInfo = {
   broadcastNo: "1",
@@ -17,17 +12,24 @@ const channel: ChannelInfo = {
   chatPort: 8060,
 };
 
+const loginResponse = encodePacket("0001", "\x0cuser\x0c16|0");
+const joinResponse = encodePacket(
+  "0002",
+  "\x0c2\x0cstreamer\x0c1\x0c10\x0c2]family\x0cignored\x0c16|0",
+);
+
 class FakeSocket implements WebSocketLike {
-  readyState = 0;
+  readyState: WebSocket["readyState"] = 0;
   binaryType: BinaryType = "blob";
   onopen: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent<WebSocketMessageData>) => void) | null = null;
+  onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
   onclose: ((event: CloseEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   sent: Uint8Array[] = [];
   throwOnSend = false;
 
-  send(data: string | ArrayBufferLike | ArrayBufferView): void {
+  send(data: string | ArrayBufferLike | ArrayBufferView | Blob): void {
+    assert.ok(!(data instanceof Blob));
     if (this.throwOnSend) throw new Error("synthetic send failure");
     if (typeof data === "string") this.sent.push(new TextEncoder().encode(data));
     else if (ArrayBuffer.isView(data))
@@ -35,7 +37,11 @@ class FakeSocket implements WebSocketLike {
     else this.sent.push(new Uint8Array(data).slice());
   }
 
-  close(): void {
+  close(code = 1000): void {
+    assert.ok(
+      code === 1000 || (code >= 3000 && code <= 4999),
+      "Invalid standard WebSocket close code",
+    );
     this.readyState = 3;
   }
 
@@ -44,8 +50,8 @@ class FakeSocket implements WebSocketLike {
     this.onopen?.(new Event("open"));
   }
 
-  receive(data: WebSocketMessageData): void {
-    this.onmessage?.({ data } as unknown as MessageEvent<WebSocketMessageData>);
+  receive(data: unknown): void {
+    this.onmessage?.({ data } as unknown as MessageEvent<unknown>);
   }
 
   closeFromServer(code = 1006): void {
@@ -105,12 +111,94 @@ async function join(client: SoopChatCore, socket: FakeSocket): Promise<void> {
   await turn();
   socket.open();
   assert.deepEqual(sentOpcodes(socket), ["0001"]);
-  socket.receive(encodePacket("0001"));
+  socket.receive(loginResponse);
   await turn();
   assert.deepEqual(sentOpcodes(socket), ["0001", "0002"]);
-  socket.receive(encodePacket("0002"));
+  socket.receive(joinResponse);
   await connecting;
 }
+
+void test("only valid ordered handshake replies can connect and start heartbeat", async (context) => {
+  const socket = new FakeSocket();
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+    heartbeatIntervalMs: 5,
+  });
+  context.after(() => client.disconnect());
+  const errors: string[] = [];
+  client.on("protocolError", ({ error }) => errors.push(error.message));
+  const connecting = client.connect();
+  void connecting.catch(() => {});
+  await turn();
+  socket.open();
+  socket.receive(joinResponse);
+  socket.receive(encodePacket("0001", ""));
+  socket.receive(encodePacket("0002", ""));
+  await turn();
+  assert.equal(client.state, "connecting");
+  assert.deepEqual(sentOpcodes(socket), ["0001"]);
+  assert.equal(errors.length, 2);
+  socket.receive(loginResponse);
+  socket.receive(loginResponse);
+  await turn();
+  assert.deepEqual(sentOpcodes(socket), ["0001", "0002"]);
+  socket.receive(joinResponse);
+  await settlesWithin(connecting);
+  assert.equal(client.state, "connected");
+});
+
+void test("an old unsubscribe cannot remove a newer listener set", () => {
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => new FakeSocket(),
+  });
+  const off = client.on("stateChange", () => {});
+  off();
+  let calls = 0;
+  client.on("stateChange", () => {
+    calls += 1;
+  });
+  off();
+  void client.disconnect();
+  assert.equal(calls, 1);
+});
+
+void test("invalid resolver fields cannot reach socket creation", async () => {
+  for (const invalid of [
+    { ...channel, broadcastNo: 1 },
+    { ...channel, chatNo: "2\x0cinjected" },
+    { ...channel, chatDomain: undefined },
+    { ...channel, chatDomain: "host/path" },
+    { ...channel, chatPort: 65535 },
+  ]) {
+    const client = new SoopChatCore({
+      streamerId: "streamer",
+      resolveChannel: async () => invalid as ChannelInfo,
+      createWebSocket: () => assert.fail("Invalid channel reached the transport"),
+    });
+    await assert.rejects(client.connect(), /Channel info contains an invalid/);
+  }
+});
+
+void test("broadcast end during handshake rejects the pending connection immediately", async (context) => {
+  const socket = new FakeSocket();
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+  });
+  context.after(() => client.disconnect());
+  const connecting = client.connect();
+  const rejected = assert.rejects(settlesWithin(connecting), { name: "BroadcastOfflineError" });
+  await turn();
+  socket.open();
+  socket.receive(encodePacket("0088", ""));
+  await rejected;
+  assert.equal(client.state, "closed");
+});
 
 void test("connects, emits typed chat, sends heartbeat, and disconnects idempotently", async () => {
   const socket = new FakeSocket();
@@ -131,8 +219,8 @@ void test("connects, emits typed chat, sends heartbeat, and disconnects idempote
   const second = client.connect();
   await turn();
   socket.open();
-  socket.receive(encodePacket("0001"));
-  socket.receive(encodePacket("0002"));
+  socket.receive(loginResponse);
+  socket.receive(joinResponse);
   await Promise.all([first, second]);
   assert.equal(resolverCalls, 1);
   assert.equal(client.state, "connected");
@@ -263,8 +351,8 @@ void test("re-resolves channel information and reconnects after an unexpected cl
   firstSocket.closeFromServer();
   await new Promise((resolve) => setTimeout(resolve, 8));
   secondSocket.open();
-  secondSocket.receive(encodePacket("0001"));
-  secondSocket.receive(encodePacket("0002"));
+  secondSocket.receive(loginResponse);
+  secondSocket.receive(joinResponse);
   await turn();
 
   assert.equal(resolverCalls, 2);
@@ -293,8 +381,8 @@ void test("manual connect cancels a scheduled retry instead of opening a second 
   const connecting = client.connect();
   await turn();
   secondSocket.open();
-  secondSocket.receive(encodePacket("0001"));
-  secondSocket.receive(encodePacket("0002"));
+  secondSocket.receive(loginResponse);
+  secondSocket.receive(joinResponse);
   await connecting;
   await new Promise((resolve) => setTimeout(resolve, 60));
 
@@ -332,8 +420,8 @@ void test("manual connect joins an active reconnect attempt", async () => {
   releaseReconnect(channel);
   await turn();
   secondSocket.open();
-  secondSocket.receive(encodePacket("0001"));
-  secondSocket.receive(encodePacket("0002"));
+  secondSocket.receive(loginResponse);
+  secondSocket.receive(joinResponse);
   await connecting;
   assert.equal(client.state, "connected");
   await client.disconnect();
@@ -364,15 +452,15 @@ void test("reconnecting listener manual connect starts exactly one new session",
     const connecting = client.connect();
     await waitFor(() => sockets.length === 1);
     sockets[0]!.open();
-    sockets[0]!.receive(encodePacket("0001"));
-    sockets[0]!.receive(encodePacket("0002"));
+    sockets[0]!.receive(loginResponse);
+    sockets[0]!.receive(joinResponse);
     await connecting;
 
     sockets[0]!.closeFromServer();
     await waitFor(() => sockets.length === 2);
     sockets[1]!.open();
-    sockets[1]!.receive(encodePacket("0001"));
-    sockets[1]!.receive(encodePacket("0002"));
+    sockets[1]!.receive(loginResponse);
+    sockets[1]!.receive(joinResponse);
     assert.ok(manualConnecting);
     await settlesWithin(manualConnecting);
     await new Promise((resolve) => setTimeout(resolve, 60));
@@ -405,8 +493,8 @@ void test("heartbeat send failures enter the reconnect flow without escaping the
   firstSocket.throwOnSend = true;
   await waitFor(() => sockets.length === 0);
   secondSocket.open();
-  secondSocket.receive(encodePacket("0001"));
-  secondSocket.receive(encodePacket("0002"));
+  secondSocket.receive(loginResponse);
+  secondSocket.receive(joinResponse);
   await waitFor(() => client.state === "connected");
 
   assert.deepEqual(errors, ["synthetic send failure"]);
@@ -437,8 +525,8 @@ void test("a pending decode from an old session does not block or mutate a recon
     await waitFor(() => sockets.length === 0);
 
     secondSocket.open();
-    secondSocket.receive(encodePacket("0001"));
-    secondSocket.receive(encodePacket("0002"));
+    secondSocket.receive(loginResponse);
+    secondSocket.receive(joinResponse);
     await waitFor(() => client.state === "connected");
 
     delayed.resolve(encodePacket("0088", ""));
@@ -475,8 +563,8 @@ void test("state listener failures do not stall connect or reconnect", async () 
     firstSocket.closeFromServer();
     await waitFor(() => sockets.length === 0);
     secondSocket.open();
-    secondSocket.receive(encodePacket("0001"));
-    secondSocket.receive(encodePacket("0002"));
+    secondSocket.receive(loginResponse);
+    secondSocket.receive(joinResponse);
     await waitFor(() => client.state === "connected");
 
     assert.deepEqual(errors, [
@@ -545,7 +633,7 @@ void test("join listener disconnect cannot revive a completed handshake", async 
     const connecting = client.connect();
     await turn();
     socket.open();
-    socket.receive(encodePacket("0001"));
+    socket.receive(loginResponse);
     await turn();
     socket.receive(
       encodePacket("0002", "\x0c2\x0cstreamer\x0c1\x0c10\x0c2]family\x0cignored\x0c16|0"),
@@ -585,8 +673,8 @@ void test("connected state listener disconnect leaves no heartbeat or extra sess
   const connecting = client.connect();
   await turn();
   socket.open();
-  socket.receive(encodePacket("0001"));
-  socket.receive(encodePacket("0002"));
+  socket.receive(loginResponse);
+  socket.receive(joinResponse);
   await assert.rejects(settlesWithin(connecting), { name: "AbortError" });
   await turn();
 
@@ -671,7 +759,7 @@ void test("ignores handshake data that finishes decoding after timeout", async (
   socket.open();
   socket.receive(delayed.data);
   await assert.rejects(connecting, /handshake timed out/);
-  delayed.resolve(encodePacket("0002"));
+  delayed.resolve(joinResponse);
   await turn();
   assert.equal(client.state, "closed");
 });
@@ -693,8 +781,8 @@ void test("retries when a reconnect handshake times out", async () => {
   const connecting = client.connect();
   await waitFor(() => sockets.length === 1);
   sockets[0]!.open();
-  sockets[0]!.receive(encodePacket("0001"));
-  sockets[0]!.receive(encodePacket("0002"));
+  sockets[0]!.receive(loginResponse);
+  sockets[0]!.receive(joinResponse);
   await connecting;
   sockets[0]!.closeFromServer();
 
@@ -723,6 +811,33 @@ void test("rejects non-finite reconnect options and invalid handshake timeouts",
   }
   for (const handshakeTimeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
     assert.throws(() => create({ handshakeTimeoutMs }), /positive finite number/);
+  }
+  assert.throws(() => create({ handshakeTimeoutMs: 2_147_483_648 }), /must not exceed/);
+  assert.throws(() => create({ reconnect: { maxDelayMs: 2_147_483_648 } }), /must not exceed/);
+});
+
+void test("reconnect jitter respects the maximum and zero delays survive exponent overflow", async (context) => {
+  for (const initialDelayMs of [0, 5]) {
+    const socket = new FakeSocket();
+    let attempts = 0;
+    const delays: number[] = [];
+    const client = new SoopChatCore({
+      streamerId: "streamer",
+      resolveChannel: async () => channel,
+      createWebSocket: () => {
+        if (attempts++ === 0) return socket;
+        throw new Error("synthetic reconnect failure");
+      },
+      reconnect: { initialDelayMs, maxDelayMs: 5, jitter: 1, factor: Number.MAX_VALUE },
+      random: () => 1,
+    });
+    context.after(() => client.disconnect());
+    client.on("reconnecting", ({ delayMs }) => delays.push(delayMs));
+    await join(client, socket);
+    socket.closeFromServer();
+    await waitFor(() => delays.length >= 4);
+    assert.deepEqual(delays.slice(0, 4), Array(4).fill(initialDelayMs));
+    await client.disconnect();
   }
 });
 

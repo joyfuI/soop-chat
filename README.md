@@ -2,6 +2,8 @@
 
 SOOP 라이브 방송의 채팅을 읽는 TypeScript 라이브러리입니다. Node.js 24 이상과 현대 브라우저를 지원하며 ESM으로만 배포됩니다.
 
+두 runtime 모두 표준 `WebSocket`을 사용하며 런타임 의존 패키지는 없습니다.
+
 > 비공식 라이브러리입니다. SOOP이 프로토콜이나 플레이어 API를 변경하면 동작이 달라질 수 있습니다.
 
 이 프로젝트는 OpenAI Codex로 만들어졌습니다.
@@ -210,7 +212,7 @@ chat.on("reconnecting", ({ attempt, delayMs }) => {
 
 `handshakeTimeoutMs`는 채널 해석이 끝난 뒤 WebSocket을 만들고 `0002` 입장 응답을 받을 때까지의 제한이며 기본값은 30초입니다. timeout이 자동 재연결 도중 발생하면 다음 retry로 이어집니다. 예약된 retry 중 `connect()`를 직접 호출하면 대기를 취소하고 즉시 연결하며, 이미 retry 연결이 진행 중이면 같은 연결 Promise를 사용합니다.
 
-`reconnect: false` 또는 `reconnect: { enabled: false }`로 자동 재연결을 끌 수 있습니다. timeout과 reconnect의 모든 숫자 옵션은 유한한 숫자여야 합니다.
+`reconnect: false` 또는 `reconnect: { enabled: false }`로 자동 재연결을 끌 수 있습니다. timeout과 reconnect의 모든 숫자 옵션은 유한한 숫자여야 합니다. `handshakeTimeoutMs`와 재연결 대기 시간은 플랫폼 타이머 상한인 `2_147_483_647`ms를 넘을 수 없습니다. jitter를 적용한 실제 대기 시간도 `maxDelayMs` 이하로 제한합니다.
 
 ## 오류와 제한
 

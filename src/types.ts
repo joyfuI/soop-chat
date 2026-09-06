@@ -1,11 +1,5 @@
 import type { ProtocolError, RestrictedRoomReason } from "./errors.js";
-import type {
-  KnownSoopEvent,
-  RawPacket,
-  SoopEvent,
-  SoopProtocolEventMap,
-  UnknownSoopEvent,
-} from "./events.js";
+import type { RawPacket, SoopEvent, SoopProtocolEventMap, UnknownSoopEvent } from "./events.js";
 
 /** 현재 SOOP 채팅 채널에 접속하는 데 필요한 직렬화 가능한 정보입니다. */
 export interface ChannelInfo {
@@ -64,7 +58,7 @@ export interface ReconnectOptions {
   enabled?: boolean;
   /** 0 이상인 첫 재시도 대기 시간(ms)입니다. 기본값은 `1_000`입니다. */
   initialDelayMs?: number;
-  /** `initialDelayMs` 이상인 최대 대기 시간(ms)입니다. 기본값은 `30_000`입니다. */
+  /** jitter 적용 후의 최대 대기 시간(ms). `initialDelayMs` 이상, `2_147_483_647` 이하이며 기본값은 `30_000`입니다. */
   maxDelayMs?: number;
   /** 1 이상인 재시도별 대기 시간 배수입니다. 기본값은 `2`입니다. */
   factor?: number;
@@ -78,7 +72,7 @@ export interface SoopChatOptions {
   streamerId: string;
   /** 제어 문자가 없는 비밀번호 방의 비밀번호입니다. 재연결을 위해 메모리에 유지됩니다. */
   roomPassword?: string;
-  /** WebSocket 생성부터 `0002` 입장 응답까지의 제한 시간(ms)입니다. 기본값은 30초입니다. */
+  /** WebSocket 생성부터 유효한 `0002` 입장 응답까지의 제한 시간(ms). 양수이며 `2_147_483_647` 이하, 기본값은 30초입니다. */
   handshakeTimeoutMs?: number;
   /** 자동 재연결 설정입니다. 기본적으로 지수 backoff 재연결을 사용합니다. */
   reconnect?: boolean | ReconnectOptions;
@@ -149,29 +143,3 @@ export type SoopChatEventMap = SoopProtocolEventMap & {
 export type SoopChatEventType = keyof SoopChatEventMap;
 /** 특정 `SoopChat` 이벤트의 listener 타입입니다. */
 export type SoopChatListener<K extends SoopChatEventType> = (event: SoopChatEventMap[K]) => void;
-
-/** 두 entrypoint에서 공개하는, 브라우저와 `ws`에서 수신 가능한 메시지 데이터 타입입니다. */
-export type WebSocketMessageData = string | ArrayBuffer | ArrayBufferView | Blob;
-
-/**
- * 두 entrypoint에서 공개하는 WebSocket의 최소 구조 타입입니다.
- * `SoopChat`은 runtime별 구현을 직접 생성하며 소켓 주입 옵션을 제공하지 않습니다.
- */
-export interface WebSocketLike {
-  readonly readyState: number;
-  binaryType: BinaryType;
-  onopen: ((event: Event) => void) | null;
-  onmessage: ((event: MessageEvent<WebSocketMessageData>) => void) | null;
-  onclose: ((event: CloseEvent) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  send(data: string | ArrayBuffer | ArrayBufferView<ArrayBuffer>): void;
-  close(code?: number, reason?: string): void;
-}
-
-/**
- * URL과 서브프로토콜로 {@link WebSocketLike}를 생성하는 공개 함수 타입입니다.
- * `SoopChat` 생성자 옵션으로 전달하는 확장 지점은 아닙니다.
- */
-export type WebSocketFactory = (url: string, protocols: string | string[]) => WebSocketLike;
-
-export type { KnownSoopEvent, RawPacket, SoopEvent, UnknownSoopEvent };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getChannelAuthentication } from "../src/channel-authentication.js";
+import { getChannelAuthentication } from "../src/channel.js";
 import {
   authenticateNode,
   AuthenticationError,
@@ -37,6 +37,42 @@ void test("resolves and validates SOOP channel information", async (context) => 
     chatDomain: "chat.example.test",
     chatPort: 8060,
   });
+
+  for (const invalid of [
+    { CHATNO: "20\x0cinjected" },
+    { CHDOMAIN: "chat.example.test/path" },
+    { CHPT: "0" },
+    { CHPT: "65535" },
+  ]) {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          CHANNEL: {
+            RESULT: 1,
+            BNO: "10",
+            CHATNO: "20",
+            CHDOMAIN: "chat.example.test",
+            CHPT: "8060",
+            ...invalid,
+          },
+        }),
+      );
+    await assert.rejects(resolveNodeChannel("streamer", { signal: new AbortController().signal }), {
+      name: "ChannelResolutionError",
+    });
+  }
+  globalThis.fetch = () => assert.fail("Invalid resolver input reached the live API");
+  await assert.rejects(
+    resolveNodeChannel(" ", { signal: new AbortController().signal }),
+    TypeError,
+  );
+  await assert.rejects(
+    resolveNodeChannel("streamer", {
+      signal: new AbortController().signal,
+      roomPassword: "invalid\x0cpassword",
+    }),
+    TypeError,
+  );
 });
 
 void test("distinguishes offline and restricted rooms", async (context) => {

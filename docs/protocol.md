@@ -57,6 +57,10 @@ opcode·길이·flags는 각각 4·6·2자리 숫자이며 payload 길이는 UTF
 4. 서버의 `0002` 응답 후 연결 완료
 5. 60초마다 `0000` keepalive
 
+handshake 응답도 이벤트 디코더의 필드 검증을 통과해야 합니다. 잘못된 응답은 `protocolError`로 보존하며, `0001` 이전의 `0002`로 연결을 완료하거나 heartbeat를 시작하지 않습니다. 중복 `0001`로 입장 요청을 반복하지 않습니다. 입장 완료 전 `0088`이 오면 대기 중인 `connect()`를 `BroadcastOfflineError`로 즉시 거부합니다.
+
+Node와 브라우저 모두 표준 WebSocket을 사용합니다. 정상 종료에는 `1000`, handshake 실패에는 `3000`, transport 실패에는 `3001`을 사용합니다. 표준 `WebSocket.close()`가 허용하지 않는 예약 코드를 클라이언트에서 보내지 않습니다.
+
 WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않습니다. 구현은 분할 패킷과 결합 패킷을 모두 처리합니다. 알 수 없는 opcode와 원본 payload 바이트를 보존하고, framing 복구 중 버린 바이트는 `ProtocolError.discarded`로 제공합니다.
 
 ## 방송 종료
@@ -133,7 +137,7 @@ BGR 정수는 CSS `#RRGGBB`로 변환합니다. `animation="1", extension="png"`
 
 ## 투표
 
-`0050 notifyPoll`은 `[status, streamerId, pollNo, show]` 순서입니다. `status=1`은 시작, `4`는 마감·결과 공개, `2`는 숨김으로 정규화하고 나머지는 `unknown`으로 둡니다. `visible`은 `show !== 0`이며 원본 숫자를 보존합니다. 질문·선택지·득표수는 채팅 패킷에 없으므로 합성하지 않습니다.
+`0050 notifyPoll`은 `[status, streamerId, pollNo, show]` 순서입니다. `(status, show)=(1, 1)`은 시작, `(4, 1)`은 마감·결과 공개, `(2, 0)`은 숨김으로 정규화하고 다른 조합은 `unknown`으로 둡니다. `visible`은 `show !== 0`이며 원본 숫자를 보존합니다. 질문·선택지·득표수는 채팅 패킷에 없으므로 합성하지 않습니다.
 
 [관찰 근거](research/protocol-evidence.md#투표)
 

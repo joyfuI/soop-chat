@@ -6,6 +6,7 @@
 - Node.js 24 이상과 현대 브라우저를 지원한다. Node는 채널 조회와 선택적 계정 인증을 직접 수행하고, 브라우저는 애플리케이션 서버가 제공하는 `ChannelResolver`를 사용한다.
 - 공개 방송과 비밀번호 방은 계정 없이 읽을 수 있다. 19금 방과 구독플러스 방은 권한이 있는 계정의 인증이 필요하다.
 - 현재 공개 범위는 읽기 전용이다. 검증되지 않은 채팅 전송 API를 추가하지 않는다.
+- Node와 브라우저 모두 표준 WebSocket을 사용한다. transport 구현 타입과 소켓 주입은 public API가 아니다.
 
 ## 작업 규칙
 
@@ -42,6 +43,7 @@
 - `src/protocol.ts`: framing, packet codec와 event decoder
 - `src/events.ts`: 공개 event/opcode catalog와 데이터 타입
 - `src/node-resolver.ts`: Node 라이브 정보 조회와 인증
+- `src/channel.ts`: 채널 입력 검증과 메모리 내 인증 연결
 - `src/errors.ts`: 공개 오류 계층과 서버/브라우저 직렬화
 - `test/`: 합성 단위 테스트와 브라우저·선택 실행형 live smoke test
 - `README.md`: 설치, 주요 공개 API, 보안 및 운영 사용법. 전체 타입 계약은 공개 symbol의 JSDoc과 타입 선언이 기준이다.

@@ -1,12 +1,16 @@
 import { BroadcastOfflineError, ProtocolError, RestrictedRoomError } from "./errors.js";
-import { getChannelAuthentication, setChannelAuthentication } from "./channel-authentication.js";
+import {
+  getChannelAuthentication,
+  setChannelAuthentication,
+  validateChannelInfo,
+} from "./channel.js";
 import type { RawPacket, SoopEvent } from "./events.js";
 import {
   createConnectPacket,
   createJoinPacket,
   createKeepAlivePacket,
   decodePacket,
-  isValidRoomPassword,
+  isValidProtocolField,
   messageDataToBytes,
   PacketStreamParser,
 } from "./protocol.js";
@@ -20,9 +24,13 @@ import type {
   SoopChatEventType,
   SoopChatListener,
   SoopChatOptions,
-  WebSocketFactory,
-  WebSocketLike,
 } from "./types.js";
+
+/** 공통 코어와 합성 테스트가 사용하는 WebSocket의 최소 구조입니다. */
+export type WebSocketLike = Pick<
+  WebSocket,
+  "readyState" | "binaryType" | "onopen" | "onmessage" | "onclose" | "onerror" | "send" | "close"
+>;
 
 const DEFAULT_RECONNECT: Required<ReconnectOptions> = {
   enabled: true,
@@ -32,10 +40,11 @@ const DEFAULT_RECONNECT: Required<ReconnectOptions> = {
   jitter: 0.2,
 };
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 30_000;
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 interface CoreOptions extends SoopChatOptions {
   resolveChannel: ChannelResolver;
-  createWebSocket: WebSocketFactory;
+  createWebSocket: (url: string, protocols: string | string[]) => WebSocketLike;
   heartbeatIntervalMs?: number;
   random?: () => number;
 }
@@ -54,6 +63,8 @@ function reconnectOptions(value: SoopChatOptions["reconnect"]): Required<Reconne
       "Reconnect delays must be non-negative and maxDelayMs must be >= initialDelayMs.",
     );
   }
+  if (merged.maxDelayMs > MAX_TIMER_DELAY_MS)
+    throw new RangeError(`Reconnect delays must not exceed ${MAX_TIMER_DELAY_MS}ms.`);
   if (merged.factor < 1) throw new RangeError("Reconnect factor must be at least 1.");
   if (merged.jitter < 0 || merged.jitter > 1)
     throw new RangeError("Reconnect jitter must be between 0 and 1.");
@@ -62,20 +73,14 @@ function reconnectOptions(value: SoopChatOptions["reconnect"]): Required<Reconne
 
 function roomPassword(value: string | undefined): string {
   if (value === undefined) return "";
-  if (!isValidRoomPassword(value)) {
+  if (!isValidProtocolField(value)) {
     throw new TypeError("roomPassword must not be empty or contain control characters.");
   }
   return value;
 }
 
 function validateChannel(channel: ChannelInfo): ChannelInfo {
-  if (!channel.broadcastNo || !channel.chatNo)
-    throw new TypeError("Channel info is missing broadcastNo or chatNo.");
-  if (!/^[a-z0-9.-]+$/i.test(channel.chatDomain))
-    throw new TypeError("Channel info contains an invalid chatDomain.");
-  if (!Number.isInteger(channel.chatPort) || channel.chatPort < 1 || channel.chatPort > 65_534) {
-    throw new TypeError("Channel info contains an invalid chatPort.");
-  }
+  validateChannelInfo(channel);
   if (!Object.hasOwn(channel, "authentication")) return channel;
 
   const authentication = (channel as ChannelInfo & { authentication?: unknown }).authentication;
@@ -112,19 +117,18 @@ export class SoopChatCore {
   #listeners = new Map<string, Set<(event: never) => unknown>>();
   #parser = new PacketStreamParser();
   #resolveChannel: ChannelResolver;
-  #createWebSocket: WebSocketFactory;
+  #createWebSocket: CoreOptions["createWebSocket"];
   #roomPassword: string;
   #reconnect: Required<ReconnectOptions>;
   #handshakeTimeoutMs: number;
   #heartbeatIntervalMs: number;
   #random: () => number;
   #socket: WebSocketLike | undefined;
-  #channel: ChannelInfo | undefined;
   #connectPromise: Promise<void> | undefined;
   #abortController: AbortController | undefined;
   #heartbeat: ReturnType<typeof setInterval> | undefined;
   #retryTimer: ReturnType<typeof setTimeout> | undefined;
-  #cancelPendingSession: (() => void) | undefined;
+  #cancelPendingSession: ((error?: Error) => void) | undefined;
   #stopped = true;
   #reconnectAttempt = 0;
 
@@ -139,6 +143,8 @@ export class SoopChatCore {
     if (!Number.isFinite(this.#handshakeTimeoutMs) || this.#handshakeTimeoutMs <= 0) {
       throw new RangeError("handshakeTimeoutMs must be a positive finite number.");
     }
+    if (this.#handshakeTimeoutMs > MAX_TIMER_DELAY_MS)
+      throw new RangeError(`handshakeTimeoutMs must not exceed ${MAX_TIMER_DELAY_MS}ms.`);
     this.#heartbeatIntervalMs = options.heartbeatIntervalMs ?? 60_000;
     this.#random = options.random ?? Math.random;
   }
@@ -163,7 +169,8 @@ export class SoopChatCore {
     listeners.add(listener as (event: never) => unknown);
     return () => {
       listeners?.delete(listener as (event: never) => unknown);
-      if (listeners?.size === 0) this.#listeners.delete(type);
+      if (listeners?.size === 0 && this.#listeners.get(type) === listeners)
+        this.#listeners.delete(type);
     };
   }
 
@@ -246,7 +253,6 @@ export class SoopChatCore {
     if (this.#stopped || this.#abortController !== controller) {
       throw new DOMException("Connection was aborted.", "AbortError");
     }
-    this.#channel = channel;
     this.#parser.reset();
     this.#setState("connecting");
     if (this.#stopped || this.#abortController !== controller) {
@@ -260,6 +266,7 @@ export class SoopChatCore {
 
     await new Promise<void>((resolve, reject) => {
       let joined = false;
+      let joinSent = false;
       let settled = false;
       let timeout: ReturnType<typeof setTimeout> | undefined;
       let messageQueue = Promise.resolve();
@@ -276,7 +283,7 @@ export class SoopChatCore {
           socket.onerror = null;
           if (socket.readyState < 2) {
             try {
-              socket.close(1002, "Handshake failed");
+              socket.close(3000, "Handshake failed");
             } catch {
               // Preserve the original handshake error.
             }
@@ -284,8 +291,9 @@ export class SoopChatCore {
           reject(error);
         }
       };
-      this.#cancelPendingSession = () =>
-        fail(new DOMException("Connection was aborted.", "AbortError"));
+      this.#cancelPendingSession = (
+        error = new DOMException("Connection was aborted.", "AbortError"),
+      ) => fail(error);
       timeout = setTimeout(
         () =>
           fail(
@@ -313,9 +321,19 @@ export class SoopChatCore {
               if (this.#socket !== socket || this.#stopped) return;
             }
             for (const raw of batch.packets) {
-              this.#handlePacket(raw, socket);
+              const event = this.#handlePacket(raw, socket);
               if (this.#socket !== socket || this.#stopped) return;
-              if (!joined && raw.opcode === "0002") {
+              if (!joinSent && event?.type === "login") {
+                socket.send(
+                  createJoinPacket(
+                    channel.chatNo,
+                    getChannelAuthentication(channel)?.fanTicket,
+                    this.#roomPassword,
+                  ),
+                );
+                joinSent = true;
+              }
+              if (!joined && joinSent && event?.type === "joinChannel") {
                 joined = true;
                 this.#reconnectAttempt = 0;
                 this.#setState("connected");
@@ -356,18 +374,9 @@ export class SoopChatCore {
     });
   }
 
-  #handlePacket(raw: RawPacket, socket: WebSocketLike): void {
+  #handlePacket(raw: RawPacket, socket: WebSocketLike): SoopEvent | undefined {
     this.#emit("raw", raw);
     if (this.#socket !== socket || this.#stopped) return;
-    if (raw.opcode === "0001" && this.#channel && socket.readyState === 1) {
-      socket.send(
-        createJoinPacket(
-          this.#channel.chatNo,
-          getChannelAuthentication(this.#channel)?.fanTicket,
-          this.#roomPassword,
-        ),
-      );
-    }
 
     let event: SoopEvent;
     try {
@@ -382,11 +391,12 @@ export class SoopChatCore {
     }
 
     if (event.type === "unknown") this.#emit("unknown", event);
-    else this.#emitProtocol(event);
+    else this.#emitListeners(event.type, event);
     if (this.#socket !== socket || this.#stopped) return;
     this.#emit("event", event);
     if (this.#socket !== socket || this.#stopped) return;
     if (event.type === "closeBroad") this.#finishBroadcast(socket);
+    return event;
   }
 
   #finishBroadcast(socket: WebSocketLike): void {
@@ -405,10 +415,7 @@ export class SoopChatCore {
     if (socket.readyState < 2) socket.close(1000, "Broadcast ended");
     this.#setState("closed");
     this.#emit("ended", { reason: "offline" });
-  }
-
-  #emitProtocol(event: Exclude<SoopEvent, { type: "unknown" }>): void {
-    this.#emitListeners(event.type, event);
+    this.#cancelPendingSession?.(new BroadcastOfflineError(this.streamerId));
   }
 
   #emitListeners(type: string, event: unknown): void {
@@ -464,7 +471,7 @@ export class SoopChatCore {
     socket.onerror = null;
     if (socket.readyState < 2) {
       try {
-        socket.close(1011, "Transport failed");
+        socket.close(3001, "Transport failed");
       } catch {
         // Reconnect even if the failed transport cannot be closed cleanly.
       }
@@ -479,12 +486,18 @@ export class SoopChatCore {
     }
 
     this.#reconnectAttempt += 1;
-    const base = Math.min(
-      this.#reconnect.maxDelayMs,
-      this.#reconnect.initialDelayMs * this.#reconnect.factor ** (this.#reconnectAttempt - 1),
-    );
+    const base =
+      this.#reconnect.initialDelayMs === 0
+        ? 0
+        : Math.min(
+            this.#reconnect.maxDelayMs,
+            this.#reconnect.initialDelayMs * this.#reconnect.factor ** (this.#reconnectAttempt - 1),
+          );
     const multiplier = 1 + (this.#random() * 2 - 1) * this.#reconnect.jitter;
-    const delayMs = Math.max(0, Math.round(base * multiplier));
+    const delayMs = Math.min(
+      this.#reconnect.maxDelayMs,
+      Math.max(0, Math.round(base * multiplier)),
+    );
     this.#setState("reconnecting");
     if (this.#stopped || this.#state !== "reconnecting" || this.#connectPromise) return;
     this.#emit("reconnecting", { attempt: this.#reconnectAttempt, delayMs, error });

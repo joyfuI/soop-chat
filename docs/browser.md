@@ -67,7 +67,7 @@ return Response.json(channel, {
 });
 ```
 
-인증된 호출은 `AuthenticatedChannelInfo`를 반환합니다. 이 값에는 브라우저가 SOOP WebSocket에 접속할 때 필요한 단기 `TK`와 `FTK`만 있고 계정 `AuthTicket`은 없습니다. 브라우저 클라이언트는 두 티켓을 검증한 뒤 열거 가능한 채널 객체에서 제거하고 내부 메모리로 옮깁니다.
+인증된 호출은 `AuthenticatedChannelInfo`를 반환합니다. 이 값에는 브라우저가 SOOP WebSocket에 접속할 때 필요한 단기 `TK`와 `FTK`만 있고 계정 `AuthTicket`은 없습니다. 브라우저 클라이언트는 두 티켓을 검증하고 티켓 없는 채널 객체를 새로 만들어 내부 메모리에 인증을 연결합니다. resolver가 반환한 원래 객체는 수정하지 않으므로 애플리케이션도 그 객체를 캐시하거나 기록하지 마세요.
 
 ## 보안 계약
 

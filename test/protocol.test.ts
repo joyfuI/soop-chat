@@ -557,8 +557,8 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   if (gift.type === "sendSubscription") {
     assert.equal(gift.data.receiverNickname, "rNick");
     assert.equal(gift.data.streamerId, "streamer");
-    assert.equal(gift.data.subscriptionTier, "basic");
-    assert.equal(gift.data.subscriptionMonth, 1);
+    assert.equal(gift.data.subscriptionProduct?.subscriptionTier, "basic");
+    assert.equal(gift.data.subscriptionProduct?.month, 1);
   }
 
   const video = decodePacket(
@@ -942,7 +942,7 @@ void test("decodes every field-reading official player branch", () => {
     assert.partialDeepStrictEqual(follow.data, {
       tier: 1,
       subscriptionTier: "basic",
-      subscriptionMonth: 1,
+      subscriptionProduct: { month: 1 },
       senderLanguage: "ko_KR",
       urlModify: "456",
     });
@@ -1025,8 +1025,6 @@ void test("connects subscription item types to the official player product table
     assert.equal(plusGift.type, "sendSubscription");
     if (plusGift.type === "sendSubscription") {
       assert.partialDeepStrictEqual(plusGift.data, {
-        subscriptionTier: "plus",
-        subscriptionMonth: 1,
         subscriptionProduct: {
           itemType,
           subscriptionTier: "plus",
@@ -1086,7 +1084,6 @@ void test("connects subscription item types to the official player product table
     if (plusSubscription.type === "followItem") {
       assert.partialDeepStrictEqual(plusSubscription.data, {
         subscriptionTier: "plus",
-        subscriptionMonth: 1,
         subscriptionProduct: { itemType, subscriptionTier: "plus", level, month: 1, isGift: false },
       });
     }

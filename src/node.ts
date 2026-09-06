@@ -1,4 +1,3 @@
-import WebSocket from "ws";
 import { SoopChatCore } from "./client.js";
 import {
   authenticateNode,
@@ -7,7 +6,7 @@ import {
   type SoopAuthentication,
   type SoopCredentials,
 } from "./node-resolver.js";
-import type { SoopChatOptions, WebSocketLike } from "./types.js";
+import type { SoopChatOptions } from "./types.js";
 
 /** Node.js 클라이언트 옵션입니다. */
 export interface NodeSoopChatOptions extends SoopChatOptions {
@@ -33,8 +32,7 @@ export class SoopChat extends SoopChatCore {
       resolveChannel:
         chatOptions.resolveChannel ??
         (credentials ? createNodeChannelResolver(credentials) : resolveNodeChannel),
-      createWebSocket: (url, protocols) =>
-        new WebSocket(url, protocols) as unknown as WebSocketLike,
+      createWebSocket: (url, protocols) => new WebSocket(url, protocols),
     });
   }
 }

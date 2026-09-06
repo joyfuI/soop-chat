@@ -63,11 +63,9 @@ import {
   type UnknownSoopEvent,
   type UserStatus,
   type VideoBalloonData,
-  type VodAdconData,
   type VodBalloonData,
   type VrNotificationData,
 } from "./events.js";
-import type { WebSocketMessageData } from "./types.js";
 
 const HEADER_SIZE = 14;
 const ESC = 0x1b;
@@ -104,8 +102,8 @@ const NIGHTBOT_TIMEOUT_REASONS = [
   "repetitions",
 ] as const;
 
-export function isValidRoomPassword(value: string): boolean {
-  if (!value) return false;
+export function isValidProtocolField(value: unknown): value is string {
+  if (typeof value !== "string" || !value) return false;
   for (const character of value) {
     const code = character.charCodeAt(0);
     if (code < 0x20 || code === 0x7f) return false;
@@ -198,7 +196,7 @@ export class PacketStreamParser {
   }
 }
 
-export async function messageDataToBytes(data: WebSocketMessageData): Promise<Uint8Array> {
+export async function messageDataToBytes(data: unknown): Promise<Uint8Array> {
   if (typeof data === "string") return encoder.encode(data);
   if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
   if (ArrayBuffer.isView(data)) {
@@ -236,7 +234,7 @@ export const createJoinPacket = (
   fanTicket = "",
   roomPassword = "",
 ): Uint8Array<ArrayBuffer> => {
-  if (roomPassword && !isValidRoomPassword(roomPassword)) {
+  if (roomPassword && !isValidProtocolField(roomPassword)) {
     throw new ProtocolError("Room password contains invalid control characters.");
   }
   const addInfo = roomPassword
@@ -664,7 +662,6 @@ function followItem(raw: RawPacket): FollowItemData {
     itemType,
     tier,
     subscriptionTier: subscriptionTier(tier),
-    subscriptionMonth: product?.month ?? null,
     subscriptionProduct: product,
     subscriptionSource: product ? (itemType === product.vodItemType ? "vod" : "live") : "unknown",
     senderLanguage: fields[9] ?? "",
@@ -915,21 +912,6 @@ function itemSellEffect(raw: RawPacket): ItemSellEffectData {
   };
 }
 
-function vodAdcon(raw: RawPacket): VodAdconData {
-  const fields = requireFields(raw, 9);
-  return {
-    streamerId: fields[0] ?? "",
-    senderId: fields[1] ?? "",
-    senderNickname: fields[2] ?? "",
-    count: integer(fields[3]),
-    imageUrl: fields[4] ?? "",
-    title: fields[5] ?? "",
-    chatNo: fields[6] ?? "",
-    senderLanguage: fields[7] ?? "",
-    urlModify: fields[8] ?? "",
-  };
-}
-
 function itemDrops(raw: RawPacket): ItemDropsData {
   const fields = requireFields(raw, 5);
   return {
@@ -1008,8 +990,6 @@ function giftSubscription(raw: RawPacket): GiftSubscriptionData {
     streamerId: fields[5] ?? "",
     streamerNickname: fields[6] ?? "",
     itemType,
-    subscriptionTier: product?.subscriptionTier ?? "unknown",
-    subscriptionMonth: product?.month ?? null,
     subscriptionProduct: product,
     itemCode: fields[8] ?? "",
     isSubscription: integer(fields[9]),
@@ -1395,7 +1375,7 @@ function decodedData(raw: RawPacket): object {
     case "0102":
       return giftTicket(raw);
     case "0103":
-      return vodAdcon(raw);
+      return stationAdcon(raw);
     case "0104":
       return bjNotice(raw);
     case "0105":

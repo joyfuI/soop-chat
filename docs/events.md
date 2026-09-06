@@ -24,7 +24,7 @@
 | `flags` | `string` | 프레임 헤더의 두 자리 원본 플래그 |
 | `payload` | `Uint8Array` | 헤더를 제외한 원본 payload 바이트 |
 | `text` | `string` | payload를 UTF-8로 디코딩한 문자열 |
-| `fields` | `readonly string[]` | `text`를 form feed(`0x0c`)로 나눈 필드 배열 |
+| `fields` | `readonly string[]` | 첫 form feed(`0x0c`)까지의 접두부를 제외하고 나눈 필드 배열. 구분자가 없으면 `text` 전체가 한 필드 |
 
 아래 색인에서 `object` 또는 `JSON`으로 표시한 opcode는 `data`에 구조화한 필드 또는 원본 JSON 객체를 제공합니다. 그 밖의 known opcode와 `unknown` 이벤트는 다음 형태로 원본 필드만 제공합니다.
 
@@ -74,7 +74,7 @@ interface FieldEventData {
 | 값 | 의미 |
 |---|---|
 | `observed` | 실방송 네트워크 패킷에서 직접 관찰했으며, 정밀 의미는 가능한 경우 화면과 대조 |
-| `player` | 현재 SOOP 플레이어 코드에서 필드 순서나 동작을 확인 |
+| `player` | 조사 당시 공식 SOOP 플레이어 코드에서 필드 순서나 동작을 확인 |
 | `reference` | 참고 라이브러리의 디코더에서만 확인했으며 현재 실방송 표본은 없음 |
 | `runtime` | 카탈로그에 없는 opcode를 실행 중 `unknown`으로 보존 |
 
@@ -576,7 +576,6 @@ interface ChatUserExtendData {
 | `itemType` | `number` | 구독 상품의 원본 종류 값 |
 | `tier` | `number` | 원본 구독 티어. `1`은 베이직, `2`는 플러스 |
 | `subscriptionTier` | `"basic" \| "plus" \| "unknown"` | `tier`를 의미 값으로 정규화한 결과 |
-| `subscriptionMonth` | `number \| null` | 공식 상품표의 상품 기간. 알 수 없는 상품은 `null` |
 | `subscriptionProduct` | `SubscriptionProduct \| null` | 공식 UI의 첫 일치 규칙으로 연결한 상품 메타데이터 |
 | `subscriptionSource` | `"live" \| "vod" \| "unknown"` | VOD 상품 번호이면 `vod`, 일반 상품 번호이면 `live`, 상품표에 없으면 `unknown` |
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
@@ -668,8 +667,6 @@ VOD 상품 번호 `itemType=9200`인 실방송 표본도 화면에는 “플러�
 | `streamerId` | `string` | 구독 대상 방송인 ID |
 | `streamerNickname` | `string` | 구독 대상 방송인 닉네임 |
 | `itemType` | `number` | 구독 상품의 원본 종류 값. 관찰된 `11`은 베이직 1개월, `20`은 플러스 레벨1 1개월 선물권 |
-| `subscriptionTier` | `"basic" \| "plus" \| "unknown"` | 공식 상품표의 티어. 알 수 없는 상품은 `unknown` |
-| `subscriptionMonth` | `number \| null` | 공식 상품표의 상품 기간. 알 수 없는 상품은 `null` |
 | `subscriptionProduct` | `SubscriptionProduct \| null` | 선물 문맥으로 연결한 공식 상품 메타데이터 |
 | `itemCode` | `string` | 구독 상품 코드 |
 | `isSubscription` | `number` | 구독 여부의 원본 숫자 플래그 |

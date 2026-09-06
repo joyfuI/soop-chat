@@ -5,7 +5,8 @@ import {
   RestrictedRoomError,
   type RestrictedRoomReason,
 } from "./errors.js";
-import { setChannelAuthentication } from "./channel-authentication.js";
+import { setChannelAuthentication, validateChannelInfo } from "./channel.js";
+import { isValidProtocolField } from "./protocol.js";
 import type {
   AuthenticatedChannelInfo,
   ChannelAuthentication,
@@ -135,6 +136,11 @@ async function resolveChannel(
   { signal, roomPassword = "" }: ChannelResolverContext,
   authTicket?: string,
 ): Promise<ChannelResolution> {
+  if (typeof streamerId !== "string" || !streamerId.trim())
+    throw new TypeError("streamerId must not be empty.");
+  if (roomPassword && !isValidProtocolField(roomPassword))
+    throw new TypeError("roomPassword must not contain control characters.");
+  streamerId = streamerId.trim();
   const request = async (type: "live" | "aid", broadcastNo = "") => {
     const body = new URLSearchParams({
       bid: streamerId,
@@ -200,8 +206,10 @@ async function resolveChannel(
     chatDomain: text(channel.CHDOMAIN),
     chatPort: Number(channel.CHPT),
   };
-  if (!info.broadcastNo || !info.chatNo || !info.chatDomain || !Number.isInteger(info.chatPort)) {
-    throw new ChannelResolutionError("SOOP live-info API omitted required channel fields.");
+  try {
+    validateChannelInfo(info);
+  } catch {
+    throw new ChannelResolutionError("SOOP live-info API returned invalid channel fields.");
   }
   if (text(channel.BPWD).toUpperCase() === "Y") {
     if (!roomPassword) throw new RestrictedRoomError("password");
@@ -245,6 +253,7 @@ export async function authenticateNode(
  * @throws {BroadcastOfflineError} 방송 중이 아닐 때 발생합니다.
  * @throws {RestrictedRoomError} 비밀번호나 계정 권한이 필요한 방일 때 발생합니다.
  * @throws {AuthenticationError} 전달된 인증 티켓이 유효하지 않을 때 발생합니다.
+ * @throws {TypeError} 방송인 ID가 비어 있거나 방 비밀번호에 제어 문자가 있을 때 발생합니다.
  * @throws {ChannelResolutionError} SOOP이 유효한 채널 정보를 제공하지 못할 때 발생합니다.
  */
 export function resolveNodeChannel(
