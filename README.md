@@ -12,7 +12,9 @@ SOOP 라이브 방송의 채팅을 읽는 TypeScript 라이브러리입니다. N
 npm install soop-chat
 ```
 
-## 공개 API
+## 주요 공개 API
+
+아래 표는 주요 진입점 안내이며 전체 symbol 목록은 아닙니다. 정확한 export와 타입·기본값·사용 제약은 두 entrypoint의 타입 선언과 JSDoc을 기준으로 확인하세요.
 
 | Export                      | Import              | Runtime  | 용도                                                             |
 | --------------------------- | ------------------- | -------- | ---------------------------------------------------------------- |
@@ -23,7 +25,7 @@ npm install soop-chat
 | `createNodeChannelResolver` | `soop-chat`         | Node.js  | 인증 상태를 메모리에 유지하는 resolver 생성                      |
 | 오류·이벤트·공통 타입       | 두 entrypoint       | 공통     | typed event, lifecycle, resolver 오류 처리                       |
 
-브라우저 서버 계약과 인증은 [브라우저 리졸버 가이드](docs/browser.md), 이벤트별 필드는 [이벤트 레퍼런스](docs/events.md), wire-level 근거와 미확인 사항은 [프로토콜 조사 노트](docs/protocol.md)를 참고하세요.
+서버·브라우저 간 오류 전달에는 두 entrypoint의 `serializeChannelResolutionError`와 `deserializeChannelResolutionError`를 사용합니다. 서버 계약과 인증은 [브라우저 리졸버 가이드](docs/browser.md), 이벤트별 필드는 [이벤트 레퍼런스](docs/events.md), wire-level 계약과 미확인 사항은 [프로토콜 문서](docs/protocol.md)를 참고하세요.
 
 ## Node.js
 

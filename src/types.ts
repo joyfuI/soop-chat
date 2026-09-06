@@ -150,10 +150,13 @@ export type SoopChatEventType = keyof SoopChatEventMap;
 /** 특정 `SoopChat` 이벤트의 listener 타입입니다. */
 export type SoopChatListener<K extends SoopChatEventType> = (event: SoopChatEventMap[K]) => void;
 
-/** 브라우저와 `ws` WebSocket 구현에서 받을 수 있는 메시지 데이터입니다. */
+/** 두 entrypoint에서 공개하는, 브라우저와 `ws`에서 수신 가능한 메시지 데이터 타입입니다. */
 export type WebSocketMessageData = string | ArrayBuffer | ArrayBufferView | Blob;
 
-/** 공통 클라이언트 코어가 내부에서 사용하는 WebSocket 구조의 일부입니다. */
+/**
+ * 두 entrypoint에서 공개하는 WebSocket의 최소 구조 타입입니다.
+ * `SoopChat`은 runtime별 구현을 직접 생성하며 소켓 주입 옵션을 제공하지 않습니다.
+ */
 export interface WebSocketLike {
   readonly readyState: number;
   binaryType: BinaryType;
@@ -165,7 +168,10 @@ export interface WebSocketLike {
   close(code?: number, reason?: string): void;
 }
 
-/** 공통 클라이언트 코어가 사용하는 factory 타입입니다. 일반 사용자는 제공할 필요가 없습니다. */
+/**
+ * URL과 서브프로토콜로 {@link WebSocketLike}를 생성하는 공개 함수 타입입니다.
+ * `SoopChat` 생성자 옵션으로 전달하는 확장 지점은 아닙니다.
+ */
 export type WebSocketFactory = (url: string, protocols: string | string[]) => WebSocketLike;
 
 export type { KnownSoopEvent, RawPacket, SoopEvent, UnknownSoopEvent };

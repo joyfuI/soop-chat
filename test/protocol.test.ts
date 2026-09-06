@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { EVENT_CATALOG } from "../src/events.js";
 import {
@@ -75,7 +76,7 @@ void test("accepts every WebSocket message data representation", async () => {
   assert.equal(new TextDecoder().decode(await messageDataToBytes(new Blob([bytes]))), value);
 });
 
-void test("catalog exposes 101 known opcodes plus the unknown variant", () => {
+void test("catalog and event documentation cover known opcodes and the unknown variant", () => {
   const definitions = Object.values(EVENT_CATALOG);
   assert.equal(definitions.length, 101);
   assert.equal(new Set(definitions.map((definition) => definition.type)).size, 101);
@@ -145,11 +146,37 @@ void test("catalog exposes 101 known opcodes plus the unknown variant", () => {
     "0141": `${separator}user${separator}nickname${separator}2${separator}123${separator}message${separator}60${separator}flag`,
   };
 
-  for (const [opcode, definition] of Object.entries(EVENT_CATALOG)) {
+  const expectedIndex = Object.entries(EVENT_CATALOG).map(([opcode, definition]) => {
     const event = decodePacket(rawPacket(opcode, specializedPayloads[opcode] ?? separator));
     assert.equal(event.type, definition.type, opcode);
     assert.equal(event.opcode, opcode);
-  }
+    const dataShape =
+      "fields" in event.data
+        ? "fields"
+        : Object.keys(event.data).length === 1 && "payload" in event.data
+          ? "JSON"
+          : "object";
+    return [opcode, definition.type, dataShape, definition.provenance];
+  });
+  expectedIndex.push(["future", "unknown", "fields", "runtime"]);
+
+  const documentation = readFileSync("docs/events.md", "utf8");
+  const documentedIndex = Array.from(
+    documentation.matchAll(
+      /^\|\s*(?:`(\d{4})`|(future))\s*\|\s*`(\w+)`\s*\|[^|]+\|\s*(\w+)\s*\|\s*(\w+)\s*\|\s*$/gm,
+    ),
+    ([, opcode, future, type, dataShape, provenance]) => [
+      opcode ?? future,
+      type,
+      dataShape,
+      provenance,
+    ],
+  );
+  assert.deepEqual(
+    documentedIndex,
+    expectedIndex,
+    "Sync docs/events.md with the catalog and decoder.",
+  );
 });
 
 void test("decodes chat, subscription, broadcaster status, and current player fields", () => {

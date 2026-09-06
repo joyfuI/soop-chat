@@ -2,6 +2,8 @@
 
 이 문서는 `soop-chat` 사용자가 받는 공개 채팅 프로토콜 이벤트 API를 설명합니다. `stateChange`, `reconnecting`, `error`, `ended` 같은 연결 수명주기 이벤트는 README의 [연결 상태](../README.md#연결-상태)와 [이벤트](../README.md#이벤트) 설명을 참고하세요. WebSocket 프레임, payload 필드 순서, 연결 절차와 관찰 근거는 [프로토콜 조사 노트](protocol.md)를 참고하세요.
 
+이벤트명·opcode·provenance의 원본은 [`EVENT_CATALOG`](../src/events.ts), 필드와 판별 유니온의 정확한 타입은 같은 파일의 타입 선언과 JSDoc입니다. 이 문서의 표는 필드 의미, 관찰 범위와 사용상 주의점을 설명합니다. `npm run check`의 카탈로그 테스트가 아래 전체 색인의 opcode·이벤트명·provenance와 디코더의 `data` 형태를 대조합니다. 개별 필드의 타입과 의미까지 자동 검사하지는 않으므로 해당 변경은 코드와 문서를 함께 검토해야 합니다.
+
 ## 공통 이벤트 구조
 
 모든 채팅 프로토콜 이벤트는 다음 공통 필드를 가집니다.
@@ -24,7 +26,7 @@
 | `text` | `string` | payload를 UTF-8로 디코딩한 문자열 |
 | `fields` | `readonly string[]` | `text`를 form feed(`0x0c`)로 나눈 필드 배열 |
 
-의미가 확인된 62개 opcode는 `data`에 이름 있는 필드를 제공합니다. 그 밖의 known opcode와 `unknown` 이벤트는 다음 형태로 원본 필드만 제공합니다.
+아래 색인에서 `object` 또는 `JSON`으로 표시한 opcode는 `data`에 구조화한 필드 또는 원본 JSON 객체를 제공합니다. 그 밖의 known opcode와 `unknown` 이벤트는 다음 형태로 원본 필드만 제공합니다.
 
 ```ts
 interface FieldEventData {
@@ -82,7 +84,7 @@ interface FieldEventData {
 
 ## 전체 이벤트 색인
 
-`구조화`가 `fields`인 이벤트는 현재 `data.fields`만 제공합니다. `object`는 아래의 이벤트별 필드 표를, `JSON`은 파싱한 원본 JSON 객체를 제공합니다.
+`data`가 `fields`인 이벤트는 현재 `data.fields`만 제공합니다. `object`는 아래의 이벤트별 필드 표를, `JSON`은 파싱한 원본 JSON 객체를 제공합니다.
 
 | Opcode | Event type | 의미 | `data` | 근거 |
 |---|---|---|---|---|

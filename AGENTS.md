@@ -37,19 +37,27 @@
 
 ## 코드와 문서 위치
 
-- `package.json`의 `exports`가 공개 API 경계다. `.`과 `./browser`에서 export하는 class, function, type, error, event를 공개 계약으로 취급한다.
+- `package.json`의 `exports`가 공개 API 경계다. `.`의 `src/node.ts`와 `./browser`의 `src/browser.ts`에서 재노출하는 타입까지 공개 계약으로 취급한다. 소스 파일의 `export`만으로 package public API가 되지는 않는다.
 - `src/client.ts`: 연결 상태, handshake, heartbeat와 reconnect 수명주기
 - `src/protocol.ts`: framing, packet codec와 event decoder
 - `src/events.ts`: 공개 event/opcode catalog와 데이터 타입
 - `src/node-resolver.ts`: Node 라이브 정보 조회와 인증
 - `src/errors.ts`: 공개 오류 계층과 서버/브라우저 직렬화
 - `test/`: 합성 단위 테스트와 브라우저·선택 실행형 live smoke test
-- `README.md`: 설치, 공개 API, 보안 및 운영 사용법
+- `README.md`: 설치, 주요 공개 API, 보안 및 운영 사용법. 전체 타입 계약은 공개 symbol의 JSDoc과 타입 선언이 기준이다.
 - `docs/browser.md`: 브라우저 resolver 서버, 인증과 ticket 보안 계약
-- `docs/events.md`: 공개 이벤트 필드와 provenance
-- `docs/protocol.md`: wire protocol 조사 결과, 관찰 근거와 미확인 사항
+- `docs/events.md`: 공개 이벤트 필드의 의미와 provenance. 구조와 타입의 원본은 `src/events.ts`다.
+- `docs/protocol.md`: 현재 wire protocol 계약과 미확인 사항. 세부 표본·관찰 기록은 연결된 `docs/research/protocol-evidence.md`에서 필요할 때만 읽는다.
 
-새 프로토콜 사실은 `docs/protocol.md`와 관련 테스트에, 공개 이벤트 필드 변경은 `docs/events.md`에 기록한다. 사용자용 option이나 export가 바뀌면 해당 JSDoc과 README의 API 안내를, 브라우저 인증 계약이 바뀌면 `docs/browser.md`를 함께 갱신한다. 공개되는 주요 symbol에는 IDE만으로 사용 계약, 기본값, runtime 경계와 보안 제약을 알 수 있는 짧은 JSDoc을 유지한다.
+변경에 해당하는 문서를 함께 갱신한다.
+
+- 프로토콜 사실·invariant → `docs/protocol.md` + 관련 테스트. 세부 관찰 근거는 연결된 evidence 문서에 보존
+- 이벤트명·opcode·필드·의미·provenance → `docs/events.md` + 관련 테스트
+- option·public export·오류 계약 → 해당 JSDoc + 필요한 README/API 안내
+- 브라우저 인증·resolver 경계 → `docs/browser.md`
+- public entrypoint → `package.json`의 `exports` + entrypoint + README/JSDoc
+
+주요 공개 symbol의 JSDoc은 IDE에서 사용 계약, 기본값, runtime 경계와 보안 제약을 알 수 있게 짧게 유지한다.
 
 ## 필수 검증
 
@@ -63,3 +71,5 @@ npm run pack:check
 ```
 
 `npm run check`는 typecheck, lint, format check, 단위 테스트와 build를 실행한다.
+
+`npm run test:live`는 protocol·Node resolver·인증·실제 SOOP 연동 동작을 바꾼 경우에만 고려한다. 위의 결정적 검증을 우선하고, 필요한 환경변수와 해당 방의 credential이 이미 제공된 환경에서만 선택적으로 실행한다(설정은 README 참고). credential을 새로 요구하거나 문서·fixture·로그에 기록하지 않는다. 실행할 수 없으면 이유를 남기되 그 자체를 작업 실패로 간주하지 않는다.
