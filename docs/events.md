@@ -337,7 +337,7 @@ type ChatUserData =
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 | `relay` | `boolean` | 일반 채널은 `false`, 서브 채널 `sendBalloonSub`은 `true` |
 
-후원 수단별 가입 판정과 관찰 근거는 [팬클럽 가입과 순번](protocol.md#팬클럽-가입과-순번)을 참고하세요.
+`fanOrder`는 중복되거나 수신 순서와 역전될 수 있는 서버 원본 값입니다. 고유 식별자나 이벤트 정렬·중복 제거 기준으로 사용하지 않습니다. 후원 수단별 가입 판정과 관찰 근거는 [팬클럽 가입과 순번](protocol.md#팬클럽-가입과-순번)을 참고하세요.
 
 ### `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`)
 
@@ -366,12 +366,12 @@ type ChatUserData =
 | `frozen` | `boolean` | 채팅창 얼음 여부 |
 | `allowedRoleMask` | `number` | 얼음 상태에서도 채팅할 수 있는 역할 비트마스크 |
 | `allowedRoles` | `readonly IceModeRole[]` | 비트마스크를 해석한 역할 목록 |
-| `balloonLimitCount` | `number` | 플레이어가 사용하는 별풍선 제한 수치 |
+| `balloonLimitCount` | `number` | 팬클럽 채팅 참여 조건에 표시되는 별풍선 하한 |
 | `subscriptionLimitCount` | `number` | 플레이어가 사용하는 구독 제한 수치 |
 
 `IceModeRole`은 `"streamer" | "fanClub" | "supporter" | "topFan" | "subscriber" | "manager"`입니다. 각 비트는 차례대로 `16`, `32`, `64`, `128`, `256`, `512`입니다. 플레이어가 읽지 않는 원본 두 번째 필드는 이름을 붙이지 않고 `raw.fields`에만 보존합니다. 구형 `0019 iceMode`는 현재 플레이어에 처리 분기가 없어 계속 `data.fields`만 제공합니다.
 
-얼음 상태를 방송 종료나 방송 대기로 해석하지 않습니다. 관찰 순서와 미확인 사항은 [채팅창 얼음 조사](protocol.md#채팅창-얼음)를 참고하세요.
+`allowedRoleMask=688`은 스트리머·팬클럽·열혈팬·매니저를 허용합니다. 실방송에서 `frozen=true`를 유지한 채 `balloonLimitCount`가 `10000`에서 `1`로 바뀌자 “등급 상세설정이 변경되었습니다.”와 함께 팬클럽 조건이 “10,000개↑”에서 “1개↑”로 바뀌었습니다. 얼음 여부와 참여 조건 변경을 구분하며, 얼음 상태를 방송 종료나 방송 대기로 해석하지 않습니다. 관찰 순서와 미확인 사항은 [채팅창 얼음 조사](protocol.md#채팅창-얼음)를 참고하세요.
 
 ### `managerChat` (`0026`)
 
@@ -559,6 +559,8 @@ interface ChatUserExtendData {
 
 `isCeremony`, `isGift`, `isTrial`은 공식 상품표의 내부 플래그이며 `isGift` 하나만으로 다른 이벤트의 구매·선물 취득 경로를 판단하지 않습니다. 상품표와 실방송 대조 근거는 [구독과 미션 조사](protocol.md#구독과-미션)를 참고하세요.
 
+`level`도 해당 이벤트의 상품 번호를 조회한 값입니다. 실방송에서 레벨1 선물권 `0108 itemType=20`을 사용한 뒤 `0091 itemType=211`이 수신됐고, 상품표의 레벨은 각각 `1`과 `2`였습니다. 사용 완료 화면에는 레벨이 표시되지 않았으므로 실제 구독 레벨 변경을 추론하지 않습니다.
+
 ### `followItem` (`0091`)
 
 신규 구독 알림입니다.
@@ -600,6 +602,8 @@ interface ChatUserExtendData {
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
 화면의 “N개월째”는 `month`이고 `subscriptionProduct.month`는 상품 기간이므로 서로 다른 값입니다. 실방송의 `itemType=106`은 상품 기간이 6개월인 메타데이터와 연결되지만, `month=12`여서 화면에는 “베이직 12개월째 구독 중!”으로 표시됐습니다. 커스텀 구독자 명칭은 별도 채널 설정에서 가져오므로 합성하지 않습니다.
+
+VOD 상품 번호 `itemType=9200`인 실방송 표본도 화면에는 “플러스 3개월째 구독 중!”만 표시됐습니다. 상품 번호만으로 연속 구독 문구에 “VOD에서”를 덧붙이지 않습니다.
 
 ### `bjNotice` (`0104`)
 
@@ -661,7 +665,7 @@ interface ChatUserExtendData {
 | `receiverNickname` | `string` | 선물받은 사용자 닉네임 |
 | `streamerId` | `string` | 구독 대상 방송인 ID |
 | `streamerNickname` | `string` | 구독 대상 방송인 닉네임 |
-| `itemType` | `number` | 구독 상품의 원본 종류 값. 관찰된 `11`은 베이직 1개월 선물권 |
+| `itemType` | `number` | 구독 상품의 원본 종류 값. 관찰된 `11`은 베이직 1개월, `20`은 플러스 레벨1 1개월 선물권 |
 | `subscriptionTier` | `"basic" \| "plus" \| "unknown"` | 공식 상품표의 티어. 알 수 없는 상품은 `unknown` |
 | `subscriptionMonth` | `number \| null` | 공식 상품표의 상품 기간. 알 수 없는 상품은 `null` |
 | `subscriptionProduct` | `SubscriptionProduct \| null` | 선물 문맥으로 연결한 공식 상품 메타데이터 |

@@ -309,16 +309,25 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     assert.equal(nickname.data.userFlag, "65536|163840");
   }
 
-  const ice = decodePacket(
-    rawPacket("0021", `${separator}1${separator}1${separator}528${separator}1${separator}1`),
-  );
-  assert.equal(ice.type, "iceModeEx");
-  if (ice.type === "iceModeEx") {
-    assert.equal(ice.data.frozen, true);
-    assert.equal(ice.data.allowedRoleMask, 528);
-    assert.deepEqual(ice.data.allowedRoles, ["streamer", "manager"]);
-    assert.equal(ice.data.balloonLimitCount, 1);
-    assert.equal(ice.data.subscriptionLimitCount, 1);
+  for (const [mask, limit, roles] of [
+    [528, 1, ["streamer", "manager"]],
+    [688, 10000, ["streamer", "fanClub", "topFan", "manager"]],
+    [688, 1, ["streamer", "fanClub", "topFan", "manager"]],
+  ] as const) {
+    const ice = decodePacket(
+      rawPacket(
+        "0021",
+        `${separator}1${separator}2${separator}${mask}${separator}${limit}${separator}1`,
+      ),
+    );
+    assert.equal(ice.type, "iceModeEx");
+    if (ice.type === "iceModeEx") {
+      assert.equal(ice.data.frozen, true);
+      assert.equal(ice.data.allowedRoleMask, mask);
+      assert.deepEqual(ice.data.allowedRoles, roles);
+      assert.equal(ice.data.balloonLimitCount, limit);
+      assert.equal(ice.data.subscriptionLimitCount, 1);
+    }
   }
 
   const managerChat = decodePacket(
@@ -976,21 +985,31 @@ void test("connects subscription item types to the official player product table
     });
   }
 
-  const trialGift = decodePacket(
-    rawPacket(
-      "0108",
-      `${separator}unused${separator}sender${separator}sNick${separator}receiver${separator}rNick${separator}streamer${separator}streamerNick${separator}30${separator}code${separator}0${separator}0${separator}${separator}0${separator}0`,
-    ),
-  );
-  assert.equal(trialGift.type, "sendSubscription");
-  if (trialGift.type === "sendSubscription") {
-    assert.partialDeepStrictEqual(trialGift.data.subscriptionProduct, {
-      subscriptionTier: "plus",
-      level: 1,
-      month: 1,
-      isCeremony: true,
-      isTrial: true,
-    });
+  for (const [itemType, isTrial] of [
+    [20, false],
+    [30, true],
+  ] as const) {
+    const plusGift = decodePacket(
+      rawPacket(
+        "0108",
+        `${separator}unused${separator}sender${separator}sNick${separator}receiver${separator}rNick${separator}streamer${separator}streamerNick${separator}${itemType}${separator}code${separator}0${separator}0${separator}${separator}0${separator}0`,
+      ),
+    );
+    assert.equal(plusGift.type, "sendSubscription");
+    if (plusGift.type === "sendSubscription") {
+      assert.partialDeepStrictEqual(plusGift.data, {
+        subscriptionTier: "plus",
+        subscriptionMonth: 1,
+        subscriptionProduct: {
+          itemType,
+          subscriptionTier: "plus",
+          level: 1,
+          month: 1,
+          isCeremony: true,
+          isTrial,
+        },
+      });
+    }
   }
 
   const legacyGift = decodePacket(
@@ -1026,20 +1045,24 @@ void test("connects subscription item types to the official player product table
     });
   }
 
-  const plusSubscription = decodePacket(
-    rawPacket(
-      "0091",
-      `${separator}123${separator}receiver${separator}sender${separator}nickname${separator}2413${separator}ignored${separator}ignored${separator}2${separator}ignored${separator}ko_KR${separator}456`,
-    ),
-  );
-  assert.equal(plusSubscription.type, "followItem");
-  if (plusSubscription.type === "followItem") {
-    assert.partialDeepStrictEqual(plusSubscription.data.subscriptionProduct, {
-      subscriptionTier: "plus",
-      level: 4,
-      month: 1,
-      isGift: false,
-    });
+  for (const [itemType, level] of [
+    [211, 2],
+    [2413, 4],
+  ] as const) {
+    const plusSubscription = decodePacket(
+      rawPacket(
+        "0091",
+        `${separator}123${separator}receiver${separator}sender${separator}nickname${separator}${itemType}${separator}ignored${separator}ignored${separator}2${separator}ignored${separator}ko_KR${separator}456`,
+      ),
+    );
+    assert.equal(plusSubscription.type, "followItem");
+    if (plusSubscription.type === "followItem") {
+      assert.partialDeepStrictEqual(plusSubscription.data, {
+        subscriptionTier: "plus",
+        subscriptionMonth: 1,
+        subscriptionProduct: { itemType, subscriptionTier: "plus", level, month: 1, isGift: false },
+      });
+    }
   }
 
   const vodSubscription = decodePacket(
@@ -1056,6 +1079,23 @@ void test("connects subscription item types to the official player product table
       vodItemType: 9200,
       subscriptionTier: "plus",
       level: 2,
+    });
+  }
+
+  const vodFollow = decodePacket(
+    rawPacket(
+      "0093",
+      `${separator}bj${separator}user${separator}nickname${separator}3${separator}123${separator}9200${separator}3${separator}2`,
+    ),
+  );
+  assert.equal(vodFollow.type, "followItemEffect");
+  if (vodFollow.type === "followItemEffect") {
+    assert.partialDeepStrictEqual(vodFollow.data, {
+      itemType: 9200,
+      subscriptionTier: "plus",
+      month: 3,
+      accumulatedMonth: 3,
+      subscriptionProduct: { itemType: 200, vodItemType: 9200, month: 1 },
     });
   }
 

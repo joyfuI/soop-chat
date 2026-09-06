@@ -147,6 +147,38 @@ void test("connects, emits typed chat, sends heartbeat, and disconnects idempote
   assert.equal(client.state, "closed");
 });
 
+void test("preserves duplicate and out-of-order fan orders as separate donations", async (t) => {
+  const socket = new FakeSocket();
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+  });
+  t.after(() => client.disconnect());
+  const donations: [string, number][] = [];
+  client.on("sendBalloon", ({ data }) => donations.push([data.senderId, data.fanOrder]));
+  const expected = [
+    ["first", 500],
+    ["second", 500],
+    ["third", 502],
+    ["fourth", 501],
+  ] as const;
+
+  await join(client, socket);
+  socket.receive(
+    Buffer.concat(
+      expected.map(([sender, order]) =>
+        encodePacket(
+          "0018",
+          ["", "streamer", sender, "nickname", "1", order, "0", "2", "1", "0", "0"].join("\x0c"),
+        ),
+      ),
+    ),
+  );
+  await waitFor(() => donations.length === expected.length);
+  assert.deepEqual(donations, expected);
+});
+
 void test("uses and validates serialized browser channel authentication", async () => {
   const socket = new FakeSocket();
   const authenticatedChannel: AuthenticatedChannelInfo = {

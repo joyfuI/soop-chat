@@ -297,6 +297,7 @@ export interface IceModeExData {
   frozen: boolean;
   allowedRoleMask: number;
   allowedRoles: readonly IceModeRole[];
+  /** 팬클럽 채팅 참여 조건에 표시되는 별풍선 하한입니다. */
   balloonLimitCount: number;
   subscriptionLimitCount: number;
 }
@@ -423,6 +424,7 @@ export interface BalloonData {
   senderId: string;
   senderNickname: string;
   count: number;
+  /** 서버의 팬클럽 가입 순번. 중복되거나 수신 순서와 역전될 수 있습니다. */
   fanOrder: number;
   becameFanClub: boolean;
   fileName: string;
@@ -494,6 +496,7 @@ export interface SubscriptionProduct {
   vodItemType: number | null;
   tier: 1 | 2;
   subscriptionTier: Exclude<SubscriptionTier, "unknown">;
+  /** 해당 이벤트의 상품 번호로 조회한 레벨이며, 선물권 사용 전후에 다를 수 있습니다. */
   level: 1 | 2 | 3 | 4 | 5;
   /** 상품 기간(개월). 연속 구독 효과의 화면 표시 개월과 별개입니다. */
   month: 1 | 3 | 6 | 12;
@@ -561,6 +564,7 @@ export interface AdconEffectData {
   imageUrl: string;
   defaultImageUrl: string;
   count: number;
+  /** 서버의 팬클럽 가입 순번. 다른 후원 이벤트와 수신 순서가 역전될 수 있습니다. */
   fanOrder: number;
   becameFanClub: boolean;
   isTopFan: boolean;
