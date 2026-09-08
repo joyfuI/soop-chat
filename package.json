@@ -1,6 +1,6 @@
 {
   "name": "soop-chat",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Unofficial typed SOOP live chat reader for Node.js and browsers",
   "keywords": [
     "live-chat",
@@ -41,7 +41,7 @@
   },
   "scripts": {
     "build": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\" && tsc -p tsconfig.json",
-    "build:test": "tsc -p tsconfig.test.json",
+    "build:test": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('.test-dist', { recursive: true, force: true });\" && tsc -p tsconfig.test.json",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "lint": "oxlint --type-aware --deny-warnings",
@@ -58,7 +58,7 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.3",
     "@types/ws": "^8.18.1",
     "oxfmt": "0.66.0",

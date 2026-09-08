@@ -247,13 +247,14 @@ Node에서는 비밀번호 방, 성인 인증이 완료된 계정의 19금 방�
 
 ```sh
 npm install
+npx playwright install chromium firefox webkit
 npm run format
 npm run check
 npm run test:browser
 npm run pack:check
 ```
 
-`npm run check`는 typecheck, lint, format check, 단위 테스트와 build를 CI와 같은 순서로 실행합니다. 브라우저 테스트와 패키지 검사는 실행 환경이 달라 별도 명령으로 유지합니다.
+`npm run check`는 typecheck, lint, format check, 단위 테스트와 build를 CI와 같은 순서로 실행합니다. 테스트 빌드는 이전 `.test-dist`를 지워 삭제하거나 이름을 바꾼 테스트가 다시 실행되지 않게 합니다. 브라우저 테스트와 패키지 검사는 실행 환경이 달라 별도 명령으로 유지합니다. Playwright를 업데이트한 뒤에는 위 브라우저 설치 명령을 다시 실행하세요.
 
 실제 공개 방송에 대한 선택 실행형 smoke test:
 

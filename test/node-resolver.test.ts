@@ -11,6 +11,30 @@ import {
 } from "../src/node.js";
 import { createConnectPacket, createJoinPacket, PacketStreamParser } from "../src/protocol.js";
 
+void test("preserves request cancellation while reading login and live-info response bodies", async (context) => {
+  for (const request of [
+    (signal: AbortSignal) =>
+      authenticateNode({ username: "synthetic-user", password: "synthetic-password" }, { signal }),
+    (signal: AbortSignal) => resolveNodeChannel("streamer", { signal }),
+  ]) {
+    const controller = new AbortController();
+    context.mock.method(
+      globalThis,
+      "fetch",
+      async () =>
+        new Response(
+          new ReadableStream({
+            pull(stream) {
+              controller.abort();
+              stream.error(controller.signal.reason);
+            },
+          }),
+        ),
+    );
+    await assert.rejects(request(controller.signal), { name: "AbortError" });
+  }
+});
+
 void test("resolves and validates SOOP channel information", async (context) => {
   const originalFetch = globalThis.fetch;
   context.after(() => {

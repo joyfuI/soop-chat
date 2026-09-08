@@ -117,6 +117,7 @@ async function authenticate(credentials: SoopCredentials, signal: AbortSignal): 
   try {
     root = record(await response.json()) ?? {};
   } catch (cause) {
+    if (cause instanceof Error && cause.name === "AbortError") throw cause;
     throw new AuthenticationError("SOOP login API returned invalid JSON.", { cause });
   }
   if (Number(root.RESULT) !== 1)
@@ -178,6 +179,7 @@ async function resolveChannel(
       const root = record(await response.json()) ?? {};
       return { root, channel: record(root.CHANNEL) ?? root };
     } catch (cause) {
+      if (cause instanceof Error && cause.name === "AbortError") throw cause;
       throw new ChannelResolutionError("SOOP live-info API returned invalid JSON.", { cause });
     }
   };
@@ -231,7 +233,7 @@ async function resolveChannel(
 
 /**
  * ID 저장이나 로그인 유지를 요청하지 않고 Node.js에서 SOOP에 로그인합니다.
- * `signal`이 중단되면 요청은 `AbortError`로 거부됩니다.
+ * 응답 본문 수신 중에도 `signal`이 중단되면 요청은 `AbortError`로 거부됩니다.
  *
  * @throws {TypeError} 계정 ID나 비밀번호가 비어 있을 때 발생합니다.
  * @throws {AuthenticationError} 로그인 요청이나 응답에 실패할 때 발생합니다.
@@ -248,7 +250,7 @@ export async function authenticateNode(
  *
  * `authentication`은 신뢰할 수 있는 서버에서만 전달하세요. 인증 호출은 브라우저 클라이언트용
  * 단기 `TK`와 `FTK`를 반환하지만 계정 수준의 `AuthTicket`은 반환하지 않습니다.
- * `context.signal`이 중단되면 요청은 `AbortError`로 거부됩니다.
+ * 응답 본문 수신 중에도 `context.signal`이 중단되면 요청은 `AbortError`로 거부됩니다.
  *
  * @throws {BroadcastOfflineError} 방송 중이 아닐 때 발생합니다.
  * @throws {RestrictedRoomError} 비밀번호나 계정 권한이 필요한 방일 때 발생합니다.
