@@ -1,6 +1,6 @@
 # SOOP 채팅 프로토콜 계약과 미확인 사항
 
-이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-06까지의 플레이어 분석 및 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
+이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-08까지의 플레이어 분석 및 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
 
 ## 근거
 
@@ -59,7 +59,9 @@ opcode·길이·flags는 각각 4·6·2자리 숫자이며 payload 길이는 UTF
 
 handshake 응답도 이벤트 디코더의 필드 검증을 통과해야 합니다. 잘못된 응답은 `protocolError`로 보존하며, `0001` 이전의 `0002`로 연결을 완료하거나 heartbeat를 시작하지 않습니다. 중복 `0001`로 입장 요청을 반복하지 않습니다. 입장 완료 전 `0088`이 오면 대기 중인 `connect()`를 `BroadcastOfflineError`로 즉시 거부합니다.
 
-Node와 브라우저 모두 표준 WebSocket을 사용합니다. 정상 종료에는 `1000`, handshake 실패에는 `3000`, transport 실패에는 `3001`을 사용합니다. 표준 `WebSocket.close()`가 허용하지 않는 예약 코드를 클라이언트에서 보내지 않습니다.
+Node는 `ws`, 브라우저는 표준 WebSocket을 사용합니다. SOOP 서버가 `Sec-WebSocket-Key` 헤더 이름의 대소문자를 비표준으로 처리하므로, Node에서는 `ws`가 보내는 헤더 표기를 유지합니다. Node 기본 WebSocket의 소문자 헤더와 충돌한 [비교 실험 및 복원 검증](research/protocol-evidence.md#node-websocket-연결-요청-헤더-호환성)을 참고하세요.
+
+정상 종료에는 `1000`, handshake 실패에는 `3000`, transport 실패에는 `3001`을 사용합니다. 표준 `WebSocket.close()`가 허용하지 않는 예약 코드를 클라이언트에서 보내지 않습니다.
 
 WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않습니다. 구현은 분할 패킷과 결합 패킷을 모두 처리합니다. 알 수 없는 opcode와 원본 payload 바이트를 보존하고, framing 복구 중 버린 바이트는 `ProtocolError.discarded`로 제공합니다.
 

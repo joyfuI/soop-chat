@@ -1,4 +1,5 @@
-import { SoopChatCore } from "./client.js";
+import WebSocket from "ws";
+import { SoopChatCore, type WebSocketLike } from "./client.js";
 import {
   authenticateNode,
   createNodeChannelResolver,
@@ -22,6 +23,7 @@ export interface NodeSoopChatOptions extends SoopChatOptions {
  * Node.js용 읽기 전용 SOOP 라이브 채팅 클라이언트입니다.
  *
  * `resolveChannel`을 전달하지 않으면 내장 Node 채널 resolver를 사용합니다.
+ * SOOP 서버의 WebSocket 연결 요청 헤더 호환성을 위해 `ws`를 사용합니다.
  * {@link SoopChat.connect}로 입장하고 사용을 마치면 {@link SoopChat.disconnect}를 호출하세요.
  */
 export class SoopChat extends SoopChatCore {
@@ -32,7 +34,12 @@ export class SoopChat extends SoopChatCore {
       resolveChannel:
         chatOptions.resolveChannel ??
         (credentials ? createNodeChannelResolver(credentials) : resolveNodeChannel),
-      createWebSocket: (url, protocols) => new WebSocket(url, protocols),
+      createWebSocket: (url, protocols) => {
+        const socket = new WebSocket(url, protocols);
+        // The core clears onerror before closing; ws can still emit an error while aborting.
+        socket.on("error", () => {});
+        return socket as unknown as WebSocketLike;
+      },
     });
   }
 }

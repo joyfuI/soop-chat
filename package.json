@@ -54,9 +54,13 @@
     "pack:check": "npm run build && npm pack --dry-run",
     "prepublishOnly": "npm run check"
   },
+  "dependencies": {
+    "ws": "^8.21.3"
+  },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@types/node": "^24.13.3",
+    "@types/ws": "^8.18.1",
     "oxfmt": "0.66.0",
     "oxlint": "1.81.0",
     "oxlint-tsgolint": "7.0.2001",

@@ -2,7 +2,7 @@
 
 SOOP 라이브 방송의 채팅을 읽는 TypeScript 라이브러리입니다. Node.js 24 이상과 현대 브라우저를 지원하며 ESM으로만 배포됩니다.
 
-두 runtime 모두 표준 `WebSocket`을 사용하며 런타임 의존 패키지는 없습니다.
+Node는 SOOP 서버의 WebSocket 연결 요청 헤더 호환성을 위해 `ws`를 사용하고, 브라우저는 표준 `WebSocket`을 사용합니다.
 
 > 비공식 라이브러리입니다. SOOP이 프로토콜이나 플레이어 API를 변경하면 동작이 달라질 수 있습니다.
 
