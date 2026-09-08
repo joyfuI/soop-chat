@@ -22,7 +22,7 @@ export const EVENT_CATALOG = {
   "0010": { type: "notice", description: "Notice", provenance: "reference" },
   "0011": { type: "kick", description: "Kick", provenance: "reference" },
   "0012": { type: "setUserFlag", description: "Set User Flag", provenance: "observed" },
-  "0013": { type: "setSubBj", description: "Set Sub BJ", provenance: "player" },
+  "0013": { type: "setSubBj", description: "Set Sub BJ", provenance: "observed" },
   "0014": { type: "setNickname", description: "Set Nickname", provenance: "observed" },
   "0015": { type: "serverStat", description: "Server Status", provenance: "reference" },
   "0016": { type: "unused16", description: "Unused", provenance: "reference" },
@@ -130,6 +130,18 @@ export const EVENT_CATALOG = {
   "0139": { type: "subtitleV2", description: "Live Subtitle v2", provenance: "player" },
   "0140": { type: "cheerTeamChange", description: "Cheer Team Change", provenance: "player" },
   "0141": { type: "nightbotTimeout", description: "Nightbot Timeout", provenance: "player" },
+  "0142": {
+    type: "subRandomCeremony",
+    description: "Random Subscription Gift",
+    provenance: "observed",
+  },
+  "0143": {
+    type: "quickRandomCeremony",
+    description: "Random Quick View Gift",
+    provenance: "player",
+  },
+  "0144": { type: "copySendSub", description: "Subscription Gift Receipt", provenance: "player" },
+  "0145": { type: "copySendQuick", description: "Copy Send Quick", provenance: "player" },
 } as const satisfies Record<string, EventDefinition>;
 
 /** {@link EVENT_CATALOG}에 등록된 네 자리 opcode입니다. */
@@ -502,7 +514,9 @@ export interface SubscriptionProduct {
   month: 1 | 3 | 6 | 12;
   isAutoPay: boolean;
   isLegacy: boolean;
+  /** 공식 상품표의 세리머니 플래그. 개별 이벤트의 화면 표시 여부를 보장하지 않습니다. */
   isCeremony: boolean;
+  /** 공식 상품표의 선물 문맥 조회 플래그. 다른 이벤트의 취득 경로를 단독으로 판정하지 않습니다. */
   isGift: boolean;
   isTrial: boolean;
 }
@@ -529,7 +543,9 @@ export interface SetSubBjData {
   userId: string;
   userFlag: string;
   nickname: string;
+  /** 매니저 지정·해임 안내의 숨김 원본 값. 사용자나 매니저 배지의 숨김 여부가 아닙니다. */
   hide: number;
+  /** 공식 플레이어는 `hide === 1`일 때만 안내를 숨깁니다. false여도 채팅창이 닫혀 있으면 표시하지 않습니다. */
   hidden: boolean;
   userStatus: UserStatus;
 }
@@ -702,6 +718,30 @@ export interface GiftSubscriptionData {
   subscriptionPayCount: number;
 }
 
+/** 랜덤 구독 선물 알림입니다. 수신자 목록이나 개별 선물과 연결하는 키는 포함되지 않습니다. */
+export interface SubRandomCeremonyData {
+  senderId: string;
+  senderNickname: string;
+  channelNumber: number;
+  count: number;
+  itemType: number;
+  /** 선물 문맥으로 조회한 상품 메타데이터. 일치하는 상품이 없으면 `null`입니다. */
+  subscriptionProduct: SubscriptionProduct | null;
+  /** 구독 선물 랭킹 원본 값. 공식 UI는 양수일 때만 랭킹 안내를 표시하며 관찰된 `-1`도 보존합니다. */
+  rank: number;
+}
+
+/** 랜덤 퀵뷰 선물 알림입니다. 수신자 목록이나 개별 선물과 연결하는 키는 포함되지 않습니다. */
+export interface QuickRandomCeremonyData {
+  senderId: string;
+  senderNickname: string;
+  channelNumber: number;
+  count: number;
+  itemType: number;
+  quickViewProduct: QuickViewProduct;
+  durationDays: number | null;
+}
+
 /** 영상풍선 후원과 표시 리소스 메타데이터입니다. */
 export interface VideoBalloonData {
   chatNo: string;
@@ -739,7 +779,7 @@ export interface OgqEmoticonData {
   nicknameColorDark: string;
   accumulatedSubscriptionMonth: string;
   representativePersonalconMonth: string;
-  /** 애니메이션 관련 원본 값. `"1"` 표본은 실제 움직이는 이미지와 대조됐습니다. */
+  /** 애니메이션 관련 원본 값. `"0"` 표본은 정지 이미지, `"1"` 표본은 움직이는 이미지와 대조됐습니다. */
   animation: string;
   cheerTeamNumber: number;
 }
@@ -994,6 +1034,9 @@ interface DecodedDataByOpcode {
   "0139": JsonObjectData;
   "0140": CheerTeamChangeData;
   "0141": NightbotTimeoutData;
+  "0142": SubRandomCeremonyData;
+  "0143": QuickRandomCeremonyData;
+  "0144": GiftSubscriptionData;
 }
 
 type DecodedData<O extends KnownSoopOpcode> = O extends keyof DecodedDataByOpcode

@@ -101,7 +101,7 @@ interface FieldEventData {
 | `0010` | `notice` | 공지 | fields | reference |
 | `0011` | `kick` | 사용자 강제 퇴장 | fields | reference |
 | `0012` | `setUserFlag` | 사용자 플래그 설정 | object | observed |
-| `0013` | `setSubBj` | 매니저 상태 설정 | object | player |
+| `0013` | `setSubBj` | 매니저 상태 설정 | object | observed |
 | `0014` | `setNickname` | 닉네임 설정 | object | observed |
 | `0015` | `serverStat` | 서버 상태 | fields | reference |
 | `0016` | `unused16` | 미사용 | fields | reference |
@@ -189,6 +189,10 @@ interface FieldEventData {
 | `0139` | `subtitleV2` | 라이브 자막 v2 | JSON | player |
 | `0140` | `cheerTeamChange` | 응원팀 변경 | object | player |
 | `0141` | `nightbotTimeout` | Nightbot 타임아웃 | object | player |
+| `0142` | `subRandomCeremony` | 랜덤 구독 선물 알림 | object | observed |
+| `0143` | `quickRandomCeremony` | 랜덤 퀵뷰 선물 알림 | object | player |
+| `0144` | `copySendSub` | 구독 선물 수령 알림 | object | player |
+| `0145` | `copySendQuick` | 퀵뷰 복사 알림 원본 | fields | player |
 | future | `unknown` | 카탈로그에 없는 네 자리 opcode | fields | runtime |
 
 `0088 closeBroad`는 `data.fields`만 제공하지만 동작은 특별합니다. 라이브러리는 이벤트를 먼저 전달하고 `ended: { reason: "offline" }`을 한 번 발생시킨 뒤, 소켓을 정상 종료하며 재연결하지 않습니다.
@@ -299,11 +303,13 @@ type ChatUserData =
 | `userId` | `string` | 대상 사용자 ID |
 | `userFlag` | `string` | 대상 사용자의 원본 복합 플래그 |
 | `nickname` | `string` | 대상 사용자 닉네임 |
-| `hide` | `number` | 플레이어가 전달하는 숨김 상태 원본 숫자 |
-| `hidden` | `boolean` | 플레이어가 전달하는 숨김 상태 |
+| `hide` | `number` | 매니저 지정·해임 안내의 숨김 원본 숫자 |
+| `hidden` | `boolean` | `hide === 1`. 사용자나 매니저 배지의 숨김 여부가 아님 |
 | `userStatus` | `UserStatus` | 원본 플래그의 전체 공식 상태 판정 |
 
-화면상 별도 명칭이나 안내는 확인되지 않았으므로 플래그 이상의 의미를 합성하지 않습니다.
+공식 플레이어는 채팅창이 열려 있고 `hidden=false`이면 `userStatus.isManager`에 따라 매니저 지정 또는 해임 안내를 표시합니다. 일반 입퇴장 메시지 표시 옵션과는 별도 조건이며, `hidden`은 권한 변경에 영향을 주지 않습니다. 안내 문구는 플레이어가 생성하므로 별도 메시지 필드로 합성하지 않습니다.
+
+실방송에서는 고정 매니저가 입장한 직후 매니저 비트가 추가됐고, 이후 같은 사용자의 채팅에 매니저 배지가 표시된 것을 확인했습니다. `observed`는 이 상태·배지 대조 근거이며, 지정·해임 안내 조건은 공식 플레이어 코드 근거입니다. 해당 시점의 안내 문구가 실제 표시됐는지는 다시보기에서 확인하지 못했습니다. [매니저 상태와 안내 조사](protocol.md#매니저-상태와-안내)를 참고하세요.
 
 ### `setNickname` (`0014`)
 
@@ -525,7 +531,7 @@ interface ChatUserExtendData {
 
 ### 구독 상품 메타데이터
 
-`followItem`, `followItemEffect`, `sendSubscription`의 `subscriptionProduct`는 공식 플레이어의 내부 상품표를 연결한 값입니다. 신규·연속 구독은 공식 UI처럼 원본 값이 `itemType` 또는 `vodItemType`과 처음 일치하는 행을 사용하고, 구독 선물은 `itemType`이 일치하는 선물 행만 사용합니다. 표에 없는 상품이면 `null`이며 원본 값은 항상 별도로 보존됩니다.
+`followItem`, `followItemEffect`, `sendSubscription`, `subRandomCeremony`, `copySendSub`의 `subscriptionProduct`는 공식 플레이어의 내부 상품표를 연결한 값입니다. 신규·연속 구독은 원본 값이 `itemType` 또는 `vodItemType`과 처음 일치하는 행을 사용하고, 선물·수령 알림은 `itemType`이 일치하고 `isGift=true`인 첫 행을 사용합니다. 일치하는 상품이 없으면 `null`이며 원본 값은 항상 별도로 보존됩니다.
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
@@ -553,13 +559,15 @@ interface ChatUserExtendData {
   month: 1,
   isAutoPay: false,
   isLegacy: false,
-  isCeremony: true,
+  isCeremony: false,
   isGift: true,
   isTrial: false,
 }
 ```
 
 `isCeremony`, `isGift`, `isTrial`은 공식 상품표의 내부 플래그이며 `isGift` 하나만으로 다른 이벤트의 구매·선물 취득 경로를 판단하지 않습니다. 상품표와 실방송 대조 근거는 [구독과 미션 조사](protocol.md#구독과-미션)를 참고하세요.
+
+현재 상품표에서 `100/101/200/201`은 `isGift=false, isCeremony=true`, `111/211`은 둘 다 `true`, `11/20/21`은 `isGift=true, isCeremony=false`입니다. 구형 `itemType=1`은 신규 구독 문맥에서 첫 행의 3개월 상품으로, 선물 문맥에서는 첫 선물 행의 1개월 상품으로 연결됩니다. `isGift=false` 상품 번호를 선물 문맥으로 받으면 메타데이터는 `null`입니다.
 
 `level`도 해당 이벤트의 상품 번호를 조회한 값입니다. 실방송에서 레벨1 선물권 `0108 itemType=20`을 사용한 뒤 `0091 itemType=211`이 수신됐고, 상품표의 레벨은 각각 `1`과 `2`였습니다. 사용 완료 화면에는 레벨이 표시되지 않았으므로 실제 구독 레벨 변경을 추론하지 않습니다.
 
@@ -605,6 +613,8 @@ interface ChatUserExtendData {
 화면의 “N개월째”는 `month`이고 `subscriptionProduct.month`는 상품 기간이므로 서로 다른 값입니다. 실방송의 `itemType=106`은 상품 기간이 6개월인 메타데이터와 연결되지만, `month=12`여서 화면에는 “베이직 12개월째 구독 중!”으로 표시됐습니다. 커스텀 구독자 명칭은 별도 채널 설정에서 가져오므로 합성하지 않습니다.
 
 VOD 상품 번호 `itemType=9200`인 실방송 표본도 화면에는 “플러스 3개월째 구독 중!”만 표시됐습니다. 상품 번호만으로 연속 구독 문구에 “VOD에서”를 덧붙이지 않습니다.
+
+`itemType=9100, month=7, accumulatedMonth=13`인 베이직 표본도 화면에는 “베이직 7개월째 구독 중!”으로 표시됐고 “VOD에서” 문구는 없었습니다. 누적 개월과 상품 번호를 화면의 연속 구독 개월로 바꾸지 않습니다.
 
 ### `bjNotice` (`0104`)
 
@@ -677,6 +687,42 @@ VOD 상품 번호 `itemType=9200`인 실방송 표본도 화면에는 “플러�
 
 패킷 하나에는 전체 선물 개수가 없으므로 수신자별 이벤트를 묶거나 동일 내용이라는 이유로 제거하지 않습니다. 관찰 근거는 [구독과 미션 조사](protocol.md#구독과-미션)를 참고하세요.
 
+### `subRandomCeremony` (`0142`)
+
+랜덤 구독 선물의 발신자와 개수를 알립니다. 실방송의 `itemType=21, count=1`은 “플러스 구독 선물권(30일) 1개 선물” 화면과 대조됐습니다. 상품표의 레벨은 화면에 표시되지 않았으므로 별도 문구로 합성하지 않습니다.
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `senderId`, `senderNickname` | `string` | 선물한 사용자 ID·닉네임 |
+| `channelNumber` | `number` | 공식 플레이어가 전달하는 채널 번호. 관찰 표본은 채팅방 번호와 일치 |
+| `count` | `number` | 이번 알림의 선물 개수 |
+| `itemType` | `number` | 구독 상품 번호 원본 값 |
+| `subscriptionProduct` | `SubscriptionProduct \| null` | 선물 문맥으로 조회한 공식 상품 메타데이터 |
+| `rank` | `number` | 구독 선물 랭킹 원본 값. 공식 UI는 양수일 때만 랭킹 안내를 표시하며, 관찰된 `-1`도 보존 |
+
+패킷에는 수신자 목록이나 개별 지급과 연결하는 키가 없습니다. `0108`·`0144`와 합산하거나 동일 선물로 묶지 않습니다. 랭킹 안내의 출력 조건은 플레이어 근거이며, 이번 화면 대조는 선물 문구에 한정됩니다.
+
+### `quickRandomCeremony` (`0143`)
+
+랜덤 퀵뷰 선물 알림입니다. 필드와 상품 연결은 공식 플레이어 근거이며 실방송 화면과는 아직 대조하지 않았습니다.
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `senderId`, `senderNickname` | `string` | 선물한 사용자 ID·닉네임 |
+| `channelNumber` | `number` | 공식 플레이어의 채널 번호 |
+| `count` | `number` | 이번 알림의 선물 개수 |
+| `itemType` | `number` | 퀵뷰 상품 번호 원본 값 |
+| `quickViewProduct` | `QuickViewProduct` | `sendQuickView`와 같은 상품표로 조회한 종류. 알 수 없으면 `unknown` |
+| `durationDays` | `number \| null` | 상품 기간(일). 알 수 없으면 `null` |
+
+수신자와 랭킹 필드는 없습니다. 개별 `sendQuickView`와 연결하거나 합산하지 않습니다.
+
+### `copySendSub` (`0144`), `copySendQuick` (`0145`)
+
+`copySendSub`의 데이터 구조는 `sendSubscription`과 같은 `GiftSubscriptionData`입니다. 공식 플레이어는 이 opcode를 채팅 선물 문구 대신 구독 선물 수령 레이어로 전달합니다. 별도 이벤트로 제공하며 같은 데이터여도 `sendSubscription`과 중복 제거하지 않습니다. 실방송 수신·화면 대조는 아직 없습니다.
+
+`copySendQuick`는 공식 enum에만 있고 현재 주 수신 분기가 없어 `FieldEventData`로 제공합니다. 이름만으로 `0045 sendQuickView`와 같은 필드 구조라고 추정하지 않습니다. [랜덤 선물 조사](protocol.md#랜덤-선물과-수령-알림)를 참고하세요.
+
 ### `ogqEmoticon` (`0109`)
 
 OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 빈 문자열이고, 이미지와 텍스트가 함께 표시되면 `message`에 해당 텍스트가 들어갑니다.
@@ -704,7 +750,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `animation` | `string` | 애니메이션 관련 원본 값 |
 | `cheerTeamNumber` | `number` | 응원팀 번호. 필드가 없으면 `-1` |
 
-`animation="1", extension="png"`인 두 표본에서 실제 움직이는 이미지를 확인했습니다. 이미지 단독과 텍스트 동반 표시가 모두 관찰됐으므로 확장자만으로 정지 이미지로 판정하지 않습니다. 다른 `animation` 값의 화면 동작은 확인되지 않아 원본 문자열로 제공합니다. 대조 근거는 [OGQ 이모티콘 조사](protocol.md#ogq-이모티콘)를 참고하세요.
+`extension="png"`인 표본에서 `animation="0"`은 정지 이미지, `animation="1"`은 움직이는 이미지로 각각 두 건씩 화면과 대조했습니다. 두 값 모두 이미지 단독과 텍스트 동반 표시를 확인했으므로 확장자만으로 정지 이미지로 판정하지 않습니다. `0`·`1` 외 값의 화면 동작은 확인되지 않았으며 `animation`은 원본 문자열로 제공합니다. 대조 근거는 [OGQ 이모티콘 조사](protocol.md#ogq-이모티콘)를 참고하세요.
 
 ### `mission` (`0121`)
 

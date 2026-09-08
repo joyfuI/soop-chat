@@ -163,6 +163,8 @@ off();
 
 의미가 확인되지 않은 payload 필드는 이름을 추측하지 않고 `data.fields`와 `raw.fields`에 보존합니다. `chatUser` 퇴장 이벤트의 `isKicked`로 일반 퇴장과 강퇴를 구분할 수 있습니다.
 
+랜덤 선물 알림은 `subRandomCeremony`(구독)와 `quickRandomCeremony`(퀵뷰)의 `count`로 전달합니다. 수신자별 `sendSubscription`·`sendQuickView`, 구독 선물 수령 알림 `copySendSub`와 구분하세요. 서로 연결하는 키가 없으므로 합산하거나 같은 선물로 묶지 않습니다. `copySendQuick`는 공식 enum만 확인돼 원본 필드로 제공합니다.
+
 연결 수명주기 이벤트는 프로토콜 이벤트와 다른 payload를 사용합니다.
 
 | 이벤트          | payload                                                               |

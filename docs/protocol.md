@@ -1,6 +1,6 @@
 # SOOP 채팅 프로토콜 계약과 미확인 사항
 
-이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-08까지의 플레이어 분석 및 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
+이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-09까지의 플레이어 분석 및 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
 
 ## 근거
 
@@ -69,7 +69,7 @@ WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않�
 
 `0088 closeBroad`가 명시적 방송 종료 신호입니다. 라이브러리는 `closeBroad`를 먼저 전달하고 `ended: { reason: "offline" }`을 한 번 발생시킨 뒤 소켓을 정상 종료하며 자동 재연결하지 않습니다. 다음 방송에 수동 `connect()`하면 resolver를 다시 호출합니다. `chatNo`는 방송 인스턴스마다 달라지므로 이전 값을 재사용하지 않습니다.
 
-`0007 status=0/1`은 방송 중에도 반복되며 정확한 의미는 미확인입니다. 원본 숫자만 제공하고 영상 송출·대기·화면·종료 상태로 해석하지 않습니다. 방송 대기와 채팅창 얼음도 실제 종료와 독립적입니다.
+`0007 status=0/1`은 방송 중에도 반복되며 정확한 의미는 미확인입니다. 방송인이 채팅창을 새로고침한 구간에서 영상 변화 없이 `0 → 1`이 수신된 사례도 있습니다. 원본 숫자만 제공하고 영상 송출·대기·화면·종료 상태나 새로고침 전용 신호로 해석하지 않습니다. 방송 대기와 채팅창 얼음도 실제 종료와 독립적입니다.
 
 [관찰 근거](research/protocol-evidence.md#방송-종료)
 
@@ -90,13 +90,25 @@ WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않�
 ## 구독과 미션
 
 - `0091 followItem`은 신규 구독, `0093 followItemEffect`는 연속 구독 효과, `0108 sendSubscription`은 수신자별 구독 선물권 지급입니다. 같은 내용도 별도 선물일 수 있으므로 묶거나 중복 제거하지 않습니다.
-- 구독 상품표는 [`src/protocol.ts`](../src/protocol.ts)의 `SUBSCRIPTION_PRODUCTS`가 구현 원본입니다. 신규·연속 구독은 `itemType` 또는 `vodItemType`이 처음 일치하는 행을, 선물은 `itemType`이 일치하는 선물 행만 사용합니다. 알 수 없는 상품은 `null`이며 원본 값을 보존합니다.
+- 구독 상품표는 [`src/protocol.ts`](../src/protocol.ts)의 `SUBSCRIPTION_PRODUCTS`가 구현 원본입니다. 신규·연속 구독은 `itemType` 또는 `vodItemType`이 처음 일치하는 행을, 선물·수령 알림은 `itemType`이 일치하고 `isGift=true`인 첫 행만 사용합니다. 해당 문맥에서 일치하는 상품이 없으면 `null`이며 원본 값을 보존합니다.
 - 상품 기간과 화면의 연속 구독 개월·누적 개월은 별개입니다. 상품표의 `isGift`는 취득 경로를, 선물 전후의 `level` 차이는 실제 레벨 변경을 보장하지 않습니다. 신규 구독의 `subscriptionSource="live"`는 비VOD 상품 번호라는 뜻이며 정확한 구매 화면을 뜻하지 않습니다. 화면 이미지·지역화 문구를 합성하지 않습니다.
 - `0121 mission`은 도전미션의 `CHALLENGE_GIFT/NOTICE/SETTLE`과 대결미션의 `GIFT/NOTICE/SETTLE`을 구분하고 원본 JSON을 보존합니다. 미확인 `type`은 `missionKind`와 `action`을 `unknown`으로 제공합니다.
 - 도전미션의 `missionKey`는 같은 미션을 묶고, 개별 알림의 `uuid`는 `CHALLENGE_SETTLE`과 대응하는 `0125 missionSettle`에서 같습니다. `0125 list`는 `[userId, nickname, contributionCount, becameFanClubFlag, becameTopFanFlag]`이며 팬클럽 플래그가 거짓이면 `fanOrder`만으로 가입을 판정하지 않습니다.
 - 도전미션 후원은 수락 완료를 뜻하지 않습니다. 수락·거절, 결과 결정 주체, 수동·자동 여부, 제한 시간과 실패 사유는 패킷으로 구분하지 않습니다. 결과가 없다고 거절을 합성하지 않으며 관찰된 경과 시간을 timeout이나 키 수명 상한으로 삼지 않습니다.
+- 수집 시작 전 후원된 미션의 결과·정산만 수신할 수 있습니다. 앞선 후원 이벤트 수신을 결과·정산 처리의 전제조건으로 삼지 않습니다.
 
 [관찰 근거](research/protocol-evidence.md#구독과-미션)
+
+## 랜덤 선물과 수령 알림
+
+- `0142 subRandomCeremony`는 구독 선물 랜덤 뿌리기의 발신자·채널 번호·개수·상품·랭킹을 전달합니다. `itemType=21, count=1`은 플러스 구독 선물권 30일·1개 선물 화면과 대조됐습니다. `rank`는 원본을 보존하며 공식 UI는 양수일 때만 랭킹 안내를 표시합니다.
+- `0143 quickRandomCeremony`는 퀵뷰 랜덤 선물의 발신자·채널 번호·개수·상품을 전달합니다. 기간·종류는 `0045`와 같은 상품표로 조회하며 수신자·랭킹은 없습니다.
+- `0144 copySendSub`는 `0108`과 같은 필드 순서의 구독 선물 수령 알림입니다. 공식 플레이어는 채팅 선물 문구 대신 수령 레이어로 전달합니다. 기존 디코더를 재사용하되 별도 이벤트로 제공합니다.
+- `0145 copySendQuick`는 공식 enum만 확인됐고 주 수신 분기는 없어 원본 필드로 보존합니다. `0143`·`0144`도 실방송 화면 대조 전이므로 provenance는 `player`입니다.
+
+랜덤 알림에는 수신자 목록과 개별 지급을 연결할 키가 없습니다. 랜덤 개수와 개별 선물·수령 알림을 합산하거나 동일 선물로 묶지 않습니다.
+
+[관찰 근거](research/protocol-evidence.md#랜덤-선물과-수령-알림)
 
 ## 사용자 확장 메타데이터
 
@@ -125,7 +137,7 @@ accumulatedSubscriptionMonth, representativePersonalconMonth,
 animation, cheerTeamNumber
 ```
 
-BGR 정수는 CSS `#RRGGBB`로 변환합니다. `animation="1", extension="png"`인 움직이는 이미지를 관찰했으므로 확장자만으로 정지 이미지로 판단하지 않습니다. 다른 animation 값과 실제 파일 형식은 추측하지 않습니다.
+BGR 정수는 CSS `#RRGGBB`로 변환합니다. `extension="png"`인 표본에서 `animation="0"`은 정지 이미지, `animation="1"`은 움직이는 이미지로 화면과 대조됐고, 각각 이미지 단독·텍스트 동반 표시를 확인했습니다. 확장자만으로 정지 이미지로 판단하지 않습니다. `animation`은 원본 문자열로 유지하며 `0`·`1` 외 값과 실제 파일 형식은 추측하지 않습니다.
 
 [관찰 근거](research/protocol-evidence.md#ogq-이모티콘)
 
@@ -151,6 +163,14 @@ BGR 정수는 CSS `#RRGGBB`로 변환합니다. `animation="1", extension="png"`
 - 다른 사용자의 강퇴는 `0004 chatUser`의 퇴장으로 구분합니다. `quitFlag === 1`만 일반 퇴장이고 나머지는 `isKicked=true`입니다. `etcInfo`와 접미사 ID의 의미가 미확인이므로 패킷 수를 화면 강퇴 횟수로 합성하거나 이벤트를 합치지 않습니다.
 
 [관찰 근거](research/protocol-evidence.md#채팅금지와-강퇴)
+
+## 매니저 상태와 안내
+
+`0013 setSubBj`는 변경 후 사용자 플래그와 매니저 지정·해임 안내의 `hide` 값을 전달합니다. 매니저 권한은 `flag1 & 256`, 고정 매니저는 `flag1 & 64`로 독립 판정합니다. 고정 매니저가 입장한 직후 매니저 비트가 추가되고 이후 채팅에 매니저 배지가 표시된 사례를 확인했습니다.
+
+공식 플레이어는 채팅창이 열려 있고 `hide !== 1`일 때 매니저 비트가 켜져 있으면 지정 안내, 꺼져 있으면 해임 안내를 생성합니다. 일반 입퇴장 표시 옵션은 이 안내의 조건이 아닙니다. `hidden`은 `hide === 1`이며, 사용자·배지 숨김이나 매니저 권한 여부를 뜻하지 않습니다. 패킷만으로 실제 화면 표시를 보장하거나 지역화된 문구를 합성하지 않습니다.
+
+[관찰 근거](research/protocol-evidence.md#매니저-상태와-안내)
 
 ## VOD 별풍선
 

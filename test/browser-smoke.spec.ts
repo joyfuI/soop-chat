@@ -70,7 +70,7 @@ test("browser entry imports without Node polyfills and requires a resolver", asy
   });
   expect(result).toEqual({
     state: "idle",
-    knownOpcodes: 101,
+    knownOpcodes: 105,
     missingResolverError: "BrowserResolverRequiredError",
   });
 });

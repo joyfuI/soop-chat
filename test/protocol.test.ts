@@ -78,8 +78,8 @@ void test("accepts every WebSocket message data representation", async () => {
 
 void test("catalog and event documentation cover known opcodes and the unknown variant", () => {
   const definitions = Object.values(EVENT_CATALOG);
-  assert.equal(definitions.length, 101);
-  assert.equal(new Set(definitions.map((definition) => definition.type)).size, 101);
+  assert.equal(definitions.length, 105);
+  assert.equal(new Set(definitions.map((definition) => definition.type)).size, 105);
 
   const specializedPayloads: Partial<Record<string, string>> = {
     "0001": `${separator}user${separator}16|0`,
@@ -144,6 +144,9 @@ void test("catalog and event documentation cover known opcodes and the unknown v
     "0139": `${separator}{"caption":"synthetic"}`,
     "0140": `${separator}user${separator}3`,
     "0141": `${separator}user${separator}nickname${separator}2${separator}123${separator}message${separator}60${separator}flag`,
+    "0142": `${separator}sender${separator}nickname${separator}123${separator}1${separator}21${separator}-1`,
+    "0143": `${separator}sender${separator}nickname${separator}123${separator}5${separator}101`,
+    "0144": `${separator}unused${separator}sender${separator}sNick${separator}receiver${separator}rNick${separator}streamer${separator}streamerNick${separator}11${separator}code${separator}0${separator}0${separator}${separator}0${separator}0`,
   };
 
   const expectedIndex = Object.entries(EVENT_CATALOG).map(([opcode, definition]) => {
@@ -177,6 +180,30 @@ void test("catalog and event documentation cover known opcodes and the unknown v
     expectedIndex,
     "Sync docs/events.md with the catalog and decoder.",
   );
+});
+
+void test("manager notice hiding is independent of manager assignment and only hide=1 hides", () => {
+  for (const [flag1, hide, hidden, isManager] of [
+    [320, 0, false, true],
+    [320, 1, true, true],
+    [320, 2, false, true],
+    [320, -1, false, true],
+    [64, 0, false, false],
+  ] as const) {
+    const event = decodePacket(
+      rawPacket(
+        "0013",
+        `${separator}user${separator}${flag1}|0${separator}${hide}${separator}nickname`,
+      ),
+    );
+    assert.equal(event.type, "setSubBj");
+    if (event.type === "setSubBj") {
+      assert.equal(event.data.hide, hide);
+      assert.equal(event.data.hidden, hidden);
+      assert.equal(event.data.userStatus.isManager, isManager);
+      assert.equal(event.data.userStatus.isFixedManager, true);
+    }
+  }
 });
 
 void test("decodes chat, subscription, broadcaster status, and current player fields", () => {
@@ -672,6 +699,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
   }
 
   for (const [message, animation] of [
+    ["", "0"],
     ["이미지와 함께 표시", "0"],
     ["", "1"],
     ["이미지와 함께 표시", "1"],
@@ -990,27 +1018,25 @@ void test("connects subscription item types to the official player product table
       subscriptionTier: "basic",
       month: 12,
       accumulatedMonth: 12,
-      subscriptionProduct: { itemType: 106, subscriptionTier: "basic", month: 6 },
+      subscriptionProduct: {
+        itemType: 106,
+        subscriptionTier: "basic",
+        month: 6,
+        isCeremony: true,
+        isGift: false,
+      },
     });
   }
 
-  const regularGift = decodePacket(
+  const nonGiftProduct = decodePacket(
     rawPacket(
       "0108",
       `${separator}unused${separator}sender${separator}sNick${separator}receiver${separator}rNick${separator}streamer${separator}streamerNick${separator}103${separator}code${separator}0${separator}0${separator}${separator}0${separator}0`,
     ),
   );
-  assert.equal(regularGift.type, "sendSubscription");
-  if (regularGift.type === "sendSubscription") {
-    assert.partialDeepStrictEqual(regularGift.data.subscriptionProduct, {
-      subscriptionTier: "basic",
-      level: 1,
-      month: 3,
-      isGift: true,
-      isTrial: false,
-      isLegacy: false,
-    });
-  }
+  assert.equal(nonGiftProduct.type, "sendSubscription");
+  if (nonGiftProduct.type === "sendSubscription")
+    assert.equal(nonGiftProduct.data.subscriptionProduct, null);
 
   for (const [itemType, isTrial] of [
     [20, false],
@@ -1030,7 +1056,8 @@ void test("connects subscription item types to the official player product table
           subscriptionTier: "plus",
           level: 1,
           month: 1,
-          isCeremony: true,
+          isCeremony: false,
+          isGift: true,
           isTrial,
         },
       });
@@ -1046,7 +1073,7 @@ void test("connects subscription item types to the official player product table
   assert.equal(legacyGift.type, "sendSubscription");
   if (legacyGift.type === "sendSubscription") {
     assert.partialDeepStrictEqual(legacyGift.data.subscriptionProduct, {
-      month: 3,
+      month: 1,
       isLegacy: true,
       isCeremony: false,
       isGift: true,
@@ -1065,8 +1092,8 @@ void test("connects subscription item types to the official player product table
     assert.partialDeepStrictEqual(legacySubscription.data.subscriptionProduct, {
       month: 3,
       isLegacy: true,
-      isCeremony: false,
-      isGift: true,
+      isCeremony: true,
+      isGift: false,
     });
   }
 
@@ -1084,7 +1111,7 @@ void test("connects subscription item types to the official player product table
     if (plusSubscription.type === "followItem") {
       assert.partialDeepStrictEqual(plusSubscription.data, {
         subscriptionTier: "plus",
-        subscriptionProduct: { itemType, subscriptionTier: "plus", level, month: 1, isGift: false },
+        subscriptionProduct: { itemType, subscriptionTier: "plus", level, month: 1, isGift: true },
       });
     }
   }
@@ -1103,6 +1130,9 @@ void test("connects subscription item types to the official player product table
       vodItemType: 9200,
       subscriptionTier: "plus",
       level: 2,
+      isAutoPay: true,
+      isCeremony: true,
+      isGift: false,
     });
   }
 
@@ -1120,6 +1150,22 @@ void test("connects subscription item types to the official player product table
       month: 3,
       accumulatedMonth: 3,
       subscriptionProduct: { itemType: 200, vodItemType: 9200, month: 1 },
+    });
+  }
+
+  const basicVodFollow = decodePacket(
+    rawPacket(
+      "0093",
+      `${separator}bj${separator}user${separator}nickname${separator}7${separator}123${separator}9100${separator}13${separator}1`,
+    ),
+  );
+  assert.equal(basicVodFollow.type, "followItemEffect");
+  if (basicVodFollow.type === "followItemEffect") {
+    assert.partialDeepStrictEqual(basicVodFollow.data, {
+      month: 7,
+      accumulatedMonth: 13,
+      subscriptionTier: "basic",
+      subscriptionProduct: { itemType: 100, isAutoPay: true, isCeremony: true, isGift: false },
     });
   }
 
@@ -1142,6 +1188,95 @@ void test("connects subscription item types to the official player product table
   );
   assert.equal(unknown.type, "sendSubscription");
   if (unknown.type === "sendSubscription") assert.equal(unknown.data.subscriptionProduct, null);
+});
+
+void test("decodes random gifts and receipt packets without combining distinct events", () => {
+  for (const [itemType, rank, productType] of [
+    [21, -1, 21],
+    [111, 3, 111],
+    [101, 0, null],
+    [9211, -1, null],
+    [9999, -1, null],
+  ] as const) {
+    const raw = rawPacket(
+      "0142",
+      `${separator}sender${separator}nickname${separator}123${separator}2${separator}${itemType}${separator}${rank}`,
+    );
+    const event = decodePacket(raw);
+    assert.equal(event.type, "subRandomCeremony");
+    assert.equal(event.raw, raw);
+    if (event.type === "subRandomCeremony") {
+      assert.partialDeepStrictEqual(event.data, {
+        senderId: "sender",
+        senderNickname: "nickname",
+        channelNumber: 123,
+        count: 2,
+        itemType,
+        rank,
+      });
+      assert.equal(event.data.subscriptionProduct?.itemType ?? null, productType);
+      if (itemType === 21)
+        assert.partialDeepStrictEqual(event.data.subscriptionProduct, {
+          subscriptionTier: "plus",
+          month: 1,
+          isGift: true,
+          isCeremony: false,
+        });
+      assert.equal("receiverId" in event.data, false);
+    }
+  }
+
+  for (const [itemType, quickViewProduct, durationDays] of [
+    [1, "quickView", 30],
+    [101, "quickViewPlus", 30],
+    [999, "unknown", null],
+  ] as const) {
+    const event = decodePacket(
+      rawPacket(
+        "0143",
+        `${separator}sender${separator}nickname${separator}123${separator}5${separator}${itemType}`,
+      ),
+    );
+    assert.equal(event.type, "quickRandomCeremony");
+    if (event.type === "quickRandomCeremony")
+      assert.deepEqual(event.data, {
+        senderId: "sender",
+        senderNickname: "nickname",
+        channelNumber: 123,
+        count: 5,
+        itemType,
+        quickViewProduct,
+        durationDays,
+      });
+  }
+
+  const giftPayload = `${separator}unused${separator}sender${separator}sNick${separator}receiver${separator}rNick${separator}streamer${separator}streamerNick${separator}111${separator}code${separator}1${separator}type${separator}period${separator}4${separator}5`;
+  const gift = decodePacket(rawPacket("0108", giftPayload));
+  const receipt = decodePacket(rawPacket("0144", giftPayload));
+  assert.equal(gift.type, "sendSubscription");
+  assert.equal(receipt.type, "copySendSub");
+  assert.deepEqual(receipt.data, gift.data);
+  if (receipt.type === "copySendSub")
+    assert.partialDeepStrictEqual(receipt.data, {
+      senderId: "sender",
+      receiverId: "receiver",
+      streamerId: "streamer",
+      subscriptionProduct: { itemType: 111, isGift: true, isCeremony: true },
+      itemCode: "code",
+      isSubscription: 1,
+      subscriptionType: "type",
+      subscriptionPeriod: "period",
+      subscriptionRemain: 4,
+      subscriptionPayCount: 5,
+    });
+
+  const raw = rawPacket("0145", `${separator}uninterpreted${separator}42`);
+  const uninterpreted = decodePacket(raw);
+  assert.equal(uninterpreted.type, "copySendQuick");
+  assert.deepEqual(uninterpreted.data, { fields: raw.fields });
+  assert.equal(uninterpreted.raw, raw);
+  for (const opcode of ["0142", "0143", "0144"])
+    assert.throws(() => decodePacket(rawPacket(opcode, `${separator}too${separator}short`)));
 });
 
 void test("rejects malformed specialized payloads without losing raw parsing", () => {

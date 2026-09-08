@@ -48,6 +48,7 @@ import {
   type PollNotificationData,
   type QuickViewGiftData,
   type QuickViewProduct,
+  type QuickRandomCeremonyData,
   type RawPacket,
   type QuitChannelData,
   type SavvyNoticeData,
@@ -59,6 +60,7 @@ import {
   type StationAdconData,
   type SubscriptionCeremonyButtonData,
   type SubscriptionProduct,
+  type SubRandomCeremonyData,
   type TranslationData,
   type UnknownSoopEvent,
   type UserStatus,
@@ -324,64 +326,65 @@ type SubscriptionProductRow = readonly [
   isTrial: boolean,
 ];
 
+// 공식 상품표의 순서를 유지합니다. 재검증 근거: docs/research/protocol-evidence.md
 const SUBSCRIPTION_PRODUCTS = [
-  [101, 9101, 1, 1, 1, false, false, false, true, false],
-  [103, 9103, 1, 1, 3, false, false, false, true, false],
-  [106, 9106, 1, 1, 6, false, false, false, true, false],
-  [11, null, 1, 1, 1, false, false, true, true, false],
-  [12, null, 1, 1, 1, false, false, true, true, true],
-  [111, 9111, 1, 1, 1, false, false, false, false, false],
-  [100, 9100, 1, 1, 1, true, false, false, true, false],
-  [210, 9210, 2, 1, 1, false, false, false, true, false],
-  [213, 9213, 2, 1, 3, false, false, false, true, false],
-  [216, 9216, 2, 1, 6, false, false, false, true, false],
-  [20, null, 2, 1, 1, false, false, true, true, false],
-  [30, null, 2, 1, 1, false, false, true, true, true],
-  [1111, 91111, 2, 1, 1, false, false, false, false, false],
-  [2013, 92013, 2, 1, 1, false, false, false, false, false],
-  [310, 9310, 2, 1, 1, true, false, false, true, false],
-  [201, 9201, 2, 2, 1, false, false, false, true, false],
-  [203, 9203, 2, 2, 3, false, false, false, true, false],
-  [206, 9206, 2, 2, 6, false, false, false, true, false],
-  [21, null, 2, 2, 1, false, false, true, true, false],
-  [31, null, 2, 2, 1, false, false, true, true, true],
-  [211, 9211, 2, 2, 1, false, false, false, false, false],
-  [200, 9200, 2, 2, 1, true, false, false, true, false],
-  [231, 9231, 2, 3, 1, false, false, false, true, false],
-  [233, 9233, 2, 3, 3, false, false, false, true, false],
-  [236, 9236, 2, 3, 6, false, false, false, true, false],
-  [23, null, 2, 3, 1, false, false, true, true, false],
-  [32, null, 2, 3, 1, false, false, true, true, true],
-  [311, 9311, 2, 3, 1, false, false, false, false, false],
-  [2313, 92313, 2, 3, 1, false, false, false, false, false],
-  [320, 9320, 2, 3, 1, true, false, false, true, false],
-  [241, 9241, 2, 4, 1, false, false, false, true, false],
-  [243, 9243, 2, 4, 3, false, false, false, true, false],
-  [246, 9246, 2, 4, 6, false, false, false, true, false],
-  [24, null, 2, 4, 1, false, false, true, true, false],
-  [33, null, 2, 4, 1, false, false, true, true, true],
-  [411, 9411, 2, 4, 1, false, false, false, false, false],
-  [2413, 92413, 2, 4, 1, false, false, false, false, false],
-  [500, 9500, 2, 4, 1, true, false, false, true, false],
-  [251, 9251, 2, 5, 1, false, false, false, true, false],
-  [253, 9253, 2, 5, 3, false, false, false, true, false],
-  [256, 9256, 2, 5, 6, false, false, false, true, false],
-  [25, null, 2, 5, 1, false, false, true, true, false],
-  [34, null, 2, 5, 1, false, false, true, true, true],
-  [511, 9511, 2, 5, 1, false, false, false, false, false],
-  [2513, 92513, 2, 5, 1, false, false, false, false, false],
-  [600, 9600, 2, 5, 1, true, false, false, true, false],
-  [-1, 0, 1, 1, 1, true, true, false, true, false],
-  [13, 16, 1, 1, 1, false, true, false, true, false],
-  [1, 4, 1, 1, 3, false, true, false, true, false],
-  [2, 5, 1, 1, 6, false, true, false, true, false],
-  [3, 6, 1, 1, 12, false, true, false, true, false],
-  [7, 10, 1, 1, 1, false, true, false, false, false],
-  [8, 11, 1, 1, 3, false, true, false, false, false],
-  [9, 12, 1, 1, 6, false, true, false, false, false],
-  [1, 10, 1, 1, 1, false, true, true, false, false],
-  [2, 11, 1, 1, 3, false, true, true, false, false],
-  [3, 12, 1, 1, 6, false, true, true, false, false],
+  [101, 9101, 1, 1, 1, false, false, true, false, false],
+  [103, 9103, 1, 1, 3, false, false, true, false, false],
+  [106, 9106, 1, 1, 6, false, false, true, false, false],
+  [11, null, 1, 1, 1, false, false, false, true, false],
+  [12, null, 1, 1, 1, false, false, false, true, true],
+  [111, 9111, 1, 1, 1, false, false, true, true, false],
+  [100, 9100, 1, 1, 1, true, false, true, false, false],
+  [210, 9210, 2, 1, 1, false, false, true, false, false],
+  [213, 9213, 2, 1, 3, false, false, true, false, false],
+  [216, 9216, 2, 1, 6, false, false, true, false, false],
+  [20, null, 2, 1, 1, false, false, false, true, false],
+  [30, null, 2, 1, 1, false, false, false, true, true],
+  [1111, 91111, 2, 1, 1, false, false, true, true, false],
+  [2013, 92013, 2, 1, 1, false, false, true, true, false],
+  [310, 9310, 2, 1, 1, true, false, true, false, false],
+  [201, 9201, 2, 2, 1, false, false, true, false, false],
+  [203, 9203, 2, 2, 3, false, false, true, false, false],
+  [206, 9206, 2, 2, 6, false, false, true, false, false],
+  [21, null, 2, 2, 1, false, false, false, true, false],
+  [31, null, 2, 2, 1, false, false, false, true, true],
+  [211, 9211, 2, 2, 1, false, false, true, true, false],
+  [200, 9200, 2, 2, 1, true, false, true, false, false],
+  [231, 9231, 2, 3, 1, false, false, true, false, false],
+  [233, 9233, 2, 3, 3, false, false, true, false, false],
+  [236, 9236, 2, 3, 6, false, false, true, false, false],
+  [23, null, 2, 3, 1, false, false, false, true, false],
+  [32, null, 2, 3, 1, false, false, false, true, true],
+  [311, 9311, 2, 3, 1, false, false, true, true, false],
+  [2313, 92313, 2, 3, 1, false, false, true, true, false],
+  [320, 9320, 2, 3, 1, true, false, true, false, false],
+  [241, 9241, 2, 4, 1, false, false, true, false, false],
+  [243, 9243, 2, 4, 3, false, false, true, false, false],
+  [246, 9246, 2, 4, 6, false, false, true, false, false],
+  [24, null, 2, 4, 1, false, false, false, true, false],
+  [33, null, 2, 4, 1, false, false, false, true, true],
+  [411, 9411, 2, 4, 1, false, false, true, true, false],
+  [2413, 92413, 2, 4, 1, false, false, true, true, false],
+  [500, 9500, 2, 4, 1, true, false, true, false, false],
+  [251, 9251, 2, 5, 1, false, false, true, false, false],
+  [253, 9253, 2, 5, 3, false, false, true, false, false],
+  [256, 9256, 2, 5, 6, false, false, true, false, false],
+  [25, null, 2, 5, 1, false, false, false, true, false],
+  [34, null, 2, 5, 1, false, false, false, true, true],
+  [511, 9511, 2, 5, 1, false, false, true, true, false],
+  [2513, 92513, 2, 5, 1, false, false, true, true, false],
+  [600, 9600, 2, 5, 1, true, false, true, false, false],
+  [-1, 0, 1, 1, 1, true, true, true, false, false],
+  [13, 16, 1, 1, 1, false, true, true, false, false],
+  [1, 4, 1, 1, 3, false, true, true, false, false],
+  [2, 5, 1, 1, 6, false, true, true, false, false],
+  [3, 6, 1, 1, 12, false, true, true, false, false],
+  [7, 10, 1, 1, 1, false, true, true, true, false],
+  [8, 11, 1, 1, 3, false, true, true, true, false],
+  [9, 12, 1, 1, 6, false, true, true, true, false],
+  [1, 10, 1, 1, 1, false, true, false, true, false],
+  [2, 11, 1, 1, 3, false, true, false, true, false],
+  [3, 12, 1, 1, 6, false, true, false, true, false],
 ] as const satisfies readonly SubscriptionProductRow[];
 
 function subscriptionProduct(itemType: number, giftOnly = false): SubscriptionProduct | null {
@@ -679,7 +682,7 @@ function setSubBj(raw: RawPacket): SetSubBjData {
     userFlag,
     nickname: fields[3] ?? "",
     hide,
-    hidden: hide !== 0,
+    hidden: hide === 1,
     userStatus,
   };
 }
@@ -997,6 +1000,35 @@ function giftSubscription(raw: RawPacket): GiftSubscriptionData {
     subscriptionPeriod: fields[11] ?? "",
     subscriptionRemain: integer(fields[12]),
     subscriptionPayCount: integer(fields[13]),
+  };
+}
+
+function subRandomCeremony(raw: RawPacket): SubRandomCeremonyData {
+  const fields = requireFields(raw, 6);
+  const itemType = integer(fields[4]);
+  return {
+    senderId: fields[0] ?? "",
+    senderNickname: fields[1] ?? "",
+    channelNumber: integer(fields[2]),
+    count: integer(fields[3]),
+    itemType,
+    subscriptionProduct: subscriptionProduct(itemType, true),
+    rank: integer(fields[5]),
+  };
+}
+
+function quickRandomCeremony(raw: RawPacket): QuickRandomCeremonyData {
+  const fields = requireFields(raw, 5);
+  const itemType = integer(fields[4]);
+  const product = QUICK_VIEW_PRODUCTS[itemType];
+  return {
+    senderId: fields[0] ?? "",
+    senderNickname: fields[1] ?? "",
+    channelNumber: integer(fields[2]),
+    count: integer(fields[3]),
+    itemType,
+    quickViewProduct: product?.[0] ?? "unknown",
+    durationDays: product?.[1] ?? null,
   };
 }
 
@@ -1383,6 +1415,7 @@ function decodedData(raw: RawPacket): object {
     case "0107":
       return stationAdcon(raw);
     case "0108":
+    case "0144":
       return giftSubscription(raw);
     case "0109":
       return ogqEmoticon(raw);
@@ -1418,6 +1451,10 @@ function decodedData(raw: RawPacket): object {
       return cheerTeamChange(raw);
     case "0141":
       return nightbotTimeout(raw);
+    case "0142":
+      return subRandomCeremony(raw);
+    case "0143":
+      return quickRandomCeremony(raw);
     default:
       return { fields: raw.fields };
   }
