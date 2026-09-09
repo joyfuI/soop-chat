@@ -256,7 +256,7 @@ type ChatUserData =
 | `nicknameColor` | `string` | 밝은 테마용 닉네임 색상. 없으면 빈 문자열 |
 | `nicknameColorDark` | `string` | 어두운 테마용 닉네임 색상. 없으면 빈 문자열 |
 | `accumulatedSubscriptionMonth` | `string` | 누적 구독 개월 관련 원본 값 |
-| `representativePersonalconMonth` | `string` | 대표 퍼스널콘 개월 관련 원본 값 |
+| `representativePersonalconMonth` | `string` | 대표 구독 퍼스널콘 선택에 사용하는 원본 개월 값 |
 | `cheerTeamNumber` | `number` | 응원팀 번호. 필드가 없으면 `-1` |
 
 ### `setBjStat` (`0007`)
@@ -348,9 +348,9 @@ type ChatUserData =
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 | `relay` | `boolean` | 일반 채널은 `false`, 서브 채널 `sendBalloonSub`은 `true` |
 
-`fanOrder`는 중복되거나 수신 순서와 역전될 수 있는 서버 원본 값입니다. 고유 식별자나 이벤트 정렬·중복 제거 기준으로 사용하지 않습니다. 후원 수단별 가입 판정과 관찰 근거는 [팬클럽 가입과 순번](protocol.md#팬클럽-가입과-순번)을 참고하세요.
+`fanOrder`는 중복·건너뜀·수신 순서 역전이 있을 수 있는 서버 원본 값입니다. 고유 식별자나 이벤트 정렬·중복 제거 기준으로 사용하지 않습니다. 후원 수단별 가입 판정과 관찰 근거는 [팬클럽 가입과 순번](protocol.md#팬클럽-가입과-순번)을 참고하세요.
 
-`isDefault=false`와 비어 있지 않은 `fileName`만으로 스트리머가 설정한 시그니처 별풍선이라고 판단하지 않습니다. 공식 플레이어처럼 방송인 ID가 `fileName`에 포함된 경우만 `isSignatureBalloon=true`로 제공합니다. 이 규칙은 서로 다른 방송의 152개·195개·584개·2,894개 시그니처 풍선과 화면에서 일치했습니다. SOOP 제공 스타즈 별풍선 33개·100개·500개·1,000개는 `isDefault=false`이면서 `isSignatureBalloon=false`였습니다. 이벤트 풍선 등 다른 리소스도 있을 수 있으므로 `isSignatureBalloon=false`만으로 스타즈라고 단정하지 않습니다. `ttsData`가 빈 표본은 기본 목소리, 값이 있는 표본은 다른 목소리와 대조됐지만 실제 음성 재생 여부나 목소리 종류를 합성하지 않습니다. [별풍선 관찰 근거](protocol.md#별풍선-관찰-검증)를 참고하세요.
+`isDefault=false`와 비어 있지 않은 `fileName`만으로 스트리머가 설정한 시그니처 별풍선이라고 판단하지 않습니다. 공식 플레이어처럼 방송인 ID가 `fileName`에 포함된 경우만 `isSignatureBalloon=true`로 제공합니다. 이 규칙은 서로 다른 방송의 152개·154개·195개·584개·2,894개 시그니처 풍선과 화면에서 일치했습니다. SOOP 제공 스타즈 별풍선 3개·10개·33개·100개·500개·1,000개는 `isDefault=false`이면서 `isSignatureBalloon=false`였습니다. 이벤트 풍선 등 다른 리소스도 있을 수 있으므로 `isSignatureBalloon=false`만으로 스타즈라고 단정하지 않습니다. `ttsData`가 빈 표본은 기본 목소리, 값이 있는 표본은 다른 목소리와 대조됐지만 값의 유무는 후원 메시지 포함이나 실제 음성 재생 여부를 뜻하지 않습니다. [별풍선 관찰 근거](protocol.md#별풍선-관찰-검증)를 참고하세요.
 
 ### `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`)
 
@@ -481,6 +481,8 @@ interface ChatUserExtendData {
 ```
 
 플레이어의 query-string 키 `p`, `fw`, `afw`를 위 필드로 정규화합니다. 키가 없거나 숫자로 해석할 수 없으면 `null`이며, 서버가 보내는 `-1`은 의미를 추측하지 않고 그대로 유지합니다.
+
+`representativePersonalconMonth`는 대표 구독 퍼스널콘 선택값입니다. 공식 플레이어는 방송인의 양수 값을 베이직 구독 퍼스널콘 이미지에 사용하며 실방송 화면에서도 확인했습니다.
 
 이 이벤트는 입장 시점의 메타데이터이며 구독 변경 뒤 자동 갱신되지 않으므로 지속적인 최신 상태로 간주하지 마세요. 한 패킷에 여러 사용자가 들어올 수 있으므로 `users` 배열 전체를 처리해야 합니다. 관찰 통계는 [사용자 확장 메타데이터 조사](protocol.md#사용자-확장-메타데이터)를 참고하세요.
 
@@ -758,7 +760,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `nicknameColor` | `string` | 밝은 테마용 닉네임 색상 |
 | `nicknameColorDark` | `string` | 어두운 테마용 닉네임 색상 |
 | `accumulatedSubscriptionMonth` | `string` | 누적 구독 개월 관련 원본 값 |
-| `representativePersonalconMonth` | `string` | 대표 퍼스널콘 개월 관련 원본 값 |
+| `representativePersonalconMonth` | `string` | 대표 구독 퍼스널콘 선택에 사용하는 원본 개월 값 |
 | `animation` | `string` | 애니메이션 관련 원본 값 |
 | `cheerTeamNumber` | `number` | 응원팀 번호. 필드가 없으면 `-1` |
 

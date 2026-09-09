@@ -402,6 +402,7 @@ export interface GemItemSendData {
 /** 사용자 입장 시점의 구독과 퍼스널콘 메타데이터입니다. */
 export interface ChatUserExtendInfo {
   userId: string;
+  /** 대표 구독 퍼스널콘 선택에 쓰이는 개월 값입니다. */
   representativePersonalconMonth: number | null;
   subscriptionMonth: number | null;
   accumulatedSubscriptionMonth: number | null;
@@ -426,6 +427,7 @@ export interface ChatMessageData {
   nicknameColor: string;
   nicknameColorDark: string;
   accumulatedSubscriptionMonth: string;
+  /** 대표 구독 퍼스널콘 선택에 쓰이는 원본 개월 값입니다. */
   representativePersonalconMonth: string;
   cheerTeamNumber: number;
 }
@@ -436,7 +438,7 @@ export interface BalloonData {
   senderId: string;
   senderNickname: string;
   count: number;
-  /** 서버의 팬클럽 가입 순번. 중복되거나 수신 순서와 역전될 수 있습니다. */
+  /** 서버의 팬클럽 가입 순번. 중복·건너뜀·수신 순서 역전이 있을 수 있습니다. */
   fanOrder: number;
   becameFanClub: boolean;
   fileName: string;
@@ -446,7 +448,7 @@ export interface BalloonData {
   isSignatureBalloon: boolean;
   topFanLevel: number;
   becameTopFan: boolean;
-  /** TTS 목소리 선택 관련 원본 값. 빈 값은 기본 목소리와 대조됐지만 실제 재생 여부는 판정하지 않습니다. */
+  /** TTS 목소리 선택 관련 원본 값. 메시지 포함이나 실제 재생 여부를 뜻하지 않습니다. */
   ttsData: string;
   senderLanguage: string;
   urlModify: string;
@@ -785,6 +787,7 @@ export interface OgqEmoticonData {
   nicknameColor: string;
   nicknameColorDark: string;
   accumulatedSubscriptionMonth: string;
+  /** 대표 구독 퍼스널콘 선택에 쓰이는 원본 개월 값입니다. */
   representativePersonalconMonth: string;
   /** 애니메이션 관련 원본 값. `"0"` 표본은 정지 이미지, `"1"` 표본은 움직이는 이미지와 대조됐습니다. */
   animation: string;
