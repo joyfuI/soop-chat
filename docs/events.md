@@ -340,16 +340,17 @@ type ChatUserData =
 | `becameFanClub` | `boolean` | `fanOrder > 0`이며 팬클럽 가입 문구가 표시되는지 여부 |
 | `fileName` | `string` | 효과 리소스의 원본 파일 이름 |
 | `isDefault` | `boolean` | 기본 효과 리소스 사용 여부 |
+| `isSignatureBalloon` | `boolean` | 공식 플레이어의 파일명 규칙으로 판정한 스트리머 시그니처 별풍선 여부 |
 | `topFanLevel` | `number` | 열혈팬 관련 원본 단계 값. 실방송에서 `1`은 열혈팬 가입 문구와 일치 |
 | `becameTopFan` | `boolean` | `topFanLevel === 1`이며 열혈팬 가입 문구가 표시되는지 여부 |
-| `ttsData` | `string` | TTS 관련 원본 데이터 |
+| `ttsData` | `string` | TTS 목소리 선택 관련 원본 데이터 |
 | `senderLanguage` | `string` | 후원자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 | `relay` | `boolean` | 일반 채널은 `false`, 서브 채널 `sendBalloonSub`은 `true` |
 
 `fanOrder`는 중복되거나 수신 순서와 역전될 수 있는 서버 원본 값입니다. 고유 식별자나 이벤트 정렬·중복 제거 기준으로 사용하지 않습니다. 후원 수단별 가입 판정과 관찰 근거는 [팬클럽 가입과 순번](protocol.md#팬클럽-가입과-순번)을 참고하세요.
 
-`isDefault=false`와 비어 있지 않은 `fileName`만으로 스트리머가 설정한 시그니처 별풍선이라고 판단하지 않습니다. 사용자 화면 대조에서 SOOP 제공 스타즈 별풍선 100개·500개·1,000개도 이 조합으로 관찰됐습니다. `ttsData`의 유무도 실제 음성 재생 여부를 보장하지 않습니다. [별풍선 관찰 근거](protocol.md#별풍선-관찰-검증)를 참고하세요.
+`isDefault=false`와 비어 있지 않은 `fileName`만으로 스트리머가 설정한 시그니처 별풍선이라고 판단하지 않습니다. 공식 플레이어처럼 방송인 ID가 `fileName`에 포함된 경우만 `isSignatureBalloon=true`로 제공합니다. 이 규칙은 서로 다른 방송의 152개·195개·584개·2,894개 시그니처 풍선과 화면에서 일치했습니다. SOOP 제공 스타즈 별풍선 33개·100개·500개·1,000개는 `isDefault=false`이면서 `isSignatureBalloon=false`였습니다. 이벤트 풍선 등 다른 리소스도 있을 수 있으므로 `isSignatureBalloon=false`만으로 스타즈라고 단정하지 않습니다. `ttsData`가 빈 표본은 기본 목소리, 값이 있는 표본은 다른 목소리와 대조됐지만 실제 음성 재생 여부나 목소리 종류를 합성하지 않습니다. [별풍선 관찰 근거](protocol.md#별풍선-관찰-검증)를 참고하세요.
 
 ### `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`)
 
@@ -505,6 +506,7 @@ interface ChatUserExtendData {
 | `balloonCount` | `number` | 합산된 VOD 별풍선 개수 |
 | `fileName` | `string` | 효과 리소스의 원본 파일 이름 |
 | `isDefault` | `boolean` | 기본 효과 리소스 사용 여부 |
+| `isSignatureBalloon` | `boolean` | 공식 플레이어의 파일명 규칙으로 판정한 스트리머 시그니처 별풍선 여부 |
 | `chatNo` | `string` | 채팅방 번호 원본 문자열 |
 | `senderLanguage` | `string` | 후원자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
@@ -595,7 +597,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `subscriptionSource="live"`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다. 실방송의 `itemType=203, tier=2`와 `itemType=206, tier=2`는 각각 플러스 구독 완료와 왼쪽 이미지의 “3개월 정기구독권”, “6개월 정기구독권”에 일치했습니다.
+화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `subscriptionSource="live"`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다. 실방송의 `itemType=203, tier=2`와 `itemType=206, tier=2`는 각각 플러스 구독 완료와 왼쪽 이미지의 “3개월 정기구독권”, “6개월 정기구독권”에 일치했습니다. `itemType=200, tier=2`는 같은 플러스 구독 문구가 표시됐지만 자동결제 1개월 상품답게 이미지에는 상품 기간 없이 “구독 감사합니다”만 표시됐습니다.
 
 ### `followItemEffect` (`0093`)
 
@@ -654,7 +656,7 @@ VOD 상품 번호 `itemType=9200`과 `9201`인 실방송 표본도 화면에는 
 | `isDefault` | `boolean` | 기본 효과 리소스 사용 여부 |
 | `extraData` | `string` | 플레이어가 전달하는 추가 원본 데이터 |
 
-`extraData`는 공식 플레이어도 의미 있게 해석하지 않으므로 원문 문자열로 보존합니다. 관찰 근거는 [프로토콜 조사 노트](protocol.md#추가로-구조화한-플레이어-이벤트)를 참고하세요.
+`extraData`는 공식 플레이어도 의미 있게 해석하지 않으므로 원문 문자열로 보존합니다. 실제 영상은 방송인이 수동으로 재생한 표본이 있고 자동 재생 설정도 가능하므로, 이벤트 수신만으로 재생 시점이나 방식을 판정하지 않습니다. 관찰 근거는 [프로토콜 조사 노트](protocol.md#추가로-구조화한-플레이어-이벤트)를 참고하세요.
 
 ### `stationAdcon` (`0107`)
 

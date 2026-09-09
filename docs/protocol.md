@@ -1,6 +1,6 @@
 # SOOP 채팅 프로토콜 계약과 미확인 사항
 
-이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-09까지의 플레이어 분석 및 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
+이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-10까지의 플레이어 분석 및 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
 
 ## 근거
 
@@ -91,7 +91,7 @@ WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않�
 
 - `0091 followItem`은 신규 구독, `0093 followItemEffect`는 연속 구독 효과, `0108 sendSubscription`은 수신자별 구독 선물권 지급입니다. 같은 내용도 별도 선물일 수 있으므로 묶거나 중복 제거하지 않습니다.
 - 구독 상품표는 [`src/protocol.ts`](../src/protocol.ts)의 `SUBSCRIPTION_PRODUCTS`가 구현 원본입니다. 신규·연속 구독은 `itemType` 또는 `vodItemType`이 처음 일치하는 행을, 선물·수령 알림은 `itemType`이 일치하고 `isGift=true`인 첫 행만 사용합니다. 해당 문맥에서 일치하는 상품이 없으면 `null`이며 원본 값을 보존합니다.
-- 상품 기간과 화면의 연속 구독 개월·누적 개월은 별개입니다. 상품표의 `isGift`는 취득 경로를, 선물 전후의 `level` 차이는 실제 레벨 변경을 보장하지 않습니다. 신규 구독의 `subscriptionSource="live"`는 비VOD 상품 번호라는 뜻이며 정확한 구매 화면을 뜻하지 않습니다. 화면 이미지·지역화 문구를 합성하지 않습니다.
+- 상품 기간과 화면의 연속 구독 개월·누적 개월은 별개입니다. 신규 구독에서는 상품표의 기간·자동결제 여부에 따라 화면 이미지가 달라진 표본이 있지만 이미지 문구 자체는 패킷에 없습니다. 상품표의 `isGift`는 취득 경로를, 선물 전후의 `level` 차이는 실제 레벨 변경을 보장하지 않습니다. `subscriptionSource="live"`는 비VOD 상품 번호라는 뜻이며 정확한 구매 화면을 뜻하지 않습니다. 화면 이미지·지역화 문구를 합성하지 않습니다.
 - `0121 mission`은 도전미션의 `CHALLENGE_GIFT/NOTICE/SETTLE`과 대결미션의 `GIFT/NOTICE/SETTLE`을 구분하고 원본 JSON을 보존합니다. 미확인 `type`은 `missionKind`와 `action`을 `unknown`으로 제공합니다.
 - 도전미션의 `missionKey`는 같은 미션을 묶고, 개별 알림의 `uuid`는 `CHALLENGE_SETTLE`과 대응하는 `0125 missionSettle`에서 같습니다. `0125 list`는 `[userId, nickname, contributionCount, becameFanClubFlag, becameTopFanFlag]`이며 팬클럽 플래그가 거짓이면 `fanOrder`만으로 가입을 판정하지 않습니다.
 - 도전미션 후원은 수락 완료를 뜻하지 않습니다. 수락·거절, 결과 결정 주체, 수동·자동 여부, 제한 시간과 실패 사유는 패킷으로 구분하지 않습니다. 결과가 없다고 거절을 합성하지 않으며 관찰된 경과 시간을 timeout이나 키 수명 상한으로 삼지 않습니다.
@@ -190,7 +190,7 @@ BGR 정수는 CSS `#RRGGBB`로 변환합니다. `extension="png"`인 표본에�
 
 `0018 sendBalloon`의 후원자·개수·팬클럽 가입 순번은 화면과 대조됐습니다. `topFanLevel === 1`만 열혈팬 가입 문구를 뜻하는 `becameTopFan=true`로 제공합니다. 실제 닉네임과 메시지는 테스트 fixture에 사용하지 않습니다.
 
-`isDefault=false`와 비어 있지 않은 `fileName`은 SOOP 제공 스타즈 별풍선에서도 관찰됐으므로 스트리머 시그니처 이미지의 판별 조건으로 사용하지 않습니다. `ttsData`는 원본 값으로 유지하며 값의 유무만으로 실제 음성 재생 여부를 합성하지 않습니다.
+`isDefault=false`와 비어 있지 않은 `fileName`은 SOOP 제공 스타즈 별풍선에서도 관찰됐으므로 스트리머 시그니처 이미지의 판별 조건으로 사용하지 않습니다. 공식 플레이어와 동일하게 방송인 ID가 `fileName`에 포함됐을 때만 `isSignatureBalloon=true`로 제공합니다. 이 규칙은 스트리머가 직접 설정하며 방송마다 개수와 이미지가 다른 시그니처 풍선 표본과 화면에서 일치했습니다. `false`는 이벤트 풍선 등도 포함할 수 있으므로 스타즈 별풍선의 판별값으로 사용하지 않습니다. `ttsData`는 목소리 선택 관련 원본 값으로 유지합니다. 빈 값이 기본 목소리, 값이 있는 표본이 다른 목소리와 대조됐지만 실제 재생 여부나 값별 목소리 이름은 합성하지 않습니다.
 
 [관찰 근거](research/protocol-evidence.md#별풍선-관찰-검증)
 

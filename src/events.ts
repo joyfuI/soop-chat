@@ -442,9 +442,11 @@ export interface BalloonData {
   fileName: string;
   /** 원본 기본 효과 플래그. false여도 SOOP 제공 스타즈 별풍선일 수 있습니다. */
   isDefault: boolean;
+  /** 공식 플레이어의 파일명 규칙으로 판정한 스트리머 시그니처 별풍선입니다. */
+  isSignatureBalloon: boolean;
   topFanLevel: number;
   becameTopFan: boolean;
-  /** TTS 관련 원본 값. 값의 유무만으로 실제 음성 재생 여부를 판정하지 않습니다. */
+  /** TTS 목소리 선택 관련 원본 값. 빈 값은 기본 목소리와 대조됐지만 실제 재생 여부는 판정하지 않습니다. */
   ttsData: string;
   senderLanguage: string;
   urlModify: string;
@@ -565,6 +567,8 @@ export interface VodBalloonData {
   balloonCount: number;
   fileName: string;
   isDefault: boolean;
+  /** 공식 플레이어의 파일명 규칙으로 판정한 스트리머 시그니처 별풍선입니다. */
+  isSignatureBalloon: boolean;
   chatNo: string;
   senderLanguage: string;
   urlModify: string;
@@ -757,6 +761,7 @@ export interface VideoBalloonData {
   relay: string;
   fileName: string;
   isDefault: boolean;
+  /** 플레이어가 해석하지 않는 추가 원본 값. 영상의 수동·자동 재생 여부를 나타내지 않습니다. */
   extraData: string;
 }
 

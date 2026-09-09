@@ -463,6 +463,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     assert.equal(balloon.data.becameFanClub, false);
     assert.equal(balloon.data.topFanLevel, 1);
     assert.equal(balloon.data.becameTopFan, true);
+    assert.equal(balloon.data.isSignatureBalloon, false);
     assert.equal(balloon.data.ttsData, "google_tts");
     assert.equal(balloon.data.senderLanguage, "ko_KR");
     assert.equal(balloon.data.urlModify, "456");
@@ -501,6 +502,7 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     assert.equal(vodBalloon.data.balloonCount, 2894);
     assert.equal(vodBalloon.data.fileName, "bj_2894");
     assert.equal(vodBalloon.data.isDefault, false);
+    assert.equal(vodBalloon.data.isSignatureBalloon, true);
     assert.equal(vodBalloon.data.chatNo, "7373");
     assert.equal(vodBalloon.data.senderLanguage, "ko_KR");
     assert.equal(vodBalloon.data.urlModify, "456");

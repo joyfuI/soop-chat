@@ -595,17 +595,20 @@ function nicknameChange(raw: RawPacket): NicknameChangeData {
 
 function balloon(raw: RawPacket, relay = false): BalloonData {
   const fields = requireFields(raw, relay ? 11 : 10);
+  const streamerId = fields[relay ? 1 : 0] ?? "";
+  const fileName = fields[relay ? 8 : 7] ?? "";
   const fanOrder = integer(fields[relay ? 6 : 4]);
   const topFanLevel = integer(fields[relay ? 10 : 9]);
   return {
-    streamerId: fields[relay ? 1 : 0] ?? "",
+    streamerId,
     senderId: fields[relay ? 3 : 1] ?? "",
     senderNickname: fields[relay ? 4 : 2] ?? "",
     count: integer(fields[relay ? 5 : 3]),
     fanOrder,
     becameFanClub: fanOrder > 0,
-    fileName: fields[relay ? 8 : 7] ?? "",
+    fileName,
     isDefault: fields[relay ? 9 : 8] === "1",
+    isSignatureBalloon: signatureBalloon(streamerId, fileName),
     topFanLevel,
     becameTopFan: topFanLevel === 1,
     ttsData: fields[relay ? 11 : 10] ?? "",
@@ -613,6 +616,11 @@ function balloon(raw: RawPacket, relay = false): BalloonData {
     urlModify: fields[relay ? 14 : 13] ?? "",
     relay,
   };
+}
+
+function signatureBalloon(streamerId: string, fileName: string): boolean {
+  const realStreamerId = streamerId.match(/\w+/)?.[0] ?? streamerId;
+  return realStreamerId !== "" && fileName.includes(realStreamerId);
 }
 
 function fanLetter(raw: RawPacket, relay = false): FanLetterData {
@@ -767,13 +775,16 @@ function adminNotice(raw: RawPacket): AdminNoticeData {
 
 function vodBalloon(raw: RawPacket): VodBalloonData {
   const fields = requireFields(raw, 9);
+  const streamerId = fields[0] ?? "";
+  const fileName = fields[4] ?? "";
   return {
-    streamerId: fields[0] ?? "",
+    streamerId,
     senderId: fields[1] ?? "",
     senderNickname: fields[2] ?? "",
     balloonCount: integer(fields[3]),
-    fileName: fields[4] ?? "",
+    fileName,
     isDefault: integer(fields[5]) !== 0,
+    isSignatureBalloon: signatureBalloon(streamerId, fileName),
     chatNo: fields[6] ?? "",
     senderLanguage: fields[7] ?? "",
     urlModify: fields[8] ?? "",
