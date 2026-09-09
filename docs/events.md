@@ -236,7 +236,7 @@ type ChatUserData =
     };
 ```
 
-공식 플레이어와 동일하게 `quitFlag === 1`만 정상 퇴장으로 보고, 그 밖의 값은 `isKicked: true`로 제공합니다. `etcInfo`의 의미는 확정하지 않았으므로 패킷을 묶거나 제거하지 않습니다. 관찰 근거는 [프로토콜 조사 노트](protocol.md#채팅금지와-강퇴)를 참고하세요.
+공식 플레이어와 동일하게 `quitFlag === 1`만 정상 퇴장으로 보고, 그 밖의 값은 `isKicked: true`로 제공합니다. 플레이어는 강퇴된 사용자의 `quitFlag`를 화면 문구를 고르는 `kickType`으로 사용합니다. `3`은 채팅금지 횟수 초과, `4`는 무분별한 도배, `5`는 블라인드 상태 이탈이며 그 밖의 값은 일반 강제퇴장 문구를 생성합니다. `etcInfo`의 의미는 확정하지 않았으므로 패킷을 묶거나 제거하지 않습니다. 관찰 근거는 [프로토콜 조사 노트](protocol.md#채팅금지와-강퇴)를 참고하세요.
 
 ### `chatMessage` (`0005`)
 
@@ -349,6 +349,8 @@ type ChatUserData =
 
 `fanOrder`는 중복되거나 수신 순서와 역전될 수 있는 서버 원본 값입니다. 고유 식별자나 이벤트 정렬·중복 제거 기준으로 사용하지 않습니다. 후원 수단별 가입 판정과 관찰 근거는 [팬클럽 가입과 순번](protocol.md#팬클럽-가입과-순번)을 참고하세요.
 
+`isDefault=false`와 비어 있지 않은 `fileName`만으로 스트리머가 설정한 시그니처 별풍선이라고 판단하지 않습니다. 사용자 화면 대조에서 SOOP 제공 스타즈 별풍선 100개·500개·1,000개도 이 조합으로 관찰됐습니다. `ttsData`의 유무도 실제 음성 재생 여부를 보장하지 않습니다. [별풍선 관찰 근거](protocol.md#별풍선-관찰-검증)를 참고하세요.
+
 ### `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`)
 
 공개 이벤트명은 공식 opcode `SVC_SENDFANLETTER`와 `SVC_SENDFANLETTER_SUB`를 따르지만 현재 화면에서는 스티커로 표시됩니다. 일반 채널의 `sendFanLetter`는 `relay=false`, 서브 채널의 `sendFanLetterSub`는 `relay=true`입니다.
@@ -364,6 +366,8 @@ type ChatUserData =
 | `supporterOrder` | `number` | 서포터 가입 순번 |
 | `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
 | `relay` | `boolean` | 일반 채널은 `false`, 서브 채널은 `true` |
+
+실방송에서 `itemType=702, count=20`과 `itemType=366, count=1`은 모두 화면의 “스티커 N개”와 일치했습니다. 후자의 `supporterOrder=65`는 뒤이은 서포터 가입 안내 및 `setUserFlag`의 `isSupporter: false → true`와도 일치했습니다.
 
 `sendFanLetterSub`는 아직 실방송 화면과 대조하지 않았습니다. 현재 근거 범위는 [프로토콜 조사 노트](protocol.md#추가로-구조화한-플레이어-이벤트)를 참고하세요.
 
@@ -591,7 +595,7 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `subscriptionSource="live"`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다. 실방송의 `itemType=206, tier=2`는 플러스 구독 완료와 왼쪽 이미지의 “6개월 정기구독권”에 일치해 공식 상품표의 6개월 상품과 대조됐습니다.
+화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `subscriptionSource="live"`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다. 실방송의 `itemType=203, tier=2`와 `itemType=206, tier=2`는 각각 플러스 구독 완료와 왼쪽 이미지의 “3개월 정기구독권”, “6개월 정기구독권”에 일치했습니다.
 
 ### `followItemEffect` (`0093`)
 
@@ -612,9 +616,9 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-화면의 “N개월째”는 `month`이고 `subscriptionProduct.month`는 상품 기간이므로 서로 다른 값입니다. 실방송의 `itemType=106`은 상품 기간이 6개월인 메타데이터와 연결되지만, `month=12`여서 화면에는 “베이직 12개월째 구독 중!”으로 표시됐습니다. 커스텀 구독자 명칭은 별도 채널 설정에서 가져오므로 합성하지 않습니다.
+화면의 “N개월째”는 `month`이고 `subscriptionProduct.month`는 상품 기간이므로 서로 다른 값입니다. 실방송의 `itemType=106`은 상품 기간이 6개월인 메타데이터와 연결되지만, `month=12`와 `month=3`인 두 표본은 화면에 각각 베이직 12개월째와 3개월째로 표시됐습니다. 커스텀 구독자 명칭은 별도 채널 설정에서 가져오므로 합성하지 않습니다.
 
-VOD 상품 번호 `itemType=9200`인 실방송 표본도 화면에는 “플러스 3개월째 구독 중!”만 표시됐습니다. 상품 번호만으로 연속 구독 문구에 “VOD에서”를 덧붙이지 않습니다.
+VOD 상품 번호 `itemType=9200`과 `9201`인 실방송 표본도 화면에는 각각 “플러스 3개월째 구독 중!”, “플러스 9개월째 구독 중!”만 표시됐습니다. 상품 번호만으로 연속 구독 문구에 “VOD에서”를 덧붙이지 않습니다.
 
 `itemType=9100, month=7, accumulatedMonth=13`인 베이직 표본도 화면에는 “베이직 7개월째 구독 중!”으로 표시됐고 “VOD에서” 문구는 없었습니다. 누적 개월과 상품 번호를 화면의 연속 구독 개월로 바꾸지 않습니다.
 
@@ -628,6 +632,8 @@ VOD 상품 번호 `itemType=9200`인 실방송 표본도 화면에는 “플러�
 |---|---|---|
 | `show` | `number` | 공지 표시 상태의 원본 숫자 값 |
 | `message` | `string` | 공지 본문 |
+
+같은 본문을 유지한 채 `show=1 → 0`으로 바뀐 표본이 있습니다. 해당 시점의 공지 숨김은 다시보기로 확인하지 못했으므로 실제 화면 대조 완료로 취급하지 않습니다.
 
 ### `videoBalloon` (`0105`)
 
@@ -822,7 +828,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `notice` | `draw: boolean`, `winner`, `myTeamName: string`, `rank: number` |
 | `settle` | `title`, `image: string`, `settleCount: number` |
 
-도전미션 후원 뒤 결과 패킷이 없다는 사실만으로 대기와 거절을 구별할 수 없으므로 별도의 추측 상태를 만들지 않습니다.
+도전미션 `gift`의 제목은 채팅 행에 표시되지 않고, 스트리머가 도전미션 오버레이를 띄웠을 때 확인할 수 있습니다. 후원 뒤 결과 패킷이 없다는 사실만으로 대기와 거절을 구별할 수 없으므로 별도의 추측 상태를 만들지 않습니다.
 
 ### `liveCaption` (`0122`), `subtitleV2` (`0139`)
 

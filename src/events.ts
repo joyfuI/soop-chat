@@ -440,9 +440,11 @@ export interface BalloonData {
   fanOrder: number;
   becameFanClub: boolean;
   fileName: string;
+  /** 원본 기본 효과 플래그. false여도 SOOP 제공 스타즈 별풍선일 수 있습니다. */
   isDefault: boolean;
   topFanLevel: number;
   becameTopFan: boolean;
+  /** TTS 관련 원본 값. 값의 유무만으로 실제 음성 재생 여부를 판정하지 않습니다. */
   ttsData: string;
   senderLanguage: string;
   urlModify: string;
