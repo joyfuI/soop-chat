@@ -157,9 +157,9 @@ interface FieldEventData {
 | `0087` | `adconEffect` | 애드벌룬 효과 | object | observed |
 | `0088` | `closeBroad` | 방송 종료 | fields | observed |
 | `0090` | `kickMsgState` | 강제 퇴장 메시지 상태 | object | observed |
-| `0091` | `followItem` | 신규 구독 | object | observed |
+| `0091` | `followItem` | 구독 세리머니 | object | observed |
 | `0092` | `itemSellEffect` | 아이템 판매 효과 | object | player |
-| `0093` | `followItemEffect` | 연속 구독 효과 | object | observed |
+| `0093` | `followItemEffect` | 연속 구독 세리머니 | object | observed |
 | `0094` | `translationState` | 번역 상태 | fields | observed |
 | `0095` | `translation` | 번역 결과 | object | player |
 | `0102` | `giftTicket` | 선물 티켓 | object | player |
@@ -179,7 +179,7 @@ interface FieldEventData {
 | `0122` | `liveCaption` | 라이브 자막 | JSON | player |
 | `0125` | `missionSettle` | 도전미션 정산 | object | observed |
 | `0126` | `setAdminFlag` | 관리자 플래그 설정 | object | player |
-| `0127` | `chuserExtend` | 구독자 목록 | object | observed |
+| `0127` | `chuserExtend` | 사용자 확장 메타데이터 | object | observed |
 | `0128` | `adminChuserExtend` | 관리자용 채팅 사용자 확장 정보 | fields | reference |
 | `0130` | `subscriptionCeremonyButton` | 구독 세리머니 버튼 | object | player |
 | `0131` | `savvyNotice` | Savvy 알림 | object | player |
@@ -230,13 +230,15 @@ type ChatUserData =
       nickname: string;
       quitFlag: number;
       etcInfo: string;
+      /** 퇴장 패킷의 원본 플래그이며 최신 사용자 상태 비트가 생략될 수 있습니다. */
       userFlag: string;
+      /** 퇴장 패킷의 플래그 판정이며 최신 사용자 상태 스냅샷이 아닙니다. */
       userStatus: UserStatus;
       isKicked: boolean;
     };
 ```
 
-공식 플레이어와 동일하게 `quitFlag === 1`만 정상 퇴장으로 보고, 그 밖의 값은 `isKicked: true`로 제공합니다. 플레이어는 강퇴된 사용자의 `quitFlag`를 화면 문구를 고르는 `kickType`으로 사용합니다. `3`은 채팅금지 횟수 초과, `4`는 무분별한 도배, `5`는 블라인드 상태 이탈이며 그 밖의 값은 일반 강제퇴장 문구를 생성합니다. `etcInfo`의 의미는 확정하지 않았으므로 패킷을 묶거나 제거하지 않습니다. 관찰 근거는 [프로토콜 조사 노트](protocol.md#채팅금지와-강퇴)를 참고하세요.
+공식 플레이어와 동일하게 `quitFlag === 1`만 정상 퇴장으로 보고, 그 밖의 값은 `isKicked: true`로 제공합니다. 플레이어는 강퇴된 사용자의 `quitFlag`를 화면 문구를 고르는 `kickType`으로 사용합니다. `3`은 채팅금지 횟수 초과, `4`는 무분별한 도배, `5`는 블라인드 상태 이탈이며 그 밖의 값은 일반 강제퇴장 문구를 생성합니다. `etcInfo`의 의미는 확정하지 않았으므로 패킷을 묶거나 제거하지 않습니다. 퇴장 패킷의 `userFlag`에는 최근 입장·채팅에서 확인한 구독 등 상태 비트가 생략될 수 있으므로 `userStatus`를 최신 상태나 상태 변경으로 해석하지 마세요. 관찰 근거는 [프로토콜 조사 노트](protocol.md#채팅금지와-강퇴)를 참고하세요.
 
 ### `chatMessage` (`0005`)
 
@@ -252,10 +254,10 @@ type ChatUserData =
 | `senderNickname` | `string` | 발신자 닉네임 |
 | `senderFlag` | `string` | 사용자 상태를 나타내는 원본 복합 플래그 |
 | `senderStatus` | `UserStatus` | `senderFlag`를 공식 플레이어 비트로 판정한 발신자 상태 |
-| `subscriptionMonth` | `string` | 구독 개월 관련 원본 값 |
+| `subscriptionMonth` | `string` | SOOP이 계산한 연속 구독 개월 원본 값 |
 | `nicknameColor` | `string` | 밝은 테마용 닉네임 색상. 없으면 빈 문자열 |
 | `nicknameColorDark` | `string` | 어두운 테마용 닉네임 색상. 없으면 빈 문자열 |
-| `accumulatedSubscriptionMonth` | `string` | 누적 구독 개월 관련 원본 값 |
+| `accumulatedSubscriptionMonth` | `string` | 누적 구독 개월 원본 값 |
 | `representativePersonalconMonth` | `string` | 대표 구독 퍼스널콘 선택에 사용하는 원본 개월 값 |
 | `cheerTeamNumber` | `number` | 응원팀 번호. 필드가 없으면 `-1` |
 
@@ -398,7 +400,7 @@ type ChatUserData =
 | `nickname` | `string` | 발신자 닉네임 |
 | `userFlag` | `string` | 발신자의 원본 복합 플래그 |
 | `senderStatus` | `UserStatus` | 원본 플래그의 전체 공식 발신자 상태 판정 |
-| `subscriptionMonth` | `string` | 구독 개월 관련 원본 값 |
+| `subscriptionMonth` | `string` | SOOP이 계산한 연속 구독 개월 원본 값 |
 
 ### `kickUserList` (`0077`)
 
@@ -480,7 +482,7 @@ interface ChatUserExtendData {
 }
 ```
 
-플레이어의 query-string 키 `p`, `fw`, `afw`를 위 필드로 정규화합니다. 키가 없거나 숫자로 해석할 수 없으면 `null`이며, 서버가 보내는 `-1`은 의미를 추측하지 않고 그대로 유지합니다.
+플레이어의 query-string 키 `p`, `fw`, `afw`를 위 필드로 정규화합니다. `subscriptionMonth`는 SOOP이 계산한 연속 구독 개월, `accumulatedSubscriptionMonth`는 누적 구독 개월입니다. 키가 없거나 숫자로 해석할 수 없으면 `null`이며, 서버가 보내는 `-1`은 의미를 추측하지 않고 그대로 유지합니다.
 
 `representativePersonalconMonth`는 대표 구독 퍼스널콘 선택값입니다. 공식 플레이어는 방송인의 양수 값을 베이직 구독 퍼스널콘 이미지에 사용하며 실방송 화면에서도 확인했습니다.
 
@@ -541,7 +543,7 @@ interface ChatUserExtendData {
 
 ### 구독 상품 메타데이터
 
-`followItem`, `followItemEffect`, `sendSubscription`, `subRandomCeremony`, `copySendSub`의 `subscriptionProduct`는 공식 플레이어의 내부 상품표를 연결한 값입니다. 신규·연속 구독은 원본 값이 `itemType` 또는 `vodItemType`과 처음 일치하는 행을 사용하고, 선물·수령 알림은 `itemType`이 일치하고 `isGift=true`인 첫 행을 사용합니다. 일치하는 상품이 없으면 `null`이며 원본 값은 항상 별도로 보존됩니다.
+`followItem`, `followItemEffect`, `sendSubscription`, `subRandomCeremony`, `copySendSub`의 `subscriptionProduct`는 공식 플레이어의 내부 상품표를 연결한 값입니다. `followItem`·`followItemEffect`는 원본 값이 `itemType` 또는 `vodItemType`과 처음 일치하는 행을 사용하고, 선물·수령 알림은 `itemType`이 일치하고 `isGift=true`인 첫 행을 사용합니다. 일치하는 상품이 없으면 `null`이며 원본 값은 항상 별도로 보존됩니다.
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
@@ -577,13 +579,13 @@ interface ChatUserExtendData {
 
 `isCeremony`, `isGift`, `isTrial`은 공식 상품표의 내부 플래그이며 `isGift` 하나만으로 다른 이벤트의 구매·선물 취득 경로를 판단하지 않습니다. 상품표와 실방송 대조 근거는 [구독과 미션 조사](protocol.md#구독과-미션)를 참고하세요.
 
-현재 상품표에서 `100/101/200/201`은 `isGift=false, isCeremony=true`, `111/211`은 둘 다 `true`, `11/20/21`은 `isGift=true, isCeremony=false`입니다. 구형 `itemType=1`은 신규 구독 문맥에서 첫 행의 3개월 상품으로, 선물 문맥에서는 첫 선물 행의 1개월 상품으로 연결됩니다. `isGift=false` 상품 번호를 선물 문맥으로 받으면 메타데이터는 `null`입니다.
+현재 상품표에서 `100/101/200/201`은 `isGift=false, isCeremony=true`, `111/211`은 둘 다 `true`, `11/20/21`은 `isGift=true, isCeremony=false`입니다. 구형 `itemType=1`은 `followItem` 문맥에서 첫 행의 3개월 상품으로, 선물 문맥에서는 첫 선물 행의 1개월 상품으로 연결됩니다. `isGift=false` 상품 번호를 선물 문맥으로 받으면 메타데이터는 `null`입니다.
 
 `level`도 해당 이벤트의 상품 번호를 조회한 값입니다. 실방송에서 레벨1 선물권 `0108 itemType=20`을 사용한 뒤 `0091 itemType=211`이 수신됐고, 상품표의 레벨은 각각 `1`과 `2`였습니다. 사용 완료 화면에는 레벨이 표시되지 않았으므로 실제 구독 레벨 변경을 추론하지 않습니다.
 
 ### `followItem` (`0091`)
 
-신규 구독 알림입니다.
+구독자가 방송 입장 후 보내는 구독 세리머니입니다. 방송 중 구독 직후와 방송 밖에서 구독한 뒤 입장한 경우 모두 올 수 있으므로, 이 이벤트만으로 신규·재구독·기존 구독 여부나 구매 시각을 판정하지 않습니다. 구독플러스 방에서는 구독 전 입장이 불가능하므로 세리머니가 입장 뒤 오는 것이 정상입니다.
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
@@ -599,11 +601,11 @@ interface ChatUserExtendData {
 | `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
 | `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
 
-화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `subscriptionSource="live"`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다. 실방송의 `itemType=203, tier=2`와 `itemType=206, tier=2`는 각각 플러스 구독 완료와 왼쪽 이미지의 “3개월 정기구독권”, “6개월 정기구독권”에 일치했습니다. `itemType=200, tier=2`는 같은 플러스 구독 문구가 표시됐지만 자동결제 1개월 상품답게 이미지에는 상품 기간 없이 “구독 감사합니다”만 표시됐습니다.
+화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `subscriptionSource="live"`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다. 실방송의 `itemType=203, tier=2`와 `itemType=206, tier=2`는 각각 플러스 구독 완료와 왼쪽 이미지의 “3개월 정기구독권”, “6개월 정기구독권”에 일치했습니다. `itemType=200, tier=2`는 같은 플러스 구독 문구가 표시됐지만 자동결제 1개월 상품답게 이미지에는 상품 기간 없이 “구독 감사합니다”만 표시됐습니다. `itemType=201, tier=2` 표본은 “플러스 구독하였습니다.”와 “1개월 정기구독권” 이미지에 일치했습니다.
 
 ### `followItemEffect` (`0093`)
 
-연속 구독 효과입니다.
+`followItem`과 같은 구독 세리머니이지만 `month`를 사용해 “N개월째 구독 중” 문구를 표시합니다. 결제나 구독 상태 변경 이벤트가 아닙니다.
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
@@ -756,10 +758,10 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `chatLanguage` | `number` | 플레이어의 원본 채팅 언어 값 |
 | `emoticonType` | `number` | 이모티콘 원본 종류 값 |
 | `extension` | `string` | 이미지 확장자. 실관찰 표본은 `png` |
-| `subscriptionMonth` | `string` | 구독 개월 관련 원본 값 |
+| `subscriptionMonth` | `string` | SOOP이 계산한 연속 구독 개월 원본 값 |
 | `nicknameColor` | `string` | 밝은 테마용 닉네임 색상 |
 | `nicknameColorDark` | `string` | 어두운 테마용 닉네임 색상 |
-| `accumulatedSubscriptionMonth` | `string` | 누적 구독 개월 관련 원본 값 |
+| `accumulatedSubscriptionMonth` | `string` | 누적 구독 개월 원본 값 |
 | `representativePersonalconMonth` | `string` | 대표 구독 퍼스널콘 선택에 사용하는 원본 개월 값 |
 | `animation` | `string` | 애니메이션 관련 원본 값 |
 | `cheerTeamNumber` | `number` | 응원팀 번호. 필드가 없으면 `-1` |
@@ -869,11 +871,11 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 
 ### `subscriptionCeremonyButton` (`0130`)
 
-구독 세리머니 버튼 상태입니다.
+구독 세리머니 버튼 상태입니다. 공식 플레이어는 `subscriptionMonth`로 “N개월 구독중” 버튼을 표시하고, 클릭하면 세리머니 요청을 보냅니다. 서버가 `followItem`과 `followItemEffect` 중 어느 이벤트를 선택하는지에 대한 정확한 조건은 확인되지 않았습니다.
 
 | 필드 | 타입 | 의미 |
 |---|---|---|
-| `subscriptionMonth` | `string` | 구독 개월 관련 원본 값 |
+| `subscriptionMonth` | `string` | 버튼에 표시할 연속 구독 개월 원본 값 |
 
 ### `savvyNotice` (`0131`)
 

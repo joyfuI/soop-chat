@@ -86,11 +86,11 @@ export const EVENT_CATALOG = {
   "0087": { type: "adconEffect", description: "Adcon Effect", provenance: "observed" },
   "0088": { type: "closeBroad", description: "Close Broadcast", provenance: "observed" },
   "0090": { type: "kickMsgState", description: "Kick Message State", provenance: "observed" },
-  "0091": { type: "followItem", description: "New Subscription", provenance: "observed" },
+  "0091": { type: "followItem", description: "Subscription Ceremony", provenance: "observed" },
   "0092": { type: "itemSellEffect", description: "Item Sell Effect", provenance: "player" },
   "0093": {
     type: "followItemEffect",
-    description: "Continuous Subscription",
+    description: "Continuous Subscription Ceremony",
     provenance: "observed",
   },
   "0094": { type: "translationState", description: "Translation State", provenance: "observed" },
@@ -112,7 +112,7 @@ export const EVENT_CATALOG = {
   "0122": { type: "liveCaption", description: "Live Caption", provenance: "player" },
   "0125": { type: "missionSettle", description: "Mission Settlement", provenance: "observed" },
   "0126": { type: "setAdminFlag", description: "Set Admin Flag", provenance: "player" },
-  "0127": { type: "chuserExtend", description: "Subscriber List", provenance: "observed" },
+  "0127": { type: "chuserExtend", description: "Chat User Metadata", provenance: "observed" },
   "0128": {
     type: "adminChuserExtend",
     description: "Admin Chat User Extended",
@@ -239,7 +239,9 @@ export type ChatUserData =
       nickname: string;
       quitFlag: number;
       etcInfo: string;
+      /** 퇴장 패킷의 원본 플래그이며 최신 사용자 상태 비트가 생략될 수 있습니다. */
       userFlag: string;
+      /** 퇴장 패킷의 플래그 판정이며 최신 사용자 상태 스냅샷이 아닙니다. */
       userStatus: UserStatus;
       isKicked: boolean;
     };
@@ -322,6 +324,7 @@ export interface ManagerChatData {
   nickname: string;
   userFlag: string;
   senderStatus: UserStatus;
+  /** SOOP이 계산한 연속 구독 개월 원본 값입니다. */
   subscriptionMonth: string;
 }
 
@@ -404,7 +407,9 @@ export interface ChatUserExtendInfo {
   userId: string;
   /** 대표 구독 퍼스널콘 선택에 쓰이는 개월 값입니다. */
   representativePersonalconMonth: number | null;
+  /** SOOP이 계산한 연속 구독 개월입니다. */
   subscriptionMonth: number | null;
+  /** 누적 구독 개월입니다. */
   accumulatedSubscriptionMonth: number | null;
 }
 
@@ -423,9 +428,11 @@ export interface ChatMessageData {
   senderNickname: string;
   senderFlag: string;
   senderStatus: UserStatus;
+  /** SOOP이 계산한 연속 구독 개월 원본 값입니다. */
   subscriptionMonth: string;
   nicknameColor: string;
   nicknameColorDark: string;
+  /** 누적 구독 개월 원본 값입니다. */
   accumulatedSubscriptionMonth: string;
   /** 대표 구독 퍼스널콘 선택에 쓰이는 원본 개월 값입니다. */
   representativePersonalconMonth: string;
@@ -489,7 +496,7 @@ export interface ItemUsingData {
   remainingMinutes: number;
 }
 
-/** 확인된 경우 정규화한 상품 메타데이터를 포함하는 신규 구독 payload입니다. */
+/** 확인된 경우 정규화한 상품 메타데이터를 포함하는 구독 세리머니 payload입니다. */
 export interface FollowItemData {
   chatNo: number;
   receiverId: string;
@@ -516,7 +523,7 @@ export interface SubscriptionProduct {
   subscriptionTier: Exclude<SubscriptionTier, "unknown">;
   /** 해당 이벤트의 상품 번호로 조회한 레벨이며, 선물권 사용 전후에 다를 수 있습니다. */
   level: 1 | 2 | 3 | 4 | 5;
-  /** 상품 기간(개월). 연속 구독 효과의 화면 표시 개월과 별개입니다. */
+  /** 상품 기간(개월). 연속 구독 세리머니의 화면 표시 개월과 별개입니다. */
   month: 1 | 3 | 6 | 12;
   isAutoPay: boolean;
   isLegacy: boolean;
@@ -527,7 +534,7 @@ export interface SubscriptionProduct {
   isTrial: boolean;
 }
 
-/** 현재 개월과 누적 개월을 포함한 연속 구독 효과입니다. */
+/** 연속 구독 개월과 누적 구독 개월을 포함한 구독 세리머니입니다. */
 export interface FollowItemEffectData {
   streamerId: string;
   senderId: string;
@@ -783,9 +790,11 @@ export interface OgqEmoticonData {
   emoticonType: number;
   /** 이미지 확장자. `png`인 움직이는 이미지도 관찰됐습니다. */
   extension: string;
+  /** SOOP이 계산한 연속 구독 개월 원본 값입니다. */
   subscriptionMonth: string;
   nicknameColor: string;
   nicknameColorDark: string;
+  /** 누적 구독 개월 원본 값입니다. */
   accumulatedSubscriptionMonth: string;
   /** 대표 구독 퍼스널콘 선택에 쓰이는 원본 개월 값입니다. */
   representativePersonalconMonth: string;
@@ -927,6 +936,7 @@ export interface JsonObjectData {
 
 /** 구독 세리머니 버튼 상태입니다. */
 export interface SubscriptionCeremonyButtonData {
+  /** 버튼에 표시할 연속 구독 개월 원본 값입니다. */
   subscriptionMonth: string;
 }
 
