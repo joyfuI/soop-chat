@@ -366,11 +366,11 @@ type ChatUserData =
 | `senderNickname` | `string` | 발신자 닉네임 |
 | `itemType` | `number` | 스티커 상품의 원본 종류 값 |
 | `count` | `number` | 보낸 스티커 개수 |
-| `supporterOrder` | `number` | 서포터 가입 순번 |
+| `supporterOrder` | `number` | 서포터 가입 순번. `0`이면 신규 가입 안내 없음 |
 | `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
 | `relay` | `boolean` | 일반 채널은 `false`, 서브 채널은 `true` |
 
-실방송에서 `itemType=702, count=20`과 `itemType=366, count=1`은 모두 화면의 “스티커 N개”와 일치했습니다. 후자의 `supporterOrder=65`는 뒤이은 서포터 가입 안내 및 `setUserFlag`의 `isSupporter: false → true`와도 일치했습니다.
+실방송에서 `itemType=702, count=20`과 `itemType=366, count=1`은 모두 화면의 “스티커 N개”와 일치했습니다. 후자의 `supporterOrder=65`는 뒤이은 서포터 가입 안내 및 `setUserFlag`의 `isSupporter: false → true`와도 일치했습니다. 같은 수량의 스티커 두 건을 다시보기와 대조했을 때도 `supporterOrder > 0`인 건에만 가입 안내가 표시됐고, 안내 문구에는 순번 숫자가 노출되지 않았습니다.
 
 `sendFanLetterSub`는 아직 실방송 화면과 대조하지 않았습니다. 현재 근거 범위는 [프로토콜 조사 노트](protocol.md#추가로-구조화한-플레이어-이벤트)를 참고하세요.
 
@@ -784,6 +784,8 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `SETTLE` | `battle` | `settle` |
 | 그 밖의 값 | `unknown` | `unknown` |
 
+채팅 WebSocket에서 도전미션 수락이나 대결미션 시작을 나타내는 별도 `action`은 관찰되지 않았습니다. `gift`는 제안·후원 알림일 뿐이며, 방송 화면의 수락·시작 상태를 합성하지 않습니다.
+
 도전미션 공통 필드:
 
 | 필드 | 타입 | 의미 |
@@ -826,7 +828,14 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `streamerId` | `string` | 방송인 ID |
 | `streamerNickname` | `string` | 방송인 닉네임 |
 
-대결미션도 공식 플레이어 분기에 맞춰 구조화합니다.
+대결미션도 공식 플레이어 분기에 맞춰 구조화합니다. 공통 필드는 다음과 같습니다.
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `missionKind` | `"battle"` | 대결미션 판별 값 |
+| `action` | `"gift" \| "notice" \| "settle"` | 후원, 결과 알림, 정산 판별 값 |
+| `missionKey` | `number` | 같은 대결의 후원·결과·정산을 묶는 키 |
+| `payload` | `Readonly<Record<string, unknown>>` | 파싱한 원본 JSON 객체 |
 
 | `action` | 추가 필드 |
 |---|---|
@@ -834,7 +843,7 @@ OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 
 | `notice` | `draw: boolean`, `winner`, `myTeamName: string`, `rank: number` |
 | `settle` | `title`, `image: string`, `settleCount: number` |
 
-도전미션 `gift`의 제목은 채팅 행에 표시되지 않고, 스트리머가 도전미션 오버레이를 띄웠을 때 확인할 수 있습니다. 후원 뒤 결과 패킷이 없다는 사실만으로 대기와 거절을 구별할 수 없으므로 별도의 추측 상태를 만들지 않습니다.
+도전·대결미션 `gift`의 제목은 채팅 행에 표시되지 않습니다. 대결미션 `notice`에서 `draw=true`이면 공식 플레이어는 승자·순위보다 무승부 안내를 우선하며, `settleCount`는 해당 방송인이 정산으로 획득한 별풍선 개수입니다. 같은 대결에서 이 채널로 수신한 `giftCount`의 합과 일치하지 않을 수 있습니다. 후원 뒤 결과 패킷이 없다는 사실만으로 대기와 거절을 구별할 수 없으므로 별도의 추측 상태를 만들지 않습니다.
 
 ### `liveCaption` (`0122`), `subtitleV2` (`0139`)
 

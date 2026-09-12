@@ -615,12 +615,19 @@ void test("decodes chat, subscription, broadcaster status, and current player fi
     });
 
   const battleMission = decodePacket(
-    rawPacket("0121", `${separator}{"type":"NOTICE","uuid":"synthetic"}`),
+    rawPacket(
+      "0121",
+      `${separator}{"type":"NOTICE","key":123,"uuid":"notice-event","draw":true,"winner":"","rank":0,"my_team_name":null}`,
+    ),
   );
   assert.equal(battleMission.type, "mission");
   if (battleMission.type === "mission") {
     assert.equal(battleMission.data.missionKind, "battle");
     assert.equal(battleMission.data.action, "notice");
+    if (battleMission.data.missionKind === "battle") {
+      assert.equal(battleMission.data.missionKey, 123);
+      if (battleMission.data.action === "notice") assert.equal(battleMission.data.draw, true);
+    }
   }
 
   const challengeGift = decodePacket(
@@ -980,7 +987,7 @@ void test("decodes every field-reading official player branch", () => {
   const battle = decodePacket(
     rawPacket(
       "0121",
-      `${separator}{"type":"GIFT","title":"battle","gift_count":100,"is_relay":true,"image":"image","user_id":"sender","user_nick":"nickname","fan_order":10,"top_fan":2}`,
+      `${separator}{"type":"GIFT","key":123,"uuid":"gift-event","title":"battle","gift_count":100,"is_relay":true,"image":"image","user_id":"sender","user_nick":"nickname","fan_order":10,"top_fan":2}`,
     ),
   );
   assert.equal(battle.type, "mission");
@@ -990,10 +997,29 @@ void test("decodes every field-reading official player branch", () => {
     battle.data.action === "gift"
   )
     assert.partialDeepStrictEqual(battle.data, {
+      missionKey: 123,
       giftCount: 100,
       senderId: "sender",
       fanOrder: 10,
       topFanLevel: 2,
+    });
+
+  const battleSettle = decodePacket(
+    rawPacket(
+      "0121",
+      `${separator}{"type":"SETTLE","key":123,"uuid":"settle-event","title":"battle","settle_count":170,"image":"settle-image"}`,
+    ),
+  );
+  assert.equal(battleSettle.type, "mission");
+  if (
+    battleSettle.type === "mission" &&
+    battleSettle.data.missionKind === "battle" &&
+    battleSettle.data.action === "settle"
+  )
+    assert.partialDeepStrictEqual(battleSettle.data, {
+      missionKey: 123,
+      title: "battle",
+      settleCount: 170,
     });
 
   const timeout = decodePacket(

@@ -1205,6 +1205,7 @@ function mission(raw: RawPacket): MissionData {
     return {
       missionKind: "battle",
       action: "gift",
+      missionKey: jsonNumber(record, "key"),
       title: jsonString(record, "title"),
       giftCount: jsonNumber(record, "gift_count"),
       isRelay: jsonBoolean(record, "is_relay"),
@@ -1220,6 +1221,7 @@ function mission(raw: RawPacket): MissionData {
     return {
       missionKind: "battle",
       action: "notice",
+      missionKey: jsonNumber(record, "key"),
       draw: jsonBoolean(record, "draw"),
       winner: jsonString(record, "winner"),
       rank: jsonNumber(record, "rank"),
@@ -1231,6 +1233,7 @@ function mission(raw: RawPacket): MissionData {
     return {
       missionKind: "battle",
       action: "settle",
+      missionKey: jsonNumber(record, "key"),
       title: jsonString(record, "title"),
       settleCount: jsonNumber(record, "settle_count"),
       image: jsonString(record, "image"),

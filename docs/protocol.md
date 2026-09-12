@@ -1,6 +1,6 @@
 # SOOP 채팅 프로토콜 계약과 미확인 사항
 
-이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-10까지의 플레이어 분석 및 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
+이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-13까지의 플레이어 분석과 2026-09-10까지의 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
 
 ## 근거
 
@@ -96,8 +96,9 @@ WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않�
 - 구독 상품표는 [`src/protocol.ts`](../src/protocol.ts)의 `SUBSCRIPTION_PRODUCTS`가 구현 원본입니다. `0091`·`0093`은 `itemType` 또는 `vodItemType`이 처음 일치하는 행을, 선물·수령 알림은 `itemType`이 일치하고 `isGift=true`인 첫 행만 사용합니다. 해당 문맥에서 일치하는 상품이 없으면 `null`이며 원본 값을 보존합니다.
 - 상품 기간과 화면의 연속 구독 개월·누적 개월은 별개입니다. 공식 플레이어는 `0093`의 `month`를 “N개월째” 문구와 이미지 경로에 사용하고 `accumulatedMonth`는 사용자 목록의 누적 구독 상태 갱신에만 사용합니다. `0091` 구독 세리머니에서는 상품표의 기간·자동결제 여부에 따라 화면 이미지가 달라진 표본이 있지만 이미지 문구 자체는 패킷에 없습니다. 상품표의 `isGift`는 취득 경로를, 선물 전후의 `level` 차이는 실제 레벨 변경을 보장하지 않습니다. `subscriptionSource="live"`는 비VOD 상품 번호라는 뜻이며 정확한 구매 화면을 뜻하지 않습니다. 화면 이미지·지역화 문구를 합성하지 않습니다.
 - `0121 mission`은 도전미션의 `CHALLENGE_GIFT/NOTICE/SETTLE`과 대결미션의 `GIFT/NOTICE/SETTLE`을 구분하고 원본 JSON을 보존합니다. 미확인 `type`은 `missionKind`와 `action`을 `unknown`으로 제공합니다.
-- 도전미션의 `missionKey`는 같은 미션을 묶고, 개별 알림의 `uuid`는 `CHALLENGE_SETTLE`과 대응하는 `0125 missionSettle`에서 같습니다. `0125 list`는 `[userId, nickname, contributionCount, becameFanClubFlag, becameTopFanFlag]`이며 팬클럽 플래그가 거짓이면 `fanOrder`만으로 가입을 판정하지 않습니다.
-- 도전미션 후원은 수락 완료를 뜻하지 않습니다. 수락·거절, 결과 결정 주체, 수동·자동 여부, 제한 시간과 실패 사유는 패킷으로 구분하지 않습니다. 결과가 없다고 거절을 합성하지 않으며 관찰된 경과 시간을 timeout이나 키 수명 상한으로 삼지 않습니다.
+- 도전·대결미션의 `missionKey`는 같은 미션의 후원·결과·정산을 묶습니다. 개별 알림의 `uuid`는 서로 다르며, 도전미션 `CHALLENGE_SETTLE`에서는 대응하는 `0125 missionSettle`과 같습니다. `0125 list`는 `[userId, nickname, contributionCount, becameFanClubFlag, becameTopFanFlag]`이며 팬클럽 플래그가 거짓이면 `fanOrder`만으로 가입을 판정하지 않습니다.
+- 도전미션 후원은 수락 완료를 뜻하지 않고, 대결미션도 방송 화면의 시작 시점에 별도 채팅 패킷이 관찰되지 않았습니다. 수락·거절·시작, 결과 결정 주체, 수동·자동 여부, 제한 시간과 실패 사유는 패킷으로 구분하지 않습니다. 결과가 없다고 거절을 합성하지 않으며 관찰된 경과 시간을 timeout이나 키 수명 상한으로 삼지 않습니다.
+- 대결미션 `draw=true`는 공식 화면의 무승부 안내와 일치합니다. `settleCount`는 해당 방송인이 정산으로 획득한 개수이며, 이 채널에서 수신한 같은 `missionKey`의 후원 합계와 일치하지 않을 수 있습니다. 관찰한 두 대결 정산에는 도전미션용 `0125 missionSettle`이 수신되지 않았으며 누락된 이벤트를 합성하지 않습니다.
 - 수집 시작 전 후원된 미션의 결과·정산만 수신할 수 있습니다. 앞선 후원 이벤트 수신을 결과·정산 처리의 전제조건으로 삼지 않습니다.
 
 [관찰 근거](research/protocol-evidence.md#구독과-미션)

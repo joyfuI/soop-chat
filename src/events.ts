@@ -858,6 +858,7 @@ export interface ChallengeMissionSettleData extends ChallengeMissionBaseData {
 
 interface BattleMissionBaseData extends MissionBaseData {
   missionKind: "battle";
+  missionKey: number;
 }
 
 /** 대결미션 후원 payload입니다. */
