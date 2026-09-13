@@ -49,15 +49,15 @@
 
 ## 문서 지도
 
-| 정보                                     | Source of Truth                                                            |
-| ---------------------------------------- | -------------------------------------------------------------------------- |
-| export, 정확한 타입, 기본값              | TypeScript 코드와 JSDoc                                                    |
-| 처음 사용하는 방법                       | [`README.md`](README.md)                                                   |
-| 브라우저/서버 경계와 사용 계약           | [`docs/browser.md`](docs/browser.md)                                       |
-| 공개 이벤트의 의미와 주의사항            | [`docs/events.md`](docs/events.md)                                         |
-| wire protocol, lifecycle, framing        | [`docs/protocol.md`](docs/protocol.md)                                     |
-| 표본, 플레이어 빌드, 반례, 조사 근거     | [`docs/research/protocol-evidence.md`](docs/research/protocol-evidence.md) |
-| 에이전트 작업 규칙과 high-risk invariant | `AGENTS.md`                                                                |
+| 정보                                                   | Source of Truth                                                            |
+| ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| export, 정확한 타입, 기본값, 공개 lifecycle 타입/옵션  | TypeScript 코드와 JSDoc                                                    |
+| 처음 사용하는 방법                                     | [`README.md`](README.md)                                                   |
+| 브라우저/서버 경계와 사용 계약                         | [`docs/browser.md`](docs/browser.md)                                       |
+| 공개 이벤트의 의미와 주의사항                          | [`docs/events.md`](docs/events.md)                                         |
+| wire protocol, framing, connection lifecycle invariant | [`docs/protocol.md`](docs/protocol.md)                                     |
+| 표본, 플레이어 빌드, 반례, 조사 근거                   | [`docs/research/protocol-evidence.md`](docs/research/protocol-evidence.md) |
+| 에이전트 작업 규칙과 high-risk invariant               | `AGENTS.md`                                                                |
 
 상세 설명은 Source of Truth 한 곳에만 두고 다른 문서에서는 짧게 요약해 링크한다. 변경할 때는 해당 Source of Truth와 관련 테스트를 함께 갱신한다.
 

@@ -2,7 +2,7 @@
 
 이 문서는 `soop-chat` 사용자가 어떤 이벤트를 선택하고 어떻게 해석해야 하는지 설명합니다. 이벤트명·opcode·provenance는 [`EVENT_CATALOG`](../src/events.ts), 정확한 필드·타입·판별 union은 같은 파일의 TypeScript 타입과 JSDoc이 Source of Truth입니다.
 
-Markdown에 필드 사전을 복제하지 않습니다. 아래에는 발생 상황, 중요한 caveat와 아직 확정되지 않은 의미만 둡니다. 표본 수·플레이어 빌드·반례와 조사 과정은 저장소의 [research 문서](./research/protocol-evidence.md)에 보존합니다.
+Markdown에 필드 사전을 복제하지 않습니다. 아래에는 발생 상황, 중요한 caveat와 아직 확정되지 않은 의미만 둡니다. 표본 수·플레이어 빌드·반례와 조사 과정은 저장소의 [research 문서](https://github.com/joyfuI/soop-chat/blob/main/docs/research/protocol-evidence.md)에 보존합니다.
 
 ## 자주 사용하는 이벤트
 
