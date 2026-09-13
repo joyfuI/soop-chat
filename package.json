@@ -20,7 +20,8 @@
   "files": [
     "dist",
     "src",
-    "docs",
+    "docs/browser.md",
+    "docs/events.md",
     "README.md",
     "LICENSE"
   ],
@@ -52,7 +53,7 @@
     "test:browser": "npm run build && playwright test",
     "test:live": "npm run build && node test/live-smoke.mjs",
     "pack:check": "npm run build && npm pack --dry-run",
-    "prepublishOnly": "npm run check"
+    "prepublishOnly": "npm run check && npm pack --dry-run"
   },
   "dependencies": {
     "ws": "^8.21.3"

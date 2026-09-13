@@ -1,90 +1,144 @@
-# 이벤트 레퍼런스
+# 이벤트 가이드
 
-이 문서는 `soop-chat` 사용자가 받는 공개 채팅 프로토콜 이벤트 API를 설명합니다. `stateChange`, `reconnecting`, `error`, `ended` 같은 연결 수명주기 이벤트는 README의 [연결 상태](../README.md#연결-상태)와 [이벤트](../README.md#이벤트) 설명을 참고하세요. WebSocket 프레임, payload 필드 순서, 연결 절차와 관찰 근거는 [프로토콜 조사 노트](protocol.md)를 참고하세요.
+이 문서는 `soop-chat` 사용자가 어떤 이벤트를 선택하고 어떻게 해석해야 하는지 설명합니다. 이벤트명·opcode·provenance는 [`EVENT_CATALOG`](../src/events.ts), 정확한 필드·타입·판별 union은 같은 파일의 TypeScript 타입과 JSDoc이 Source of Truth입니다.
 
-이벤트명·opcode·provenance의 원본은 [`EVENT_CATALOG`](../src/events.ts), 필드와 판별 유니온의 정확한 타입은 같은 파일의 타입 선언과 JSDoc입니다. 이 문서의 표는 필드 의미, 관찰 범위와 사용상 주의점을 설명합니다. `npm run check`의 카탈로그 테스트가 아래 전체 색인의 opcode·이벤트명·provenance와 디코더의 `data` 형태를 대조합니다. 개별 필드의 타입과 의미까지 자동 검사하지는 않으므로 해당 변경은 코드와 문서를 함께 검토해야 합니다.
+Markdown에 필드 사전을 복제하지 않습니다. 아래에는 발생 상황, 중요한 caveat와 아직 확정되지 않은 의미만 둡니다. 표본 수·플레이어 빌드·반례와 조사 과정은 저장소의 [research 문서](./research/protocol-evidence.md)에 보존합니다.
 
-## 공통 이벤트 구조
+## 자주 사용하는 이벤트
 
-모든 채팅 프로토콜 이벤트는 다음 공통 필드를 가집니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `type` | `string` | `chatMessage`, `sendBalloon`처럼 opcode를 의미 있는 이름으로 바꾼 판별 값 |
-| `opcode` | `string` | SOOP 채팅 프로토콜의 네 자리 opcode |
-| `receivedAt` | `number` | 이벤트를 디코딩한 Unix epoch 밀리초 시각 |
-| `raw` | `RawPacket` | 손실 없이 보존한 원본 패킷 |
-| `data` | `object` | 이벤트별로 구조화한 값 |
-
-`raw`에는 다음 값이 있습니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `opcode` | `string` | 원본 opcode |
-| `flags` | `string` | 프레임 헤더의 두 자리 원본 플래그 |
-| `payload` | `Uint8Array` | 헤더를 제외한 원본 payload 바이트 |
-| `text` | `string` | payload를 UTF-8로 디코딩한 문자열 |
-| `fields` | `readonly string[]` | 첫 form feed(`0x0c`)까지의 접두부를 제외하고 나눈 필드 배열. 구분자가 없으면 `text` 전체가 한 필드 |
-
-아래 색인에서 `object` 또는 `JSON`으로 표시한 opcode는 `data`에 구조화한 필드 또는 원본 JSON 객체를 제공합니다. 그 밖의 known opcode와 `unknown` 이벤트는 다음 형태로 원본 필드만 제공합니다.
+| 이벤트 | 데이터 타입 | 사용할 때 | 중요한 주의사항 |
+|---|---|---|---|
+| `chatMessage` | `ChatMessageData` | 일반 채팅 메시지 | `senderStatus`의 권한은 서로 독립적 |
+| `chatUser` | `ChatUserData` | 사용자 입장·퇴장 | 입장은 여러 사용자의 batch일 수 있음 |
+| `sendBalloon` | `BalloonData` | 별풍선 후원 | `fanOrder`는 고유 ID나 정렬 키가 아님 |
+| `followItem` | `FollowItemData` | 구독 세리머니 | 결제나 신규 구독 발생 이벤트가 아님 |
+| `sendSubscription` | `GiftSubscriptionData` | 수신자별 구독 선물 | 전체 선물 개수를 뜻하지 않음 |
+| `mission` | `MissionData` | 도전·대결미션 | `missionKind`와 `action`으로 먼저 분기 |
+| `closeBroad` | `FieldEventData` | 명시적 방송 종료 | 이어서 `ended`가 발생하고 재연결하지 않음 |
 
 ```ts
-interface FieldEventData {
-  fields: readonly string[];
-}
+chat.on("chatMessage", ({ data }) => {
+  console.log(data.senderNickname, data.message);
+});
+
+chat.on("sendBalloon", ({ data }) => {
+  console.log(data.senderNickname, data.count);
+});
 ```
 
-필드 의미를 확인하지 못한 경우에는 이름을 추측하지 않습니다. 문자열 필드는 빈 문자열일 수 있고, 원본 숫자·플래그의 열거 의미가 확인되지 않은 경우 아래 표에 따로 표시합니다. `raw`와 `data.fields`에는 사용자 ID, 닉네임, 메시지 등 개인정보가 포함될 수 있습니다.
+연결 상태, 재연결과 오류 이벤트는 README의 [연결과 오류 처리](../README.md#연결과-오류-처리)를 참고하세요.
 
-서버가 보내는 사용자 ID에는 기본 ID 뒤에 `(2)`처럼 `(<숫자>)` 형태의 접미사가 붙을 수 있습니다. 발생 조건과 동일성 규칙은 확인되지 않았으므로 라이브러리는 접미사를 제거하지 않고 원본 문자열을 제공합니다. 관찰 범위는 [프로토콜 조사 노트](protocol.md#사용자-id-접미사)에 기록합니다.
+## 공통 이벤트 계약
+
+알려진 프로토콜 이벤트는 `KnownSoopEvent`, 미래 opcode는 `UnknownSoopEvent`입니다. 모든 이벤트는 `type`, `opcode`, `receivedAt`, 원본 `raw`와 이벤트별 `data`를 제공합니다.
+
+- `raw: RawPacket`은 header 정보, 원본 payload byte, UTF-8 text와 분리된 field를 보존합니다.
+- 의미를 확정하지 못한 known opcode는 `data: FieldEventData`로 원본 field만 제공합니다.
+- 내부 schema가 안정되지 않은 JSON은 `JsonObjectData`의 원본 객체로 제공합니다.
+- 카탈로그에 없는 opcode는 `unknown` 이벤트로 손실 없이 전달합니다.
+
+`raw`와 미해석 field에는 사용자 ID·닉네임·메시지 등 개인정보가 있을 수 있습니다. 명시적인 보관 정책 없이 로그나 파일에 저장하지 마세요.
 
 ## 사용자 상태
 
-사용자 원본 플래그가 있는 이벤트는 공식 플레이어와 SOOP Chat SDK의 판정을 `UserStatus`로 제공합니다. 각 권한은 동시에 설정될 수 있으므로 하나의 역할로 축약하지 않습니다.
+원본 사용자 flag가 있는 이벤트는 `UserStatus`를 함께 제공합니다. 정확한 비트와 필드 목록은 타입 정의가 기준입니다.
 
-| 필드 | 근거 비트 | 의미 |
-|---|---|---|
-| `flag1`, `flag2` | 원본 복합 플래그 | 공식 주·보조 플래그 숫자 |
-| `isAdmin` | `flag1 & 1` | 운영자 플래그 |
-| `isBJ` | `flag1 & 4` | 방송인 플래그 |
-| `isGuest` | `flag1 & 16` | 공식 `GUEST` 플래그 |
-| `isFan` | `flag1 & 32` | 팬클럽 플래그 |
-| `isFixedManager` | `flag1 & 64` | 플레이어 UI의 `fixedManager` 플래그 |
-| `isManager` | `flag1 & 256` | 매니저 플래그 |
-| `isFemale` | `flag1 & 512` | 여성 플래그 |
-| `isMobile` | `flag1 & 16384` | 모바일 접속 플래그 |
-| `isTopFan` | `flag1 & 32768` | 열혈팬 플래그 |
-| `isWhisperAllowed` | `flag1 & 2^17 === 0` | 공식 `NODIRECT` 비트가 없는 귓속말 허용 상태 |
-| `hasAppliedQuickview` | `flag1 & 2^19` | 퀵뷰 적용 여부 |
-| `isSupporter` | `flag1 & 2^20` | 서포터 플래그 |
-| `isAtagAllow` | `flag2 & 32` | 공식 `ATAG_ALLOW` 플래그 |
-| `isEmployee` | `flag2 & 1024` | 공식 `EMPLOYEE` 플래그 |
-| `isCleanAti` | `flag2 & 2048` | 공식 `CLEANATI` 플래그 |
-| `isEmployeeAdminChat` | `flag2 & 8192` | 공식 `ADMINCHAT` 플래그 |
-| `isFollower` | `flag2 & (2^18 \| 2^19 \| 2^20)` | 구독자 여부 |
-| `followerTier` | `FOLLOW_TIER1/2/3` | 구독 티어 `1/2/3`. 비구독자는 `0` |
-| `isHideSex` | `flag2 & 2^25` | 플레이어 UI의 성별 숨김 플래그 |
-
-`login.userStatus`, `joinChannel.userStatus`, `chatUser`의 사용자별 `userStatus`, `setNickname.userStatus`, `setSubBj.userStatus`, `adminChatUser`의 사용자별 `userStatus`, `setAdminFlag.userStatus`, `nightbotTimeout.userStatus`에서 사용합니다. 발신자 플래그는 `chatMessage.senderStatus`, `directChat.senderStatus`, `managerChat.senderStatus`, `ogqEmoticon.senderStatus`로, 강퇴 명령자는 `kickUserList.users[].commanderStatus`로 제공합니다. `setUserFlag`는 변경 후 `userStatus`와 변경 전 `previousUserStatus`를 모두 제공합니다.
-
-비트 판정과 구독플러스 방송 대조 근거는 [프로토콜 조사 노트](protocol.md#채팅금지와-강퇴)와 [인증 연결](protocol.md#구독플러스-방)에 기록합니다. `followerTier`만으로 일반 방송의 접근 권한을 추정하지 마세요.
+- 권한 bit는 동시에 설정될 수 있으므로 사용자를 하나의 역할로 축약하지 않습니다.
+- `followerTier`는 사용자 구독 상태이지 일반 방송의 접근 권한 판정값이 아닙니다.
+- 퇴장 `chatUser.userStatus`에는 최신 상태 bit가 생략될 수 있으므로 상태 변경이나 최신 snapshot으로 사용하지 않습니다.
+- 서버 사용자 ID의 숫자 접미사는 발생 조건과 동일성 규칙이 미확인입니다. 접미사를 제거하거나 같은 사용자로 합치지 마세요.
 
 ## 근거 수준
 
-| 값 | 의미 |
-|---|---|
-| `observed` | 실방송 네트워크 패킷에서 직접 관찰했으며, 정밀 의미는 가능한 경우 화면과 대조 |
-| `player` | 조사 당시 공식 SOOP 플레이어 코드에서 필드 순서나 동작을 확인 |
-| `reference` | 참고 라이브러리의 디코더에서만 확인했으며 현재 실방송 표본은 없음 |
-| `runtime` | 카탈로그에 없는 opcode를 실행 중 `unknown`으로 보존 |
+- `observed`: 실방송 packet에서 직접 확인
+- `player`: 조사 당시 공식 플레이어 코드에서 확인
+- `reference`: 참고 구현에서만 확인
+- `runtime`: 카탈로그에 없는 opcode의 문서상 fallback 표시
 
-`EventProvenance` 타입은 카탈로그에 저장되는 `observed`, `player`, `reference`만 포함합니다. `runtime`은 아래 색인에서 `unknown` fallback을 표시하기 위한 문서 표기입니다.
+`EventProvenance` 타입에는 카탈로그 값인 `observed`, `player`, `reference`만 포함됩니다. provenance는 필드 정확성의 등급이 아니라 이벤트 정의를 뒷받침하는 근거 출처입니다.
 
-이벤트 타입은 공식 플레이어의 `SVC_*` 이름을 기준으로 lower camel case로 정규화합니다. 필드명은 `bjID`·`bjId`·`bj_id`를 `streamerId`, `bj_nickname`·`bj_nick`을 `streamerNickname`, `sendNick`을 `senderNickname`으로 바꾸는 것처럼 역할이 분명한 영어 이름을 사용합니다. SOOP 고유 용어가 더 정확한 `fanOrder`, `personalcon` 등은 원래 용어를 유지합니다.
+## 이벤트별 의미와 주의사항
+
+### 채팅과 사용자
+
+`chatMessage`는 일반 채팅이며 타입은 `ChatMessageData`입니다. `messageType`과 `chatLanguage`는 열거 의미를 확정하지 않은 원본 숫자입니다.
+
+`chatUser`는 `action`으로 입장과 퇴장을 구분합니다. 입장일 때는 `users` 배열 전체를 처리하세요. 퇴장의 `quitFlag === 1`만 일반 퇴장이며 그 밖의 값은 `isKicked=true`입니다. 다른 사용자의 강퇴는 이 이벤트, 현재 클라이언트 자신의 강퇴는 `quitChannel`에서 확인합니다. `etcInfo`의 의미는 확정하지 않았습니다.
+
+`managerChat`, `directChat`, `ogqEmoticon`은 일반 채팅과 별도 이벤트입니다. 모든 채팅을 받으려면 필요한 종류를 각각 구독하거나 공통 `event` 스트림에서 분기하세요.
+
+### 후원
+
+`sendBalloon`은 별풍선 후원이며 타입은 `BalloonData`입니다.
+
+- `fanOrder`는 중복·건너뜀·수신 순서 역전이 있을 수 있습니다. 고유 ID, 정렬 또는 중복 제거에 사용하지 마세요.
+- `isDefault=false`만으로 시그니처 풍선이라고 판단하지 마세요. 라이브러리가 제공하는 `isSignatureBalloon`을 사용하세요.
+- `isSignatureBalloon=false`도 특정 풍선 종류를 단정하는 값이 아닙니다.
+- `ttsData`는 메시지 존재나 실제 음성 재생 여부를 뜻하지 않습니다.
+
+`sendFanLetter`와 `sendFanLetterSub`는 공식 opcode 이름을 유지하지만 현재 제품에서는 스티커 후원으로 표시됩니다. `supporterOrder > 0`은 신규 서포터 가입과 함께 올 수 있지만 순번을 이벤트 ID로 사용하지 마세요.
+
+`adconEffect`의 `isSubRoom`은 플레이어의 서브 채널 flag이며 구독플러스 방 여부가 아닙니다. `videoBalloon`은 후원 사실을 나타낼 뿐 영상의 재생 여부나 시점을 뜻하지 않습니다. `vodBalloon`은 방송 밖에서 VOD에 받은 별풍선을 다음 라이브 입장 시 합계로 알립니다.
+
+후원 이벤트에서 플레이어가 생성하는 지역화 문구나 화면 상태를 별도 데이터로 추론하지 마세요.
+
+### 구독과 선물
+
+`followItem`과 `followItemEffect`는 구독자가 방송 입장 뒤 보내는 세리머니입니다. 결제 시각, 신규·재구독 여부 또는 구독 상태 변경을 판정하지 마세요. `followItemEffect.month`는 화면의 연속 구독 개월이고 `subscriptionProduct.month`는 상품 기간이므로 서로 바꾸어 쓰지 않습니다.
+
+`subscriptionProduct`는 공식 상품표에 연결한 메타데이터이며 일치하지 않으면 `null`입니다. 내부 `isGift`, `isCeremony`, `isTrial` flag 하나만으로 현재 이벤트의 취득 경로나 상태 변경을 판정하지 마세요. 원본 `itemType`은 항상 보존됩니다.
+
+`sendSubscription`과 `copySendSub`는 수신자별 이벤트입니다. 같은 내용도 별도 선물일 수 있으므로 묶거나 중복 제거하지 않습니다. `copySendSub`는 선물 수령 알림이고, `copySendQuick`은 field 의미가 확인되지 않아 원본만 제공합니다.
+
+`subRandomCeremony`와 `quickRandomCeremony`는 랜덤 선물의 발신자와 전체 개수를 알립니다. 수신자 목록이나 개별 지급 이벤트를 연결하는 key가 없으므로 `sendSubscription`, `sendQuickView`, `copySendSub`와 합산하거나 같은 선물로 묶지 마세요.
+
+### 미션
+
+`mission`은 `MissionData` 판별 union입니다. 먼저 `missionKind`가 `challenge`, `battle`, `unknown` 중 무엇인지 확인하고, 이어서 `action`이 `gift`, `notice`, `settle` 중 무엇인지 분기하세요. 미확인 원본 JSON은 `payload`에 보존됩니다.
+
+| 원본 `type` | `missionKind` | `action` |
+|---|---|---|
+| `CHALLENGE_GIFT` | `challenge` | `gift` |
+| `CHALLENGE_NOTICE` | `challenge` | `notice` |
+| `CHALLENGE_SETTLE` | `challenge` | `settle` |
+| `GIFT` | `battle` | `gift` |
+| `NOTICE` | `battle` | `notice` |
+| `SETTLE` | `battle` | `settle` |
+| 그 밖의 값 | `unknown` | `unknown` |
+
+`missionKey`는 같은 미션의 후원·결과·정산을 연결하지만, 개별 알림의 `uuid`는 서로 다를 수 있습니다. 앞선 후원 이벤트를 받지 못한 채 결과나 정산만 받을 수도 있습니다.
+
+- `gift`는 후원 알림이지 수락·시작 완료를 뜻하지 않습니다.
+- 결과가 오지 않았다고 거절이나 timeout을 합성하지 마세요.
+- 대결미션 `draw=true`이면 무승부입니다.
+- `settleCount`는 이 채널에서 본 `giftCount` 합계와 다를 수 있습니다.
+- `missionSettle.fanOrder`는 참여자의 `becameFanClub`이 참일 때만 가입 순번으로 사용합니다.
+
+### 상태와 moderation
+
+`closeBroad`는 명시적 방송 종료입니다. 라이브러리는 이를 전달한 뒤 `ended: { reason: "offline" }`을 발생시키고 자동 재연결하지 않습니다. `setBjStat.status`는 방송 중에도 올 수 있는 미확인 원본 숫자이므로 종료·대기·화면 상태로 해석하지 마세요.
+
+`setDumb`는 채팅금지 대상, 초 단위 지속 시간, 누적 횟수와 명령 주체를 제공합니다. 화면 문구는 플레이어가 생성하므로 이벤트 데이터로 합성하지 않습니다.
+
+`setSubBj.hidden`은 매니저 지정·해임 안내를 숨기는 값이지 사용자, badge 또는 권한을 숨기는 값이 아닙니다. `isManager`와 `isFixedManager`도 독립적으로 다룹니다.
+
+`iceModeEx`는 채팅창 얼음 여부와 허용 역할·제한 수치를 제공합니다. 제한 수치만 바뀔 수 있으므로 얼음 여부와 조건 변경을 구분하고, 방송 종료나 대기 상태로 해석하지 마세요. 구형 `iceMode`는 원본 field만 제공합니다.
+
+`notifyPoll`에는 표시 상태만 있으며 질문, 선택지와 득표수는 없습니다. `banWord`는 목록과 대체 문자열을 제공하지만 공백·대소문자·정확 일치 규칙은 확정하지 않았습니다.
+
+### 사용자 메타데이터와 미디어
+
+`chuserExtend`는 입장 시점의 구독·퍼스널콘 메타데이터 batch입니다. `users` 배열 전체를 처리하고, 구독 변경 뒤 자동 갱신되는 최신 상태로 간주하지 마세요. 누락되거나 잘못된 숫자는 `null`, 서버의 `-1`은 원본 의미를 확정하지 않고 유지합니다.
+
+`ogqEmoticon`은 이미지 단독 또는 이미지와 text가 함께 있는 채팅입니다. `extension="png"`만으로 정지 이미지라고 판단하지 말고 `animation` 원본 값도 확인하세요. 알려지지 않은 animation 값이나 실제 파일 형식은 추측하지 않습니다.
+
+`adInBroadJson`, `liveCaption`, `subtitleV2`는 내부 schema를 안정된 공개 타입으로 만들지 않고 검증한 JSON 객체를 보존합니다. 앱에서 사용할 때도 존재 여부와 타입을 직접 확인하세요.
+
+정확한 데이터 shape는 [`src/events.ts`](../src/events.ts)의 해당 타입을 참고하세요.
 
 ## 전체 이벤트 색인
 
-`data`가 `fields`인 이벤트는 현재 `data.fields`만 제공합니다. `object`는 아래의 이벤트별 필드 표를, `JSON`은 파싱한 원본 JSON 객체를 제공합니다.
+이 색인은 `EVENT_CATALOG`와 decoder 결과를 테스트에서 자동 대조합니다. `fields`는 미해석 원본 field, `object`는 typed data, `JSON`은 검증한 원본 JSON 객체를 뜻합니다.
 
 | Opcode | Event type | 의미 | `data` | 근거 |
 |---|---|---|---|---|
@@ -194,752 +248,3 @@ interface FieldEventData {
 | `0144` | `copySendSub` | 구독 선물 수령 알림 | object | player |
 | `0145` | `copySendQuick` | 퀵뷰 복사 알림 원본 | fields | player |
 | future | `unknown` | 카탈로그에 없는 네 자리 opcode | fields | runtime |
-
-`0088 closeBroad`는 `data.fields`만 제공하지만 동작은 특별합니다. 라이브러리는 이벤트를 먼저 전달하고 `ended: { reason: "offline" }`을 한 번 발생시킨 뒤, 소켓을 정상 종료하며 재연결하지 않습니다.
-
-## 구조화된 이벤트
-
-### 연결 응답 (`0001`, `0002`, `0003`)
-
-| 이벤트 | 공개 필드 |
-|---|---|
-| `login` (`0001`) | `userId: string`, `userFlag: string`, `userStatus: UserStatus` |
-| `joinChannel` (`0002`) | `chatNo: string`, `streamerId: string`, `maxManagerCount: number`, `familyNickname: string`, `familyNicknamePosition: number`, `userFlag: string`, `userStatus: UserStatus` |
-| `quitChannel` (`0003`) | `kickType: number`, `actor: "streamer" \| "manager" \| "admin" \| "unknown"`, `adminKickCount: number`, `adminNickname: string`, `bannedRoomStreamerId: string`, `bannedRoomStreamerNickname: string` |
-
-`quitChannel`은 현재 시청자 자신이 채널에서 강제 퇴장될 때 공식 플레이어가 종료 사유를 만드는 패킷입니다. 다른 사용자의 강퇴 알림은 `chatUser`의 `isKicked`로 구분합니다.
-
-### `chatUser` (`0004`)
-
-채팅 사용자 입장과 퇴장을 `action`으로 구분합니다. 입장은 한 패킷에 여러 사용자가 들어올 수 있습니다.
-
-```ts
-type ChatUserData =
-  | {
-      action: "join";
-      users: readonly {
-        userId: string;
-        nickname: string;
-        userFlag: string;
-        userStatus: UserStatus;
-      }[];
-    }
-  | {
-      action: "leave";
-      userId: string;
-      nickname: string;
-      quitFlag: number;
-      etcInfo: string;
-      /** 퇴장 패킷의 원본 플래그이며 최신 사용자 상태 비트가 생략될 수 있습니다. */
-      userFlag: string;
-      /** 퇴장 패킷의 플래그 판정이며 최신 사용자 상태 스냅샷이 아닙니다. */
-      userStatus: UserStatus;
-      isKicked: boolean;
-    };
-```
-
-공식 플레이어와 동일하게 `quitFlag === 1`만 정상 퇴장으로 보고, 그 밖의 값은 `isKicked: true`로 제공합니다. 플레이어는 강퇴된 사용자의 `quitFlag`를 화면 문구를 고르는 `kickType`으로 사용합니다. `3`은 채팅금지 횟수 초과, `4`는 무분별한 도배, `5`는 블라인드 상태 이탈이며 그 밖의 값은 일반 강제퇴장 문구를 생성합니다. `etcInfo`의 의미는 확정하지 않았으므로 패킷을 묶거나 제거하지 않습니다. 퇴장 패킷의 `userFlag`에는 최근 입장·채팅에서 확인한 구독 등 상태 비트가 생략될 수 있으므로 `userStatus`를 최신 상태나 상태 변경으로 해석하지 마세요. 관찰 근거는 [프로토콜 조사 노트](protocol.md#채팅금지와-강퇴)를 참고하세요.
-
-### `chatMessage` (`0005`)
-
-일반 채팅 메시지입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `message` | `string` | 공식 플레이어와 같이 캐리지 리턴을 제거한 채팅 본문 |
-| `senderId` | `string` | 발신자 ID |
-| `color` | `string` | 원본 BGR 정수를 변환한 CSS `#RRGGBB` 색상. 값이 없으면 빈 문자열 |
-| `messageType` | `number` | 플레이어의 원본 메시지 종류 값. 전체 열거 의미는 아직 확정하지 않음 |
-| `chatLanguage` | `number` | 플레이어의 원본 채팅 언어 값 |
-| `senderNickname` | `string` | 발신자 닉네임 |
-| `senderFlag` | `string` | 사용자 상태를 나타내는 원본 복합 플래그 |
-| `senderStatus` | `UserStatus` | `senderFlag`를 공식 플레이어 비트로 판정한 발신자 상태 |
-| `subscriptionMonth` | `string` | SOOP이 계산한 연속 구독 개월 원본 값 |
-| `nicknameColor` | `string` | 밝은 테마용 닉네임 색상. 없으면 빈 문자열 |
-| `nicknameColorDark` | `string` | 어두운 테마용 닉네임 색상. 없으면 빈 문자열 |
-| `accumulatedSubscriptionMonth` | `string` | 누적 구독 개월 원본 값 |
-| `representativePersonalconMonth` | `string` | 대표 구독 퍼스널콘 선택에 사용하는 원본 개월 값 |
-| `cheerTeamNumber` | `number` | 응원팀 번호. 필드가 없으면 `-1` |
-
-### `setBjStat` (`0007`)
-
-공식 이름이 `SVC_SETBJSTAT`인 방송인 상태 이벤트입니다. 최신 공식 플레이어의 수신 분기는 `SVC_SETCHNAME`과 함께 아무 처리 없이 종료됩니다. `status`의 세부 의미는 확정되지 않았고 실제 방송 중에도 반복되므로 방송 대기, 영상 송출, 화면 또는 종료 상태로 해석하면 안 됩니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `status` | `number` | 방송인 상태 원본 값. `0`과 `1`의 세부 의미는 확정하지 않음 |
-
-명시적인 방송 종료만 `0088 closeBroad`로 판단합니다. 자세한 대조 결과는 [방송 종료 조사](protocol.md#방송-종료)를 참고하세요.
-
-### `setDumb` (`0008`)
-
-채팅 음소거 설정입니다. `commanderType=1`은 방송인, `2`는 매니저입니다. 필드 판정 근거는 [프로토콜 조사 노트](protocol.md#채팅금지와-강퇴)를 참고하세요.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `targetId` | `string` | 대상 사용자 ID |
-| `targetNickname` | `string` | 대상 사용자 닉네임 |
-| `durationSeconds` | `number` | 채팅금지 시간(초) |
-| `muteCount` | `number` | 누적 채팅금지 횟수 |
-| `commanderId` | `string` | 채팅금지를 적용한 방송인 또는 매니저의 SOOP ID |
-| `commanderType` | `number` | 명령 주체 원본 값. `1`은 방송인, `2`는 매니저 |
-| `commanderRole` | `"streamer" \| "manager" \| "unknown"` | `commanderType`을 정규화한 역할 |
-| `commanderLabel` | `string` | 플레이어가 역할 문구 대신 사용할 수 있는 원본 표시값. 관찰 표본에서는 빈 문자열 |
-
-공식 플레이어는 `muteCount`가 방의 최대 제재 횟수보다 작으면 `dumb` 안내를 만들고, 채팅창이 열려 있을 때 “대상 닉네임님이 채팅금지 N회가 되었습니다.”를 표시합니다. 대상이 현재 사용자이면 명령 주체와 `durationSeconds`를 사용한 별도 알림도 표시합니다. 최대 횟수에 도달하면 일반 안내 대신 블라인드 처리로 분기합니다. 이 문구들은 플레이어가 생성하므로 이벤트 필드로 합성하지 않습니다.
-
-### `setUserFlag` (`0012`)
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `userId` | `string` | 대상 사용자 ID |
-| `nickname` | `string` | 대상 사용자 닉네임 |
-| `userFlag` | `string` | 변경 후 원본 복합 플래그 |
-| `previousUserFlag` | `string` | 변경 전 원본 복합 플래그 |
-| `userStatus`, `previousUserStatus` | `UserStatus` | 변경 후·전 원본 플래그의 전체 공식 상태 판정 |
-
-### `setSubBj` (`0013`)
-
-사용자의 매니저 상태를 설정합니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `userId` | `string` | 대상 사용자 ID |
-| `userFlag` | `string` | 대상 사용자의 원본 복합 플래그 |
-| `nickname` | `string` | 대상 사용자 닉네임 |
-| `hide` | `number` | 매니저 지정·해임 안내의 숨김 원본 숫자 |
-| `hidden` | `boolean` | `hide === 1`. 사용자나 매니저 배지의 숨김 여부가 아님 |
-| `userStatus` | `UserStatus` | 원본 플래그의 전체 공식 상태 판정 |
-
-공식 플레이어는 채팅창이 열려 있고 `hidden=false`이면 `userStatus.isManager`에 따라 매니저 지정 또는 해임 안내를 표시합니다. 지정 시 “대상 닉네임님이 매니저가 되셨습니다.”를 생성하며, `isFixedManager`는 이 표시 조건에 사용하지 않습니다. 일반 입퇴장 메시지 표시 옵션과는 별도 조건이고 `hidden`은 권한 변경에 영향을 주지 않습니다. 안내 문구는 플레이어가 생성하므로 별도 메시지 필드로 합성하지 않습니다.
-
-실방송에서는 일반 사용자의 매니저 지정과 고정 매니저 입장 직후의 매니저 비트 추가를 확인했고, 이후 고정 매니저의 채팅에 배지가 표시됐습니다. `observed`는 이 상태·배지 대조 근거이며, 지정·해임 안내 조건은 공식 플레이어 코드 근거입니다. 플레이어가 만든 안내는 다시보기 채팅에 남지 않을 수 있습니다. [매니저 상태와 안내 조사](protocol.md#매니저-상태와-안내)를 참고하세요.
-
-### `setNickname` (`0014`)
-
-닉네임 변경 이벤트입니다. `changeType`의 열거 의미와 별도 안내 여부는 확정하지 않았습니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `userId` | `string` | 대상 사용자 ID |
-| `newNickname` | `string` | 변경 후 닉네임 |
-| `oldNickname` | `string` | 변경 전 닉네임 |
-| `changeType` | `number` | 닉네임 변경 종류의 원본 값. 빈 필드는 `0` |
-| `userFlag` | `string` | 대상 사용자의 원본 복합 플래그 |
-| `userStatus` | `UserStatus` | 원본 플래그의 전체 공식 상태 판정 |
-
-### `sendBalloon` (`0018`)
-
-별풍선 후원 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `streamerId` | `string` | 후원을 받은 방송인 ID |
-| `senderId` | `string` | 후원자 ID |
-| `senderNickname` | `string` | 후원자 닉네임 |
-| `count` | `number` | 후원한 별풍선 개수 |
-| `fanOrder` | `number` | 신규 팬클럽 가입 순번에 사용하는 값 |
-| `becameFanClub` | `boolean` | `fanOrder > 0`이며 팬클럽 가입 문구가 표시되는지 여부 |
-| `fileName` | `string` | 효과 리소스의 원본 파일 이름 |
-| `isDefault` | `boolean` | 기본 효과 리소스 사용 여부 |
-| `isSignatureBalloon` | `boolean` | 공식 플레이어의 파일명 규칙으로 판정한 스트리머 시그니처 별풍선 여부 |
-| `topFanLevel` | `number` | 열혈팬 관련 원본 단계 값. 실방송에서 `1`은 열혈팬 가입 문구와 일치 |
-| `becameTopFan` | `boolean` | `topFanLevel === 1`이며 열혈팬 가입 문구가 표시되는지 여부 |
-| `ttsData` | `string` | TTS 목소리 선택 관련 원본 데이터 |
-| `senderLanguage` | `string` | 후원자 언어 관련 원본 값 |
-| `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
-| `relay` | `boolean` | 일반 채널은 `false`, 서브 채널 `sendBalloonSub`은 `true` |
-
-`fanOrder`는 중복·건너뜀·수신 순서 역전이 있을 수 있는 서버 원본 값입니다. 고유 식별자나 이벤트 정렬·중복 제거 기준으로 사용하지 않습니다. 후원 수단별 가입 판정과 관찰 근거는 [팬클럽 가입과 순번](protocol.md#팬클럽-가입과-순번)을 참고하세요.
-
-`isDefault=false`와 비어 있지 않은 `fileName`만으로 스트리머가 설정한 시그니처 별풍선이라고 판단하지 않습니다. 공식 플레이어처럼 방송인 ID가 `fileName`에 포함된 경우만 `isSignatureBalloon=true`로 제공합니다. 이 규칙은 서로 다른 방송의 152개·154개·195개·452개·584개·1,004개·2,894개 시그니처 풍선과 화면에서 일치했습니다. 시그니처 개수와 이미지는 스트리머별 설정이며 아예 없을 수도 있으므로 개수만으로 분류하지 않습니다. SOOP 제공 스타즈 별풍선 3개·10개·33개·100개·200개·300개·500개·1,000개는 `isDefault=false`이면서 `isSignatureBalloon=false`였습니다. 이벤트 풍선 등 다른 리소스도 있을 수 있으므로 `isSignatureBalloon=false`만으로 스타즈라고 단정하지 않습니다. `ttsData`가 빈 표본은 기본 목소리, 값이 있는 표본은 다른 목소리와 대조됐지만 값의 유무는 후원 메시지 포함이나 실제 음성 재생 여부를 뜻하지 않습니다. [별풍선 관찰 근거](protocol.md#별풍선-관찰-검증)를 참고하세요.
-
-### `sendFanLetter` (`0020`), `sendFanLetterSub` (`0034`)
-
-공개 이벤트명은 공식 opcode `SVC_SENDFANLETTER`와 `SVC_SENDFANLETTER_SUB`를 따르지만 현재 화면에서는 스티커로 표시됩니다. 일반 채널의 `sendFanLetter`는 `relay=false`, 서브 채널의 `sendFanLetterSub`는 `relay=true`입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `streamerId` | `string` | 스티커를 받은 방송인 ID |
-| `streamerNickname` | `string` | 방송인 닉네임 |
-| `senderId` | `string` | 스티커를 보낸 사용자 ID |
-| `senderNickname` | `string` | 발신자 닉네임 |
-| `itemType` | `number` | 스티커 상품의 원본 종류 값 |
-| `count` | `number` | 보낸 스티커 개수 |
-| `supporterOrder` | `number` | 서포터 가입 순번. `0`이면 신규 가입 안내 없음 |
-| `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
-| `relay` | `boolean` | 일반 채널은 `false`, 서브 채널은 `true` |
-
-실방송에서 `itemType=702, count=20`과 `itemType=366, count=1`은 모두 화면의 “스티커 N개”와 일치했습니다. 후자의 `supporterOrder=65`는 뒤이은 서포터 가입 안내 및 `setUserFlag`의 `isSupporter: false → true`와도 일치했습니다. 같은 수량의 스티커 두 건을 다시보기와 대조했을 때도 `supporterOrder > 0`인 건에만 가입 안내가 표시됐고, 안내 문구에는 순번 숫자가 노출되지 않았습니다.
-
-`sendFanLetterSub`는 아직 실방송 화면과 대조하지 않았습니다. 현재 근거 범위는 [프로토콜 조사 노트](protocol.md#추가로-구조화한-플레이어-이벤트)를 참고하세요.
-
-### `iceModeEx` (`0021`)
-
-채팅창 얼음 상태입니다. 화면 문구는 플레이어가 상태로부터 만드는 것이며 별도 메시지 필드가 아닙니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `frozen` | `boolean` | 채팅창 얼음 여부 |
-| `allowedRoleMask` | `number` | 얼음 상태에서도 채팅할 수 있는 역할 비트마스크 |
-| `allowedRoles` | `readonly IceModeRole[]` | 비트마스크를 해석한 역할 목록 |
-| `balloonLimitCount` | `number` | 팬클럽 채팅 참여 조건에 표시되는 별풍선 하한 |
-| `subscriptionLimitCount` | `number` | 플레이어가 사용하는 구독 제한 수치 |
-
-`IceModeRole`은 `"streamer" | "fanClub" | "supporter" | "topFan" | "subscriber" | "manager"`입니다. 각 비트는 차례대로 `16`, `32`, `64`, `128`, `256`, `512`입니다. 플레이어가 읽지 않는 원본 두 번째 필드는 이름을 붙이지 않고 `raw.fields`에만 보존합니다. 구형 `0019 iceMode`는 현재 플레이어에 처리 분기가 없어 계속 `data.fields`만 제공합니다.
-
-`allowedRoleMask=688`은 스트리머·팬클럽·열혈팬·매니저를 허용합니다. 실방송에서 `frozen=true`를 유지한 채 `balloonLimitCount`가 `10000`에서 `1`로 바뀌자 “등급 상세설정이 변경되었습니다.”와 함께 팬클럽 조건이 “10,000개↑”에서 “1개↑”로 바뀌었습니다. 얼음 여부와 참여 조건 변경을 구분하며, 얼음 상태를 방송 종료나 방송 대기로 해석하지 않습니다. 관찰 순서와 미확인 사항은 [채팅창 얼음 조사](protocol.md#채팅창-얼음)를 참고하세요.
-
-### `managerChat` (`0026`)
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `message` | `string` | 캐리지 리턴을 제거한 채팅 본문 |
-| `senderId` | `string` | 발신자 ID |
-| `isAdmin` | `boolean` | 운영자 채팅 여부 |
-| `nickname` | `string` | 발신자 닉네임 |
-| `userFlag` | `string` | 발신자의 원본 복합 플래그 |
-| `senderStatus` | `UserStatus` | 원본 플래그의 전체 공식 발신자 상태 판정 |
-| `subscriptionMonth` | `string` | SOOP이 계산한 연속 구독 개월 원본 값 |
-
-### `kickUserList` (`0077`)
-
-강제 퇴장된 사용자와 명령 주체의 목록입니다. `player` 근거이므로 실방송 화면과는 아직 대조하지 않았습니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `users` | `readonly KickUserListEntry[]` | 강제 퇴장 사용자 목록 |
-
-`KickUserListEntry`는 다음 필드를 제공합니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `userId` | `string` | 강제 퇴장된 사용자 ID |
-| `nickname` | `string` | 강제 퇴장된 사용자 닉네임 |
-| `time` | `string` | 서버가 전달한 시각 원본 문자열 |
-| `commanderId` | `string` | 명령 주체 ID |
-| `commanderNickname` | `string` | 명령 주체 닉네임 |
-| `commanderFlag` | `string` | 명령 주체의 원본 복합 플래그 |
-| `commanderStatus` | `UserStatus` | 명령 주체 플래그의 전체 공식 상태 판정 |
-
-### `adminChatUser` (`0078`)
-
-관리자 채팅 사용자 목록입니다. `state === 1`일 때 패킷에 포함된 사용자를 구조화하며 다른 `state` 값의 의미는 확인하지 않고 원본 숫자로 제공합니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `state` | `number` | 목록 상태 원본 값 |
-| `users` | `readonly AdminChatUserInfo[]` | 관리자 채팅 사용자 목록 |
-
-`AdminChatUserInfo`는 사용자 `userId`, `nickname`, 원본 `userFlag`와 이를 판정한 전체 `userStatus: UserStatus`를 제공합니다.
-
-### 플레이어에서 직접 확인한 기타 이벤트
-
-다음 이벤트도 공식 플레이어가 실제로 읽는 필드 순서만 구조화했습니다. 의미가 확정되지 않은 열거 값은 숫자나 문자열 원본을 유지합니다.
-
-| 이벤트 | 공개 필드 |
-|---|---|
-| `directChat` (`0009`) | `message`, `senderId`, `receiverId`, `senderNickname`, `receiverNickname`, `userFlag: string`, `senderStatus: UserStatus`, `messageType`, `chatLanguage: number`, `isAdmin: boolean` |
-| `slowMode` (`0023`) | `automaticSeconds: number`, `manualSeconds: number` |
-| `sendBalloonSub` (`0033`) | `sendBalloon`과 같은 필드. 서브 채널 필드 순서를 적용하고 `relay: true` 제공 |
-| `chocolate` (`0037`), `chocolateSub` (`0038`) | `streamerId`, `senderId`, `senderNickname: string`, `count: number`, `relay: boolean` |
-| `itemUsing` (`0047`) | `remainingSeconds: number`, 플레이어와 같은 `Math.round(seconds / 60)` 결과인 `remainingMinutes: number` |
-| `sendQuickView` (`0045`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `itemType: number`, `quickViewProduct: "quickView" \| "quickViewPlus" \| "unknown"`, `durationDays: number \| null` |
-| `notifyPoll` (`0050`) | `status`, `show: number`, `pollState: "started" \| "closed" \| "hidden" \| "unknown"`, `visible: boolean`, `streamerId: string`, `pollNo: number` |
-| `banWord` (`0054`) | `replacement: string`, `banWordList: readonly string[]`. 서버의 `0x06` 구분자로 목록을 분리하며 빈 목록은 `[]` |
-| `buyGoods` (`0070`), `buyGoodsSub` (`0071`) | `goodsType`, `count: number`, `streamerId`, `buyerId`, `buyerNickname`, `goodsName: string`, `relay: boolean` |
-| `notifyVr` (`0074`) | `action`, `vrType: number`, `streamerId`, `vrId`, `rtmpUrl`, `hlsUrl: string` |
-| `notifyMobBroadPause` (`0075`) | `state: number`, `action: "pause" \| "resume" \| "unknown"` |
-| `kickAndCancel` (`0076`) | `state: number`, `cancelled: boolean`, `userId`, `nickname: string` |
-| `kickMsgState` (`0090`) | `chatNo: number`, `hideKickMessage: boolean` |
-| `itemSellEffect` (`0092`) | `chatNo`, `count: number`, 방송인·발신자, 주·보조 메시지, 제목, 이미지·기본 이미지 URL |
-| `translation` (`0095`) | `messageIndex: number`, `mode: number`, `message: string`, `originalLanguage: number`, `translatedLanguage: number` |
-| `giftTicket` (`0102`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `ticketData: string` |
-| `vodAdcon` (`0103`) | `stationAdcon`과 같은 방송인·발신자·개수·이미지·제목·채팅방·언어·URL 보정 필드 |
-| `itemDrops` (`0111`) | `streamerId`, `name`, `message`, `imageUrl: string` |
-| `ogqEmoticonGift` (`0118`) | `senderId: string`, `senderNickname: string`, `receiverId: string`, `receiverNickname: string`, `title: string`, `imageUrl: string` |
-| `gemItemSend` (`0120`) | `receiverId: string`, `receiverNickname: string`, `itemName: string` |
-| `setAdminFlag` (`0126`) | `userFlag: string`, `userStatus: UserStatus` |
-
-`notifyPoll`은 원본 숫자를 유지하면서 확인된 상태를 `started`, `closed`, `hidden`으로 제공하고 `show !== 0`을 `visible`로 제공합니다. 질문·선택지·득표수는 채팅 WebSocket 패킷에 포함되지 않았습니다. 화면 대조와 나머지 이벤트의 관찰 근거는 [프로토콜 조사 노트](protocol.md#투표)와 [플레이어 이벤트 조사](protocol.md#추가로-구조화한-플레이어-이벤트)를 참고하세요.
-
-`adInBroadJson` (`0119`)은 첫 필드를 JSON 객체로 검증해 `{ payload: Readonly<Record<string, unknown>> }`로 제공합니다. 객체의 내부 필드는 안정적인 공개 스키마로 확인되지 않았으므로 더 세분화하지 않습니다.
-
-`sendQuickView`의 공식 상품 매핑은 일반 퀵뷰 `1/2/3`이 각각 `30/90/365`일, 퀵뷰 플러스 `100/101/102/103`이 각각 `7/30/90/365`일입니다. 표에 없는 값은 `quickViewProduct="unknown"`, `durationDays=null`로 두며 `itemType`은 보존합니다. 동일 내용도 실제 별도 선물일 수 있으므로 중복 제거하지 않습니다.
-
-### `chuserExtend` (`0127`)
-
-사용자별 구독·퍼스널콘 메타데이터입니다. 한 패킷에 여러 사용자가 들어올 수 있습니다.
-
-```ts
-interface ChatUserExtendData {
-  users: readonly {
-    userId: string;
-    representativePersonalconMonth: number | null;
-    subscriptionMonth: number | null;
-    accumulatedSubscriptionMonth: number | null;
-  }[];
-}
-```
-
-플레이어의 query-string 키 `p`, `fw`, `afw`를 위 필드로 정규화합니다. `subscriptionMonth`는 SOOP이 계산한 연속 구독 개월, `accumulatedSubscriptionMonth`는 누적 구독 개월입니다. 키가 없거나 숫자로 해석할 수 없으면 `null`이며, 서버가 보내는 `-1`은 의미를 추측하지 않고 그대로 유지합니다.
-
-`representativePersonalconMonth`는 대표 구독 퍼스널콘 선택값입니다. 공식 플레이어는 방송인의 양수 값을 베이직 구독 퍼스널콘 이미지에 사용하며 실방송 화면에서도 확인했습니다.
-
-이 이벤트는 입장 시점의 메타데이터이며 구독 변경 뒤 자동 갱신되지 않으므로 지속적인 최신 상태로 간주하지 마세요. 한 패킷에 여러 사용자가 들어올 수 있으므로 `users` 배열 전체를 처리해야 합니다. 관찰 통계는 [사용자 확장 메타데이터 조사](protocol.md#사용자-확장-메타데이터)를 참고하세요.
-
-### `sendAdminNotice` (`0058`)
-
-운영자 공지입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `message` | `string` | 운영자 공지 본문 |
-
-화면의 “SOOP 안내” 제목은 패킷이 아니라 플레이어 UI가 붙입니다. 관찰 근거는 [프로토콜 조사 노트](protocol.md#추가로-구조화한-플레이어-이벤트)를 참고하세요.
-
-### `vodBalloon` (`0086`)
-
-방송 밖에서 VOD에 받은 별풍선을 다음 라이브 입장 시 합계로 알리는 이벤트입니다. 관찰 근거는 [VOD 별풍선 조사](protocol.md#vod-별풍선)를 참고하세요.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `streamerId` | `string` | 후원을 받은 방송인 ID |
-| `senderId` | `string` | VOD 별풍선 후원자 ID |
-| `senderNickname` | `string` | 후원자 닉네임 |
-| `balloonCount` | `number` | 합산된 VOD 별풍선 개수 |
-| `fileName` | `string` | 효과 리소스의 원본 파일 이름 |
-| `isDefault` | `boolean` | 기본 효과 리소스 사용 여부 |
-| `isSignatureBalloon` | `boolean` | 공식 플레이어의 파일명 규칙으로 판정한 스트리머 시그니처 별풍선 여부 |
-| `chatNo` | `string` | 채팅방 번호 원본 문자열 |
-| `senderLanguage` | `string` | 후원자 언어 관련 원본 값 |
-| `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
-
-### `adconEffect` (`0087`)
-
-애드벌룬 효과 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `chatNo` | `number` | 채팅방 번호 |
-| `streamerId` | `string` | 방송인 ID |
-| `senderId` | `string` | 발신자 ID |
-| `senderNickname` | `string` | 발신자 닉네임 |
-| `message` | `string` | 주 메시지 |
-| `secondaryMessage` | `string` | 보조 메시지 |
-| `title` | `string` | 화면에 표시할 애드벌룬 출처·상품 제목. 값이 없을 수 있음 |
-| `imageUrl` | `string` | 효과 이미지 URL |
-| `defaultImageUrl` | `string` | 기본 효과 이미지 URL |
-| `count` | `number` | 전송 개수 |
-| `fanOrder` | `number` | 신규 팬클럽 순번. 신규 가입이 아니면 `0` |
-| `becameFanClub` | `boolean` | `fanOrder > 0`이며 팬클럽 가입 문구가 표시되는지 여부 |
-| `isTopFan` | `boolean` | 이번 애드벌룬으로 열혈팬 가입 문구가 표시되는지 여부 |
-| `isFanChief` | `boolean` | 팬클럽 회장 여부 |
-| `isSubRoom` | `boolean` | 플레이어의 서브 채널 원본 플래그. 구독플러스 방 여부가 아님 |
-| `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
-| `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
-
-최신 공식 플레이어의 공통 애드벌룬 모델은 `title !== "" && !fromVod && !fromChannel`일 때 라이브 커머스로 판정하고 `imageUrl`의 전용 이미지와 `title`을 표시합니다. `0087`의 `message`와 `secondaryMessage`는 모델에 보존되지만 현재 채팅 행에는 표시하지 않습니다.
-
-`isSubRoom`을 구독플러스 제한 여부로 사용하지 마세요. 팬클럽 순번과 화면 대조 근거는 [프로토콜 조사 노트](protocol.md#팬클럽-가입과-순번)에 기록합니다.
-
-### 구독 상품 메타데이터
-
-`followItem`, `followItemEffect`, `sendSubscription`, `subRandomCeremony`, `copySendSub`의 `subscriptionProduct`는 공식 플레이어의 내부 상품표를 연결한 값입니다. `followItem`·`followItemEffect`는 원본 값이 `itemType` 또는 `vodItemType`과 처음 일치하는 행을 사용하고, 선물·수령 알림은 `itemType`이 일치하고 `isGift=true`인 첫 행을 사용합니다. 일치하는 상품이 없으면 `null`이며 원본 값은 항상 별도로 보존됩니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `itemType` | `number` | 상품표의 종류 값 |
-| `vodItemType` | `number \| null` | VOD에서 사용하는 상품 종류 값. 없는 상품은 `null` |
-| `tier` | `1 \| 2` | 베이직 또는 플러스 티어 |
-| `subscriptionTier` | `"basic" \| "plus"` | 티어 의미 값 |
-| `level` | `1 \| 2 \| 3 \| 4 \| 5` | 플러스 상품 레벨. 베이직은 `1` |
-| `month` | `1 \| 3 \| 6 \| 12` | 상품 기간(개월) |
-| `isAutoPay` | `boolean` | 플레이어 상품표의 자동 결제 플래그 |
-| `isLegacy` | `boolean` | 구형 상품 여부 |
-| `isCeremony` | `boolean` | 플레이어 상품표의 세리머니 플래그 |
-| `isGift` | `boolean` | 플레이어 상품표의 `isGift` 원본 플래그. 현재 이벤트의 구매·선물 취득 경로를 뜻하지 않음 |
-| `isTrial` | `boolean` | 체험권 여부 |
-
-예를 들어 `sendSubscription`의 `itemType=11`은 다음 메타데이터로 연결됩니다.
-
-```ts
-{
-  itemType: 11,
-  vodItemType: null,
-  tier: 1,
-  subscriptionTier: "basic",
-  level: 1,
-  month: 1,
-  isAutoPay: false,
-  isLegacy: false,
-  isCeremony: false,
-  isGift: true,
-  isTrial: false,
-}
-```
-
-`isCeremony`, `isGift`, `isTrial`은 공식 상품표의 내부 플래그이며 `isGift` 하나만으로 다른 이벤트의 구매·선물 취득 경로를 판단하지 않습니다. 상품표와 실방송 대조 근거는 [구독과 미션 조사](protocol.md#구독과-미션)를 참고하세요.
-
-현재 상품표에서 `100/101/200/201`은 `isGift=false, isCeremony=true`, `111/211`은 둘 다 `true`, `11/20/21`은 `isGift=true, isCeremony=false`입니다. 구형 `itemType=1`은 `followItem` 문맥에서 첫 행의 3개월 상품으로, 선물 문맥에서는 첫 선물 행의 1개월 상품으로 연결됩니다. `isGift=false` 상품 번호를 선물 문맥으로 받으면 메타데이터는 `null`입니다.
-
-`level`도 해당 이벤트의 상품 번호를 조회한 값입니다. 실방송에서 레벨1 선물권 `0108 itemType=20`을 사용한 뒤 `0091 itemType=211`이 수신됐고, 상품표의 레벨은 각각 `1`과 `2`였습니다. 사용 완료 화면에는 레벨이 표시되지 않았으므로 실제 구독 레벨 변경을 추론하지 않습니다.
-
-### `followItem` (`0091`)
-
-구독자가 방송 입장 후 보내는 구독 세리머니입니다. 방송 중 구독 직후와 방송 밖에서 구독한 뒤 입장한 경우 모두 올 수 있으므로, 이 이벤트만으로 신규·재구독·기존 구독 여부나 구매 시각을 판정하지 않습니다. 구독플러스 방에서는 구독 전 입장이 불가능하므로 세리머니가 입장 뒤 오는 것이 정상입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `chatNo` | `number` | 채팅방 번호 |
-| `receiverId` | `string` | 구독을 받은 사용자 ID |
-| `senderId` | `string` | 구독한 사용자 ID |
-| `senderNickname` | `string` | 구독한 사용자 닉네임 |
-| `itemType` | `number` | 구독 상품의 원본 종류 값 |
-| `tier` | `number` | 원본 구독 티어. `1`은 베이직, `2`는 플러스 |
-| `subscriptionTier` | `"basic" \| "plus" \| "unknown"` | `tier`를 의미 값으로 정규화한 결과 |
-| `subscriptionProduct` | `SubscriptionProduct \| null` | 공식 UI의 첫 일치 규칙으로 연결한 상품 메타데이터 |
-| `subscriptionSource` | `"live" \| "vod" \| "unknown"` | VOD 상품 번호이면 `vod`, 일반 상품 번호이면 `live`, 상품표에 없으면 `unknown` |
-| `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
-| `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
-
-화면 이미지 문구는 패킷에 없으므로 라이브러리 데이터로 합성하지 않습니다. `subscriptionSource="live"`는 VOD 상품 번호가 아닌 일반 상품 번호라는 뜻이며 정확한 구매 화면까지 보장하지 않습니다. 실방송의 `itemType=203, tier=2`와 `itemType=206, tier=2`는 각각 플러스 구독 완료와 왼쪽 이미지의 “3개월 정기구독권”, “6개월 정기구독권”에 일치했습니다. `itemType=200, tier=2`는 같은 플러스 구독 문구가 표시됐지만 자동결제 1개월 상품답게 이미지에는 상품 기간 없이 “구독 감사합니다”만 표시됐습니다. `itemType=201, tier=2` 표본은 “플러스 구독하였습니다.”와 “1개월 정기구독권” 이미지에, `itemType=103, tier=1` 표본은 “베이직 구독하였습니다.”와 “3개월 정기구독권” 이미지에 일치했습니다.
-
-### `followItemEffect` (`0093`)
-
-`followItem`과 같은 구독 세리머니이지만 `month`를 사용해 “N개월째 구독 중” 문구를 표시합니다. 결제나 구독 상태 변경 이벤트가 아닙니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `streamerId` | `string` | 구독 대상 방송인 ID |
-| `senderId` | `string` | 구독자 ID |
-| `senderNickname` | `string` | 구독자 닉네임 |
-| `month` | `number` | 화면에 표시되는 “N개월째” 값 |
-| `chatNo` | `number` | 채팅방 번호 |
-| `itemType` | `number` | 구독 상품의 원본 종류 값 |
-| `accumulatedMonth` | `number` | `month`와 별도로 전달되는 누적 구독 개월 |
-| `tier` | `number` | 원본 구독 티어. `1`은 베이직, `2`는 플러스 |
-| `subscriptionTier` | `"basic" \| "plus" \| "unknown"` | `tier`를 의미 값으로 정규화한 결과 |
-| `subscriptionProduct` | `SubscriptionProduct \| null` | 공식 상품표의 첫 일치 규칙으로 연결한 상품 메타데이터 |
-| `senderLanguage` | `string` | 구독자 언어 관련 원본 값 |
-| `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
-
-화면의 “N개월째”는 `month`이고 `subscriptionProduct.month`는 상품 기간이므로 서로 다른 값입니다. 실방송의 `itemType=106`은 상품 기간이 6개월인 메타데이터와 연결되지만, `month=12`와 `month=3`인 두 표본은 화면에 각각 베이직 12개월째와 3개월째로 표시됐습니다. 커스텀 구독자 명칭은 별도 채널 설정에서 가져오므로 합성하지 않습니다.
-
-VOD 상품 번호 `itemType=9200`과 `9201`인 실방송 표본도 화면에는 각각 “플러스 3개월째 구독 중!”, “플러스 9개월째 구독 중!”만 표시됐습니다. 상품 번호만으로 연속 구독 문구에 “VOD에서”를 덧붙이지 않습니다.
-
-`itemType=9100, month=7, accumulatedMonth=13`인 베이직 표본도 화면에는 “베이직 7개월째 구독 중!”으로 표시됐고 “VOD에서” 문구는 없었습니다. 누적 개월과 상품 번호를 화면의 연속 구독 개월로 바꾸지 않습니다.
-
-추가 표본에서도 `itemType=103, month=23, accumulatedMonth=37`은 베이직 23개월째, `itemType=111, month=3, accumulatedMonth=5`는 베이직 3개월째로 표시됐습니다. 상품 기간·선물 플래그와 무관하게 화면의 개월 수는 `month`를 따릅니다.
-
-### `bjNotice` (`0104`)
-
-방송인이 설정한 공지입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `show` | `number` | 공지 표시 상태의 원본 숫자 값 |
-| `message` | `string` | 공지 본문 |
-
-같은 본문을 유지한 채 `show=1 → 0`으로 바뀐 표본이 있습니다. 해당 시점의 공지 숨김은 다시보기로 확인하지 못했으므로 실제 화면 대조 완료로 취급하지 않습니다.
-
-### `videoBalloon` (`0105`)
-
-영상풍선 후원 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `chatNo` | `string` | 채팅방 번호 원본 문자열 |
-| `streamerId` | `string` | 후원을 받은 방송인 ID |
-| `senderId` | `string` | 후원자 ID |
-| `senderNickname` | `string` | 후원자 닉네임 |
-| `balloonCount` | `number` | 별풍선 개수 |
-| `fanOrder` | `number` | 신규 팬클럽 순번. 신규 가입이 아니면 `0` |
-| `becameFanClub` | `boolean` | `fanOrder > 0`이며 팬클럽 가입 문구가 표시되는지 여부 |
-| `topFanLevel` | `number` | 열혈팬 관련 원본 단계 값 |
-| `relay` | `string` | 릴레이 관련 원본 값 |
-| `fileName` | `string` | 효과 리소스의 원본 파일 이름 |
-| `isDefault` | `boolean` | 기본 효과 리소스 사용 여부 |
-| `extraData` | `string` | 플레이어가 전달하는 추가 원본 데이터 |
-
-`extraData`는 공식 플레이어도 의미 있게 해석하지 않으므로 원문 문자열로 보존합니다. 실제 영상의 재생 여부와 시점은 스트리머의 선택이며 자동 재생 설정도 가능하므로, 이 이벤트는 후원 사실만 나타내고 재생 상태로 사용하지 않습니다. 관찰 근거는 [프로토콜 조사 노트](protocol.md#추가로-구조화한-플레이어-이벤트)를 참고하세요.
-
-### `stationAdcon` (`0107`)
-
-스테이션 애드벌룬 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `streamerId` | `string` | 방송인 ID |
-| `senderId` | `string` | 발신자 ID |
-| `senderNickname` | `string` | 발신자 닉네임 |
-| `count` | `number` | 전송 개수 |
-| `imageUrl` | `string` | 이미지 URL |
-| `title` | `string` | 제목 |
-| `chatNo` | `string` | 공식 플레이어가 전달하는 채팅방 번호 원본 문자열 |
-| `senderLanguage` | `string` | 발신자 언어 관련 원본 값 |
-| `urlModify` | `string` | 플레이어의 URL 보정용 원본 값 |
-
-패킷의 `title`에는 화면보다 긴 문장이 올 수 있으므로 지역화된 화면 문구를 합성하지 않고 원문 그대로 제공합니다.
-
-### `sendSubscription` (`0108`)
-
-구독 선물 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `senderId` | `string` | 선물한 사용자 ID |
-| `senderNickname` | `string` | 선물한 사용자 닉네임 |
-| `receiverId` | `string` | 선물받은 사용자 ID |
-| `receiverNickname` | `string` | 선물받은 사용자 닉네임 |
-| `streamerId` | `string` | 구독 대상 방송인 ID |
-| `streamerNickname` | `string` | 구독 대상 방송인 닉네임 |
-| `itemType` | `number` | 구독 상품의 원본 종류 값. 관찰된 `11`은 베이직 1개월, `20`은 플러스 레벨1 1개월 선물권 |
-| `subscriptionProduct` | `SubscriptionProduct \| null` | 선물 문맥으로 연결한 공식 상품 메타데이터 |
-| `itemCode` | `string` | 구독 상품 코드 |
-| `isSubscription` | `number` | 구독 여부의 원본 숫자 플래그 |
-| `subscriptionType` | `string` | 구독 유형 원본 값 |
-| `subscriptionPeriod` | `string` | 구독 기간 원본 값 |
-| `subscriptionRemain` | `number` | 구독 잔여 관련 원본 값 |
-| `subscriptionPayCount` | `number` | 구독 결제 횟수 관련 원본 값 |
-
-패킷 하나에는 전체 선물 개수가 없으므로 수신자별 이벤트를 묶거나 동일 내용이라는 이유로 제거하지 않습니다. 관찰 근거는 [구독과 미션 조사](protocol.md#구독과-미션)를 참고하세요.
-
-### `subRandomCeremony` (`0142`)
-
-랜덤 구독 선물의 발신자와 개수를 알립니다. 실방송의 `itemType=21, count=1`은 “플러스 구독 선물권(30일) 1개 선물” 화면과 대조됐습니다. 상품표의 레벨은 화면에 표시되지 않았으므로 별도 문구로 합성하지 않습니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `senderId`, `senderNickname` | `string` | 선물한 사용자 ID·닉네임 |
-| `channelNumber` | `number` | 공식 플레이어가 전달하는 채널 번호. 관찰 표본은 채팅방 번호와 일치 |
-| `count` | `number` | 이번 알림의 선물 개수 |
-| `itemType` | `number` | 구독 상품 번호 원본 값 |
-| `subscriptionProduct` | `SubscriptionProduct \| null` | 선물 문맥으로 조회한 공식 상품 메타데이터 |
-| `rank` | `number` | 구독 선물 랭킹 원본 값. 공식 UI는 양수일 때만 랭킹 안내를 표시하며, 관찰된 `-1`도 보존 |
-
-패킷에는 수신자 목록이나 개별 지급과 연결하는 키가 없습니다. `0108`·`0144`와 합산하거나 동일 선물로 묶지 않습니다. 랭킹 안내의 출력 조건은 플레이어 근거이며, 이번 화면 대조는 선물 문구에 한정됩니다.
-
-### `quickRandomCeremony` (`0143`)
-
-랜덤 퀵뷰 선물 알림입니다. 필드와 상품 연결은 공식 플레이어 근거이며 실방송 화면과는 아직 대조하지 않았습니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `senderId`, `senderNickname` | `string` | 선물한 사용자 ID·닉네임 |
-| `channelNumber` | `number` | 공식 플레이어의 채널 번호 |
-| `count` | `number` | 이번 알림의 선물 개수 |
-| `itemType` | `number` | 퀵뷰 상품 번호 원본 값 |
-| `quickViewProduct` | `QuickViewProduct` | `sendQuickView`와 같은 상품표로 조회한 종류. 알 수 없으면 `unknown` |
-| `durationDays` | `number \| null` | 상품 기간(일). 알 수 없으면 `null` |
-
-수신자와 랭킹 필드는 없습니다. 개별 `sendQuickView`와 연결하거나 합산하지 않습니다.
-
-### `copySendSub` (`0144`), `copySendQuick` (`0145`)
-
-`copySendSub`의 데이터 구조는 `sendSubscription`과 같은 `GiftSubscriptionData`입니다. 공식 플레이어는 이 opcode를 채팅 선물 문구 대신 구독 선물 수령 레이어로 전달합니다. 별도 이벤트로 제공하며 같은 데이터여도 `sendSubscription`과 중복 제거하지 않습니다. 실방송 수신·화면 대조는 아직 없습니다.
-
-`copySendQuick`는 공식 enum에만 있고 현재 주 수신 분기가 없어 `FieldEventData`로 제공합니다. 이름만으로 `0045 sendQuickView`와 같은 필드 구조라고 추정하지 않습니다. [랜덤 선물 조사](protocol.md#랜덤-선물과-수령-알림)를 참고하세요.
-
-### `ogqEmoticon` (`0109`)
-
-OGQ 이미지가 포함된 채팅입니다. 이미지 전용이면 `message`가 빈 문자열이고, 이미지와 텍스트가 함께 표시되면 `message`에 해당 텍스트가 들어갑니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `chatNo` | `string` | 채팅방 번호 원본 문자열 |
-| `message` | `string` | 함께 표시할 텍스트. 이미지 전용이면 빈 문자열 |
-| `groupId` | `string` | OGQ 이모티콘 그룹 식별자 |
-| `subId` | `string` | 그룹 내 이모티콘 식별자 |
-| `version` | `string` | 이모티콘 버전 |
-| `senderId` | `string` | 발신자 ID |
-| `senderNickname` | `string` | 발신자 닉네임 |
-| `senderFlag` | `string` | 사용자 상태를 나타내는 원본 복합 플래그 |
-| `senderStatus` | `UserStatus` | `senderFlag`를 공식 플레이어 비트로 판정한 발신자 상태 |
-| `color` | `string` | 원본 BGR 정수를 변환한 CSS `#RRGGBB` 색상. 값이 없으면 빈 문자열 |
-| `chatLanguage` | `number` | 플레이어의 원본 채팅 언어 값 |
-| `emoticonType` | `number` | 이모티콘 원본 종류 값 |
-| `extension` | `string` | 이미지 확장자. 실관찰 표본은 `png` |
-| `subscriptionMonth` | `string` | SOOP이 계산한 연속 구독 개월 원본 값 |
-| `nicknameColor` | `string` | 밝은 테마용 닉네임 색상 |
-| `nicknameColorDark` | `string` | 어두운 테마용 닉네임 색상 |
-| `accumulatedSubscriptionMonth` | `string` | 누적 구독 개월 원본 값 |
-| `representativePersonalconMonth` | `string` | 대표 구독 퍼스널콘 선택에 사용하는 원본 개월 값 |
-| `animation` | `string` | 애니메이션 관련 원본 값 |
-| `cheerTeamNumber` | `number` | 응원팀 번호. 필드가 없으면 `-1` |
-
-`extension="png"`인 표본에서 `animation="0"`은 정지 이미지, `animation="1"`은 움직이는 이미지로 각각 두 건씩 화면과 대조했습니다. 두 값 모두 이미지 단독과 텍스트 동반 표시를 확인했으므로 확장자만으로 정지 이미지로 판정하지 않습니다. `0`·`1` 외 값의 화면 동작은 확인되지 않았으며 `animation`은 원본 문자열로 제공합니다. 대조 근거는 [OGQ 이모티콘 조사](protocol.md#ogq-이모티콘)를 참고하세요.
-
-### `mission` (`0121`)
-
-도전미션 또는 대결미션 JSON입니다. `missionKind`와 `action`을 먼저 확인한 뒤 해당 변형의 필드를 사용하세요. 모든 변형의 `payload`에는 파싱한 원본 JSON 객체가 보존됩니다.
-
-공식 type과 공개 판별 값의 대응은 다음과 같습니다.
-
-| 원본 `type` | `missionKind` | `action` |
-|---|---|---|
-| `CHALLENGE_GIFT` | `challenge` | `gift` |
-| `CHALLENGE_NOTICE` | `challenge` | `notice` |
-| `CHALLENGE_SETTLE` | `challenge` | `settle` |
-| `GIFT` | `battle` | `gift` |
-| `NOTICE` | `battle` | `notice` |
-| `SETTLE` | `battle` | `settle` |
-| 그 밖의 값 | `unknown` | `unknown` |
-
-채팅 WebSocket에서 도전미션 수락이나 대결미션 시작을 나타내는 별도 `action`은 관찰되지 않았습니다. `gift`는 제안·후원 알림일 뿐이며, 방송 화면의 수락·시작 상태를 합성하지 않습니다.
-
-도전미션 공통 필드:
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `missionKind` | `"challenge"` | 도전미션 판별 값 |
-| `action` | `"gift" \| "notice" \| "settle"` | 후원, 결과 알림, 정산 판별 값 |
-| `missionKey` | `number` | 같은 미션의 후원·결과·정산을 묶는 키 |
-| `uuid` | `string` | 개별 알림 식별자. `settle`에서는 대응하는 `missionSettle`과 같음 |
-| `payload` | `Readonly<Record<string, unknown>>` | 파싱한 원본 JSON 객체 |
-
-`action: "gift"` 추가 필드:
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `title` | `string` | 미션 제목 |
-| `giftCount` | `number` | 이번 후원 개수 |
-| `chatNo` | `number` | 채팅방 번호 |
-| `isRelay` | `boolean` | 릴레이 여부 |
-| `image` | `string` | 미션 이미지 값 |
-| `senderId` | `string` | 후원자 ID |
-| `senderNickname` | `string` | 후원자 닉네임 |
-| `streamerId` | `string` | 방송인 ID |
-| `streamerNickname` | `string` | 방송인 닉네임 |
-
-`action: "notice"` 추가 필드:
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `title` | `string` | 미션 제목 |
-| `status` | `"success" \| "fail" \| "unknown"` | 원본 `mission_status`를 정규화한 미션 결과 |
-
-`action: "settle"` 추가 필드:
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `title` | `string` | 미션 제목 |
-| `settleCount` | `number` | 정산할 별풍선 개수 |
-| `isRelay` | `boolean` | 릴레이 여부 |
-| `image` | `string` | 미션 이미지 값 |
-| `streamerId` | `string` | 방송인 ID |
-| `streamerNickname` | `string` | 방송인 닉네임 |
-
-대결미션도 공식 플레이어 분기에 맞춰 구조화합니다. 공통 필드는 다음과 같습니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `missionKind` | `"battle"` | 대결미션 판별 값 |
-| `action` | `"gift" \| "notice" \| "settle"` | 후원, 결과 알림, 정산 판별 값 |
-| `missionKey` | `number` | 같은 대결의 후원·결과·정산을 묶는 키 |
-| `payload` | `Readonly<Record<string, unknown>>` | 파싱한 원본 JSON 객체 |
-
-| `action` | 추가 필드 |
-|---|---|
-| `gift` | `title`, `image`, `senderId`, `senderNickname: string`, `giftCount`, `fanOrder`, `topFanLevel: number`, `isRelay: boolean` |
-| `notice` | `draw: boolean`, `winner`, `myTeamName: string`, `rank: number` |
-| `settle` | `title`, `image: string`, `settleCount: number` |
-
-도전·대결미션 `gift`의 제목은 채팅 행에 표시되지 않습니다. 대결미션 `gift`의 `fanOrder > 0`은 해당 후원으로 즉시 신규 팬클럽 가입이 성립했음을 뜻하며, 공식 플레이어는 후원 행 뒤에 가입 문구를 표시합니다. 결과나 정산을 기다리지 않습니다. 대결미션 `notice`에서 `draw=true`이면 공식 플레이어는 승자·순위보다 무승부 안내를 우선하며, `settleCount`는 해당 방송인이 정산으로 획득한 별풍선 개수입니다. 같은 대결에서 이 채널로 수신한 `giftCount`의 합과 일치하지 않을 수 있습니다. 후원 뒤 결과 패킷이 없다는 사실만으로 대기와 거절을 구별할 수 없으므로 별도의 추측 상태를 만들지 않습니다.
-
-### `liveCaption` (`0122`), `subtitleV2` (`0139`)
-
-두 이벤트 모두 payload를 JSON 객체로 검증해 다음 형태로 제공합니다. 내부 필드는 아직 안정된 공개 타입으로 모델링하지 않습니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `payload` | `Readonly<Record<string, unknown>>` | 파싱한 원본 JSON 객체 |
-
-### `missionSettle` (`0125`)
-
-도전미션 성공 후 참여자별 정산 상태를 전달합니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `missionKind` | `"challenge"` | 도전미션 정산 판별 값 |
-| `chatNo` | `number` | 채팅방 번호 |
-| `uuid` | `string` | 대응하는 `mission`의 `action: "settle"` 이벤트와 같은 식별자 |
-| `fanOrder` | `number` | 팬클럽 순번 관련 원본 값. `becameFanClub=true`인 참여자가 있을 때만 가입 순번으로 사용 |
-| `participants` | `readonly ChallengeMissionSettlementParticipant[]` | 참여자별 정산 결과 |
-| `payload` | `Readonly<Record<string, unknown>>` | 파싱한 원본 JSON 객체 |
-
-참여자 필드:
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `userId` | `string` | 참여자 ID |
-| `nickname` | `string` | 참여자 닉네임 |
-| `contributionCount` | `number` | 해당 참여자의 후원 합계 |
-| `becameFanClub` | `boolean` | 이번 정산으로 팬클럽에 새로 가입했는지 여부 |
-| `becameTopFan` | `boolean` | 이번 정산으로 열혈팬이 되었는지 여부 |
-
-`fanOrder`는 `becameFanClub`이 참인 참여자에게만 가입 순번으로 사용합니다. 플래그가 거짓이면 단독으로 가입 여부나 순번을 판정하지 마세요. 대조 사례는 [구독과 미션 조사](protocol.md#구독과-미션)를 참고하세요.
-
-### `subscriptionCeremonyButton` (`0130`)
-
-구독 세리머니 버튼 상태입니다. 공식 플레이어는 `subscriptionMonth`로 “N개월 구독중” 버튼을 표시하고, 클릭하면 세리머니 요청을 보냅니다. 서버가 `followItem`과 `followItemEffect` 중 어느 이벤트를 선택하는지에 대한 정확한 조건은 확인되지 않았습니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `subscriptionMonth` | `string` | 버튼에 표시할 연속 구독 개월 원본 값 |
-
-### `savvyNotice` (`0131`)
-
-Savvy 알림입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `streamerId` | `string` | 방송인 ID |
-| `userId` | `string` | 사용자 ID |
-| `videoNumber` | `string` | 영상 번호 원본 값 |
-
-### `globalSubtitle` (`0136`)
-
-전역 자막 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `chatNo` | `string` | 채팅방 번호 원본 문자열 |
-| `streamerId` | `string` | 방송인 ID |
-| `language` | `string` | 자막 언어 원본 값 |
-| `subtitle` | `string` | 자막 본문 |
-| `timestamp` | `string` | 플레이어가 전달하는 원본 시각 값 |
-
-### `confetti` (`0138`)
-
-꽃가루 효과 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `confettiType` | `number` | 원본 효과 종류 값 |
-| `senderId` | `string` | 효과를 발생시킨 사용자 ID |
-
-### `cheerTeamChange` (`0140`)
-
-사용자의 응원팀 변경 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `userId` | `string` | 대상 사용자 ID |
-| `teamNumber` | `string` | 응원팀 번호 원본 값 |
-
-### `nightbotTimeout` (`0141`)
-
-Nightbot 사용자 타임아웃 이벤트입니다.
-
-| 필드 | 타입 | 의미 |
-|---|---|---|
-| `userId` | `string` | 대상 사용자 ID |
-| `nickname` | `string` | 대상 사용자 닉네임 |
-| `reasonCode` | `number` | 타임아웃 사유의 원본 코드 |
-| `reason` | `"blacklist" \| "excessCaps" \| "excessEmotes" \| "links" \| "excessSymbols" \| "repetitions" \| "unknown"` | 공식 플레이어의 코드별 사유를 언어 중립 값으로 정규화한 결과 |
-| `channelNumber` | `string` | 채널 번호 원본 값 |
-| `message` | `string` | 관련 메시지 |
-| `time` | `number` | 타임아웃 시간의 원본 숫자 값. 단위는 공개 API에서 정규화하지 않음 |
-| `userFlag` | `string` | 대상 사용자의 원본 복합 플래그 |
-| `userStatus` | `UserStatus` | 원본 플래그의 전체 공식 상태 판정 |

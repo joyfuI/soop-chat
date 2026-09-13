@@ -1,249 +1,122 @@
 # SOOP 채팅 프로토콜 계약과 미확인 사항
 
-이 문서는 현재 구현에 필요한 wire protocol 계약과 보수적 처리 범위를 설명합니다. SOOP의 공식 사양이 아니라 2026-09-13까지의 플레이어 분석과 실방송 관찰에 기반합니다. 공개 이벤트 필드는 [이벤트 레퍼런스](events.md), 세부 표본·시각·플레이어 빌드와 대조 기록은 [관찰 근거](research/protocol-evidence.md)에 보존합니다. 평상시에는 이 문서를 먼저 읽고 근거 재검토가 필요한 절만 따라가세요.
+이 문서는 현재 구현이 의존하는 wire protocol과 연결 lifecycle을 설명합니다. SOOP의 공식 사양이 아닙니다. 공개 이벤트의 제품 의미와 사용상 주의사항은 [이벤트 가이드](events.md), 실제 표본·시각·플레이어 빌드·반례는 [관찰 근거](research/protocol-evidence.md)를 따릅니다.
 
-## 근거
+평상시에는 이 문서만 읽고, 근거를 다시 검토할 때만 research 문서의 연결된 절을 읽습니다.
 
-플레이어와 실방송 캡처를 우선하며 참고 라이브러리에서만 확인한 이벤트는 `reference`로 구분합니다. [조사에 사용한 빌드와 참고 커밋](research/protocol-evidence.md#근거)은 과거 근거를 특정하는 기록입니다. 후속 검증은 기록된 빌드를 재사용하지 않고 검증 시점의 최신 공식 플레이어 번들을 기준으로 합니다.
+## 근거와 보수적 처리
 
-## 미확인 사항
+플레이어와 실방송 캡처를 우선하며 참고 라이브러리에서만 확인한 이벤트는 `reference`로 구분합니다. 후속 검증은 과거 기록의 빌드를 재사용하지 않고 검증 시점의 최신 공식 플레이어 번들을 기준으로 합니다.
 
-| 주제 | 현재 근거 | 미확인 범위 | 현재의 보수적 동작 |
-|---|---|---|---|
-| `0007 status` | [방송 종료](#방송-종료) | `0`, `1`의 정확한 상태 의미 | 원본 숫자만 제공하고 종료는 `0088`로만 판정 |
-| 사용자 ID 접미사 | [사용자 ID 접미사](#사용자-id-접미사) | 발생 조건과 동일 사용자 판정 규칙 | 접미사를 제거하거나 이벤트를 합치지 않음 |
-| `AuthTicket` 수명 | [로그인과 19금 방](#로그인과-19금-방) | TTL, 무효화 응답과 refresh 절차 | 자동 refresh 없이 오류를 호출자에게 전달 |
-| `0019`과 얼음 해제 | [채팅창 얼음](#채팅창-얼음) | 구형 opcode 의미와 실제 해제 흐름 | `0019`는 raw field만, `0021`만 구조화 |
-| 금칙어 일치 규칙 | [채팅금지와 강퇴](#채팅금지와-강퇴) | 공백, 대소문자와 정확 일치 규칙 | 목록과 대체 문자열만 제공 |
-| `0004` 퇴장 사용자 상태 | [채팅금지와 강퇴](#채팅금지와-강퇴) | 퇴장 플래그에서 생략되는 상태 비트의 범위 | 이벤트 시점 원본으로만 제공하고 최신 상태로 해석하지 않음 |
-| `0091`·`0093` 선택 | [구독과 미션](#구독과-미션) | 서버가 두 세리머니를 선택하는 정확한 조건 | opcode별 화면 의미만 제공하고 선택 규칙을 합성하지 않음 |
-| 미해석 event·JSON | [플레이어 이벤트 조사](#추가로-구조화한-플레이어-이벤트) | 플레이어가 읽지 않거나 schema가 안정되지 않은 필드 | `raw.fields` 또는 원본 JSON 객체로 보존 |
-| 채팅 전송 | [채팅 전송](#채팅-전송) | 권한, 제한, 실패와 중복 방지 계약 | 읽기 전용 API만 제공 |
+확인되지 않은 필드에는 의미 있는 이름을 붙이지 않습니다. 알 수 없는 opcode, payload field와 원본 byte는 가능한 한 보존하고, 이벤트별 근거 수준은 [`EVENT_CATALOG`](../src/events.ts)이 관리합니다.
 
-## 공개 방송 연결
+## 연결 정보 조회
 
-Node 진입점은 다음 API를 POST로 호출합니다.
+Node resolver는 다음 API를 POST로 호출합니다.
 
 ```text
-https://live.sooplive.com/afreeca/player_live_api.php?bjid=<streamerId>
+https://live.sooplive.com/afreeca/player_live_api.php?bjid={streamerId}
 ```
 
-요청에는 `bid`, `type=live`, `player_type=html5`, `stream_type=common`, `quality=HD`, `mode=landing` 등이 포함됩니다. 응답의 `BNO`, `CHATNO`, `CHDOMAIN`, `CHPT`를 검증하고 아래 WebSocket을 엽니다.
+요청에는 `bid`, `type=live`, `player_type=html5`, `stream_type=common`, `quality=HD`, `mode=landing` 등이 포함됩니다. 응답의 `BNO`, `CHATNO`, `CHDOMAIN`, `CHPT`를 검증한 뒤 다음 WebSocket을 엽니다.
 
 ```text
-wss://<소문자 CHDOMAIN>:<CHPT + 1>/Websocket/<streamerId>
+wss://{lowercase CHDOMAIN}:{CHPT + 1}/Websocket/{encodeURIComponent(streamerId)}
 Sec-WebSocket-Protocol: chat
 ```
 
-`streamerId`는 URL 경로에 넣기 전에 `encodeURIComponent`로 인코딩합니다.
+방송 인스턴스가 바뀌면 `chatNo`와 인증 연결 정보도 달라질 수 있습니다. 최초 연결, 재연결과 다음 방송 연결마다 resolver를 다시 호출하며 방송 간에 응답을 캐시하지 않습니다.
 
-브라우저에서는 라이브 API가 `Access-Control-Allow-Origin: https://play.sooplive.com`으로 제한되어 있으므로 임의 웹사이트가 직접 호출할 수 없습니다. WebSocket 자체는 다른 Origin에서도 upgrade되지만, 접속 정보를 얻으려면 애플리케이션 서버의 리졸버가 필요합니다.
+브라우저에서는 라이브 정보 API의 CORS 제한 때문에 애플리케이션 서버가 조회를 대신합니다. 서버·브라우저 경계는 [브라우저 리졸버 가이드](browser.md)가 기준입니다.
 
-TLS 검증은 절대 비활성화하지 않습니다. 인증서 문제가 발생하면 환경의 CA 설정을 고치거나 오류를 호출자에게 전달합니다.
+TLS 검증은 비활성화하지 않습니다. 인증서 문제는 환경의 CA 설정을 고치거나 호출자에게 오류로 전달합니다.
 
-## 프레이밍과 입장
+## 패킷 framing과 streaming
 
-헤더는 14바이트입니다.
+헤더는 14 byte입니다.
 
 ```text
 ESC TAB | opcode 4 bytes | payload length 6 bytes | flags 2 bytes | UTF-8 payload
 ```
 
-opcode·길이·flags는 각각 4·6·2자리 숫자이며 payload 길이는 UTF-8 바이트 수입니다. 필드는 form feed(`0x0c`)로 구분됩니다.
+opcode·length·flags는 각각 4·6·2자리 숫자입니다. payload length는 JavaScript 문자열 길이가 아니라 UTF-8 byte 수이며, payload field는 form feed(`0x0c`)로 구분합니다.
 
-익명 클라이언트는 다음 순서로 입장합니다.
+WebSocket message 경계와 protocol packet 경계가 같다고 가정하지 않습니다. 하나의 message에 여러 packet이 들어오거나 하나의 packet이 여러 message로 나뉠 수 있으므로 byte stream에서 완성된 packet만 꺼냅니다.
 
-1. `0001` payload `\f\f\f16\f`
-2. 서버의 `0001` 응답 대기
-3. `0002` payload `\f<CHATNO>\f\f\f\f\f`
-4. 서버의 `0002` 응답 후 연결 완료
-5. 60초마다 `0000` keepalive
+framing을 복구하며 버린 byte는 `ProtocolError.discarded`로 제공합니다. decoding에 실패한 packet은 관련 `RawPacket`과 함께 `protocolError`로 전달하고, 알 수 없는 opcode는 `unknown` 이벤트로 원본을 보존합니다.
 
-handshake 응답도 이벤트 디코더의 필드 검증을 통과해야 합니다. 잘못된 응답은 `protocolError`로 보존하며, `0001` 이전의 `0002`로 연결을 완료하거나 heartbeat를 시작하지 않습니다. 중복 `0001`로 입장 요청을 반복하지 않습니다. 입장 완료 전 `0088`이 오면 대기 중인 `connect()`를 `BroadcastOfflineError`로 즉시 거부합니다.
+## 입장 handshake와 heartbeat
 
-Node는 `ws`, 브라우저는 표준 WebSocket을 사용합니다. SOOP 서버가 `Sec-WebSocket-Key` 헤더 이름의 대소문자를 비표준으로 처리하므로, Node에서는 `ws`가 보내는 헤더 표기를 유지합니다. Node 기본 WebSocket의 소문자 헤더와 충돌한 [비교 실험 및 복원 검증](research/protocol-evidence.md#node-websocket-연결-요청-헤더-호환성)을 참고하세요.
+익명 입장은 다음 순서입니다.
 
-정상 종료에는 `1000`, handshake 실패에는 `3000`, transport 실패에는 `3001`을 사용합니다. 표준 `WebSocket.close()`가 허용하지 않는 예약 코드를 클라이언트에서 보내지 않습니다.
+1. `0001` payload `\f\f\f16\f` 전송
+2. 유효한 서버 `0001` 응답 대기
+3. `0002` payload `\f{CHATNO}\f\f\f\f\f` 전송
+4. 유효한 서버 `0002` 응답 뒤 연결 완료
+5. 연결 중 60초마다 `0000` keepalive 전송
 
-WebSocket 메시지 경계와 SOOP 패킷 경계가 같다고 가정하지 않습니다. 구현은 분할 패킷과 결합 패킷을 모두 처리합니다. 알 수 없는 opcode와 원본 payload 바이트를 보존하고, framing 복구 중 버린 바이트는 `ProtocolError.discarded`로 제공합니다.
+handshake 응답도 일반 이벤트 디코더의 field 검증을 통과해야 합니다. 잘못된 응답은 `protocolError`로 보존하며 다음 단계로 진행하지 않습니다. `0001` 이전의 `0002`로 연결을 완료하거나 heartbeat를 시작하지 않고, 중복 `0001`로 입장 요청을 반복하지 않습니다.
 
-## 방송 종료
+입장 완료 전 명시적 방송 종료가 오면 대기 중인 `connect()`를 `BroadcastOfflineError`로 즉시 거부합니다. WebSocket 생성부터 유효한 `0002`까지 timeout을 적용합니다.
 
-`0088 closeBroad`가 명시적 방송 종료 신호입니다. 라이브러리는 `closeBroad`를 먼저 전달하고 `ended: { reason: "offline" }`을 한 번 발생시킨 뒤 소켓을 정상 종료하며 자동 재연결하지 않습니다. 다음 방송에 수동 `connect()`하면 resolver를 다시 호출합니다. `chatNo`는 방송 인스턴스마다 달라지므로 이전 값을 재사용하지 않습니다.
+Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용하고 브라우저는 표준 `WebSocket`을 사용합니다. 비교 실험은 [Node WebSocket 연결 요청 헤더 호환성](research/protocol-evidence.md#node-websocket-연결-요청-헤더-호환성)에 보존합니다.
 
-`0007 status=0/1`은 방송 중에도 반복되며 정확한 의미는 미확인입니다. 최신 공식 플레이어도 수신 분기에서 값을 읽거나 UI로 전달하지 않고 무시합니다. 방송인 플래그 계정의 채팅 채널 입퇴장과 같은 시각에 오는 사례가 많고 채팅창 새로고침 및 방송 제목 변경 작업 구간에서도 관찰됐지만, 구체적인 UI 동작을 판정하는 신호로 정의하지 않습니다. 여러 `status=0`부터 `1`까지의 장시간 구간을 다시보기와 대조해도 영상은 평상시처럼 계속됐습니다. 원본 숫자만 제공하고 제목·영상 송출·대기·화면·종료 상태로 해석하지 않습니다. 방송 대기와 채팅창 얼음도 실제 종료와 독립적입니다.
+## 종료와 reconnect
 
-[관찰 근거](research/protocol-evidence.md#방송-종료)
+정상 종료에는 WebSocket code `1000`, handshake 실패에는 `3000`, transport 실패에는 `3001`을 사용합니다. 클라이언트가 보낼 수 없는 예약 code는 사용하지 않습니다.
 
-## 조사 당시 플레이어 채팅 opcode
+`0088 closeBroad`는 명시적 방송 종료입니다. 라이브러리는 `closeBroad`를 먼저 전달하고 `ended: { reason: "offline" }`을 한 번 발생시킨 뒤 정상 종료하며 자동 재연결하지 않습니다. 이후 수동 `connect()`는 resolver부터 다시 실행합니다.
 
-현재 opcode·이벤트명·provenance의 원본은 [`EVENT_CATALOG`](../src/events.ts)입니다. 실관찰된 `0110`은 조사 당시 채팅 enum에 없어도 유지합니다. 자막 알림 `0115`와 UTC `0500`은 별도 스트리밍 에이전트 프로토콜 상수이므로 채팅 카탈로그에 포함하지 않습니다.
+일반 transport 종료에는 채널 정보를 다시 조회한 뒤 지수 backoff로 재연결합니다. 접근 제한과 명시적 방송 종료는 재시도하지 않습니다. retry 중 수동 연결, timeout과 상태 전이의 정확한 공개 계약은 [`SoopChatOptions`](../src/types.ts)와 `src/client.ts`가 기준입니다.
 
-[관찰 근거](research/protocol-evidence.md#조사-당시-플레이어-채팅-opcode)
+`0007 setBjStat`의 원본 숫자는 방송 중에도 올 수 있어 종료로 해석하지 않습니다. 이벤트 의미와 그 밖의 상태 관련 caveat는 [이벤트 가이드](events.md)를 참고하세요. [방송 종료 관찰 근거](research/protocol-evidence.md#방송-종료)
 
-## 팬클럽 가입과 순번
-
-팬클럽 가입 순번은 후원 수단별이 아니라 방송인별로 공유합니다. 일반 별풍선·애드벌룬·영상풍선과 대결미션은 후원 시, 도전미션은 성공 후 정산 시 가입이 성립합니다. 대결미션 `GIFT`의 `fanOrder > 0`은 즉시 가입 판정이며 결과나 정산을 기다리지 않습니다. `0125`의 `fanOrder`는 참여자의 팬클럽 가입 플래그가 참일 때만 도전미션 가입 순번으로 사용합니다.
-
-순번은 중복되거나 건너뛰거나 수신 순서와 역전될 수 있습니다. 서버 내부 보정이나 동시 처리의 영향은 미확인이며, 라이브러리는 순번을 보정·정렬하거나 이벤트를 중복 제거하지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#팬클럽-가입과-순번)
-
-## 구독과 미션
-
-- `0091 followItem`은 구독 세리머니, `0093 followItemEffect`는 연속 구독 세리머니, `0108 sendSubscription`은 수신자별 구독 선물권 지급입니다. `0091`과 `0093`은 구독자가 방송 입장 후 보내므로 구매 시각이나 신규·재구독 여부로 해석하지 않습니다. `0108`의 선물 표시, 이후 구독 상태 변화와 `0091`·`0093` 세리머니는 서로 별도이며 누락된 세리머니를 합성하지 않습니다. 같은 내용도 별도 선물일 수 있으므로 묶거나 중복 제거하지 않습니다.
-- `0091`은 상품에 맞춘 구독 완료 문구와 이미지를 표시하고 연속 개월 필드가 없습니다. `0093`은 `month`로 “N개월째 구독 중” 문구와 개월별 이미지를 선택하며, 이미지 안의 기간은 12개월 이상에서 년·개월로 표시될 수 있습니다. 별도의 `accumulatedMonth`도 전달합니다. `0130`은 세리머니 버튼에 표시할 구독 개월을 전달하며, 버튼 클릭 뒤 서버가 `0091`과 `0093` 중 하나를 선택하는 정확한 조건은 미확인입니다.
-- 구독 상품표는 [`src/protocol.ts`](../src/protocol.ts)의 `SUBSCRIPTION_PRODUCTS`가 구현 원본입니다. `0091`·`0093`은 `itemType` 또는 `vodItemType`이 처음 일치하는 행을, 선물·수령 알림은 `itemType`이 일치하고 `isGift=true`인 첫 행만 사용합니다. 해당 문맥에서 일치하는 상품이 없으면 `null`이며 원본 값을 보존합니다.
-- 상품 기간과 화면의 연속 구독 개월·누적 개월은 별개입니다. 공식 플레이어는 `0093`의 `month`를 “N개월째” 문구와 이미지 경로에 사용하고 `accumulatedMonth`는 사용자 목록의 누적 구독 상태 갱신에만 사용합니다. `0091` 구독 세리머니에서는 상품표의 기간·자동결제 여부에 따라 화면 이미지가 달라진 표본이 있지만 이미지 문구 자체는 패킷에 없습니다. 상품표의 `isGift`는 취득 경로를, 선물 전후의 `level` 차이는 실제 레벨 변경을 보장하지 않습니다. `subscriptionSource="live"`는 비VOD 상품 번호라는 뜻이며 정확한 구매 화면을 뜻하지 않습니다. 화면 이미지·지역화 문구를 합성하지 않습니다.
-- `0121 mission`은 도전미션의 `CHALLENGE_GIFT/NOTICE/SETTLE`과 대결미션의 `GIFT/NOTICE/SETTLE`을 구분하고 원본 JSON을 보존합니다. 미확인 `type`은 `missionKind`와 `action`을 `unknown`으로 제공합니다.
-- 도전·대결미션의 `missionKey`는 같은 미션의 후원·결과·정산을 묶습니다. 개별 알림의 `uuid`는 서로 다르며, 도전미션 `CHALLENGE_SETTLE`에서는 대응하는 `0125 missionSettle`과 같습니다. `0125 list`는 `[userId, nickname, contributionCount, becameFanClubFlag, becameTopFanFlag]`이며 팬클럽 플래그가 거짓이면 `fanOrder`만으로 가입을 판정하지 않습니다.
-- 도전미션 후원은 수락 완료를 뜻하지 않고, 대결미션도 방송 화면의 시작 시점에 별도 채팅 패킷이 관찰되지 않았습니다. 수락·거절·시작, 결과 결정 주체, 수동·자동 여부, 제한 시간과 실패 사유는 패킷으로 구분하지 않습니다. 결과가 없다고 거절을 합성하지 않으며 관찰된 경과 시간을 timeout이나 키 수명 상한으로 삼지 않습니다.
-- 대결미션 `draw=true`는 공식 화면의 무승부 안내와 일치합니다. `settleCount`는 해당 방송인이 정산으로 획득한 개수이며, 이 채널에서 수신한 같은 `missionKey`의 후원 합계와 일치하지 않을 수 있습니다. 관찰한 세 대결 정산에는 도전미션용 `0125 missionSettle`이 수신되지 않았으며 누락된 이벤트를 합성하지 않습니다.
-- 수집 시작 전 후원된 미션의 결과·정산만 수신할 수 있습니다. 앞선 후원 이벤트 수신을 결과·정산 처리의 전제조건으로 삼지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#구독과-미션)
-
-## 랜덤 선물과 수령 알림
-
-- `0142 subRandomCeremony`는 구독 선물 랜덤 뿌리기의 발신자·채널 번호·개수·상품·랭킹을 전달합니다. `itemType=21, count=1`은 플러스 구독 선물권 30일·1개 선물 화면과 대조됐습니다. `rank`는 원본을 보존하며 공식 UI는 양수일 때만 랭킹 안내를 표시합니다.
-- `0143 quickRandomCeremony`는 퀵뷰 랜덤 선물의 발신자·채널 번호·개수·상품을 전달합니다. 기간·종류는 `0045`와 같은 상품표로 조회하며 수신자·랭킹은 없습니다.
-- `0144 copySendSub`는 `0108`과 같은 필드 순서의 구독 선물 수령 알림입니다. 공식 플레이어는 채팅 선물 문구 대신 수령 레이어로 전달합니다. 기존 디코더를 재사용하되 별도 이벤트로 제공합니다.
-- `0145 copySendQuick`는 공식 enum만 확인됐고 주 수신 분기는 없어 원본 필드로 보존합니다. `0143`·`0144`도 실방송 화면 대조 전이므로 provenance는 `player`입니다.
-
-랜덤 알림에는 수신자 목록과 개별 지급을 연결할 키가 없습니다. 랜덤 개수와 개별 선물·수령 알림을 합산하거나 동일 선물로 묶지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#랜덤-선물과-수령-알림)
-
-## 사용자 확장 메타데이터
-
-`0127 chuserExtend`는 입장 시점의 사용자별 구독·퍼스널콘 메타데이터입니다. `0004`와 함께 여러 사용자가 한 패킷에 들어올 수 있으므로 배열 전체를 처리합니다. 구독 변경 후 기존 `0127`이 갱신되지 않은 반례가 있어 지속적인 최신 상태로 취급하지 않습니다.
-
-query-string의 `p`, `fw`, `afw`를 정규화하며 누락·잘못된 숫자는 `null`, 서버의 `-1`은 원본 그대로 둡니다. `fw`·`afw`는 각각 SOOP이 계산한 연속 구독 개월과 누적 구독 개월이며 채팅의 같은 값과 일치합니다. `p`는 대표 구독 퍼스널콘 선택값이며, 공식 플레이어가 방송인의 양수 값을 베이직 구독 퍼스널콘 이미지에 사용하고 `p=9` 표본도 실방송 화면과 일치했습니다.
-
-[관찰 근거](research/protocol-evidence.md#사용자-확장-메타데이터)
-
-## 사용자 ID 접미사
-
-서버 사용자 ID의 `(<숫자>)` 접미사는 발생 조건과 동일성 규칙이 미확인입니다. 접미사를 제거하거나 기본 ID와 같은 사용자로 합치지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#사용자-id-접미사)
-
-## OGQ 이모티콘
-
-`0109 ogqEmoticon`은 이미지 단독 또는 이미지와 텍스트를 함께 표시하는 채팅입니다. 플레이어의 필드 순서는 다음과 같습니다.
-
-```text
-chatNo, message, groupId, subId, version,
-senderId, senderNickname, senderFlag, BGR color,
-chatLanguage, emoticonType, extension,
-subscriptionMonth, nicknameColor, nicknameColorDark,
-accumulatedSubscriptionMonth, representativePersonalconMonth,
-animation, cheerTeamNumber
-```
-
-BGR 정수는 CSS `#RRGGBB`로 변환합니다. `extension="png"`인 표본에서 `animation="0"`은 정지 이미지, `animation="1"`은 움직이는 이미지로 화면과 대조됐고, 각각 이미지 단독·텍스트 동반 표시를 확인했습니다. 확장자만으로 정지 이미지로 판단하지 않습니다. `animation`은 원본 문자열로 유지하며 `0`·`1` 외 값과 실제 파일 형식은 추측하지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#ogq-이모티콘)
-
-## 채팅창 얼음
-
-`0021 iceModeEx`는 첫 필드의 얼음 여부, 세 번째 필드의 허용 역할 비트마스크, 네 번째·다섯 번째 필드의 별풍선·구독 제한 수치를 구조화합니다. 역할 비트는 방송인 `16`, 팬클럽 `32`, 서포터 `64`, 열혈팬 `128`, 구독자 `256`, 매니저 `512`입니다. 두 번째 필드는 플레이어가 읽지 않아 이름을 붙이지 않습니다.
-
-얼음 여부를 유지한 채 팬클럽 채팅 참여 하한인 `balloonLimitCount`만 바뀔 수 있습니다. 화면 문구는 상태로부터 플레이어가 생성하며 별도 메시지 필드가 아닙니다. `0019 iceMode`는 조사 당시 주 처리 분기가 없고 실제 해제 흐름도 미관찰이므로 원본 필드만 보존합니다.
-
-[관찰 근거](research/protocol-evidence.md#채팅창-얼음)
-
-## 투표
-
-`0050 notifyPoll`은 `[status, streamerId, pollNo, show]` 순서입니다. `(status, show)=(1, 1)`은 시작, `(4, 1)`은 마감·결과 공개, `(2, 0)`은 숨김으로 정규화하고 다른 조합은 `unknown`으로 둡니다. `visible`은 `show !== 0`이며 원본 숫자를 보존합니다. 질문·선택지·득표수는 채팅 패킷에 없으므로 합성하지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#투표)
-
-## 채팅금지와 강퇴
-
-- `0008 setDumb`는 대상·초 단위 지속 시간·누적 횟수·명령 주체를 제공합니다. `commanderType=1`은 방송인, `2`는 매니저이며 다섯 번째 원본 필드는 실관찰된 명령자 ID입니다. 공식 플레이어는 최대 제재 횟수 미만이면 채팅창에 누적 횟수 안내를 만들고, 대상 본인에게는 지속 시간과 명령 주체를 담은 별도 알림을 표시합니다. 최대 횟수에서는 블라인드 처리로 분기합니다.
-- `0054 banWord`의 목록은 `0x06`으로 구분합니다. 빈 설정은 빈 목록으로 제공하며 공백·대소문자·정확 일치 규칙은 미확인입니다.
-- `0012 setUserFlag`는 변경 후·전 원본 플래그와 전체 `UserStatus`를 제공합니다. 권한 비트는 독립적이며 하나의 역할로 축약하지 않습니다. `NODIRECT` 비트가 없을 때 귓속말 허용이고, 미해석 비트는 원본에 보존합니다. 전체 비트 판정은 [이벤트 레퍼런스](events.md#사용자-상태)를 참고하세요.
-- 다른 사용자의 강퇴는 `0004 chatUser`의 퇴장으로 구분합니다. `quitFlag === 1`만 일반 퇴장이고 나머지는 `isKicked=true`입니다. 공식 플레이어는 `quitFlag`를 강퇴 문구의 `kickType`으로 사용하며 `3/4/5`만 각각 채팅금지 횟수 초과·무분별한 도배·블라인드 상태 이탈 문구를, 그 밖의 값은 일반 강퇴 문구를 생성합니다. `0090 hideKickMessage`가 거짓이면 열린 채팅창에 표시하고, 참이어도 매니저에게는 표시합니다. 퇴장 패킷의 사용자 플래그에는 최신 상태 비트가 생략될 수 있으므로 `userStatus`를 상태 변경이나 최신 스냅샷으로 사용하지 않습니다. `etcInfo`와 접미사 ID의 의미가 미확인이므로 패킷 수를 화면 강퇴 횟수로 합성하거나 이벤트를 합치지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#채팅금지와-강퇴)
-
-## 매니저 상태와 안내
-
-`0013 setSubBj`는 변경 후 사용자 플래그와 매니저 지정·해임 안내의 `hide` 값을 전달합니다. 매니저 권한은 `flag1 & 256`, 고정 매니저는 `flag1 & 64`로 독립 판정합니다. 고정 매니저가 입장한 직후 매니저 비트가 추가되고 이후 채팅에 매니저 배지가 표시된 사례를 확인했습니다. 같은 고정 매니저가 재입장할 때마다 다시 수신될 수 있으므로 최초 임명으로만 해석하지 않습니다.
-
-공식 플레이어는 채팅창이 열려 있고 `hide !== 1`일 때 매니저 비트가 켜져 있으면 지정 안내, 꺼져 있으면 해임 안내를 생성합니다. 고정 매니저 비트는 표시 조건에 사용하지 않으므로 고정·일반 매니저 모두 같은 지정 안내 경로를 거칩니다. 일반 입퇴장 표시 옵션은 이 안내의 조건이 아닙니다. `hidden`은 `hide === 1`이며, 사용자·배지 숨김이나 매니저 권한 여부를 뜻하지 않습니다. 플레이어가 만드는 이 안내는 다시보기 채팅에 남지 않을 수 있으므로 지역화된 문구를 이벤트 데이터로 합성하지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#매니저-상태와-안내)
-
-## VOD 별풍선
-
-`0086 vodBalloon`은 라이브 밖에서 VOD에 받은 별풍선을 다음 라이브 입장 시 합계로 알립니다. 구조화하는 필드는 [이벤트 레퍼런스](events.md#vodballoon-0086)를 참고하세요.
-
-[관찰 근거](research/protocol-evidence.md#vod-별풍선)
-
-## 추가로 구조화한 플레이어 이벤트
-
-공식 플레이어가 읽는 필드와 실관찰로 의미를 확인한 필드를 구조화하며 전체 목록은 [이벤트 레퍼런스](events.md#전체-이벤트-색인)를 따릅니다. 이벤트별 표본·화면 대조와 미대조 범위는 아래 근거에 보존합니다.
-
-`0006`, `0017`, `0128`, `0137`은 조사 당시 공식 switch가 필드를 읽지 않고 종료하며 `0094`는 별도 처리 분기가 없습니다. 이런 이벤트는 `raw.fields`와 `data.fields`를 유지합니다. `0007`의 첫 숫자는 관찰 근거로만 제공합니다. 내부 스키마가 안정되지 않은 JSON은 검증한 원본 객체로 유지하며 읽지 않는 필드·열거 의미·지역화된 화면 문구를 추측해 추가하지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#추가로-구조화한-플레이어-이벤트)
-
-## 별풍선 관찰 검증
-
-`0018 sendBalloon`의 후원자·개수·팬클럽 가입 순번은 화면과 대조됐습니다. `topFanLevel === 1`만 열혈팬 가입 문구를 뜻하는 `becameTopFan=true`로 제공합니다. 실제 닉네임과 메시지는 테스트 fixture에 사용하지 않습니다.
-
-`isDefault=false`와 비어 있지 않은 `fileName`은 SOOP 제공 스타즈 별풍선에서도 관찰됐으므로 스트리머 시그니처 이미지의 판별 조건으로 사용하지 않습니다. 공식 플레이어와 동일하게 방송인 ID가 `fileName`에 포함됐을 때만 `isSignatureBalloon=true`로 제공합니다. 이 규칙은 스트리머가 직접 설정하며 방송마다 개수와 이미지가 다른 시그니처 풍선 표본과 화면에서 일치했습니다. `false`는 이벤트 풍선 등도 포함할 수 있으므로 스타즈 별풍선의 판별값으로 사용하지 않습니다. `ttsData`는 목소리 선택 관련 원본 값으로 유지합니다. 빈 값이 기본 목소리, 값이 있는 표본이 다른 목소리와 대조됐지만 값이 있어도 후원 메시지가 없거나 방송의 재생 기준에 미달할 수 있습니다. 후원 메시지의 존재, 실제 재생 여부나 값별 목소리 이름은 합성하지 않습니다.
-
-[관찰 근거](research/protocol-evidence.md#별풍선-관찰-검증)
-
-## 공개 이름 규칙
-
-- 이벤트 타입은 공식 채팅 enum의 `SVC_*` 상수명을 출발점으로 lower camel case로 정합니다.
-- 필드는 공식 플레이어가 UI 계층에 전달하는 속성을 우선하고, 역할 중심의 일관된 영어 camel case로 정규화합니다.
-- UI와 패킷을 대조해 의미가 확인된 값만 구체적으로 모델링합니다. 의미가 불명확하거나 플레이어가 무시하는 필드는 이름을 추측하지 않고 `raw.fields`에만 보존합니다.
-- 실관찰 전에는 `player` 또는 `reference`, 화면까지 대조하면 `observed` provenance를 사용합니다.
-
-## 인증 연결
+## 인증 handshake
 
 ### 로그인과 19금 방
 
-라이브 정보 API의 `RESULT=-6`은 `RestrictedRoomError("adult")`로 분류합니다. 권한 있는 계정의 최소 입장 순서는 다음과 같습니다.
+라이브 정보 API의 `RESULT=-6`은 `RestrictedRoomError("adult")`로 분류합니다. 권한 있는 계정은 다음 순서로 연결합니다.
 
-1. `LoginAction.php`에 로그인 유지·아이디 저장 없이 계정 정보를 전송해 `AuthTicket`을 받습니다.
-2. 라이브 정보 API에 `AuthTicket` 쿠키를 보내 일반 채널 정보와 `TK`·`FTK`를 받습니다.
-3. `0001`에 `\f<TK>\f\f16\f`을 보내고 서버의 `0001` 응답을 기다립니다.
-4. `0002`에 `\f<CHATNO>\f<FTK>\f0\f\f\f`을 보냅니다. 비밀번호 방의 추가 정보는 아래 절을 따릅니다.
+1. `LoginAction.php`에 계정 정보를 전송해 `AuthTicket`을 받습니다.
+2. 라이브 정보 API에 `AuthTicket` cookie를 보내 채널 정보와 `TK`·`FTK`를 받습니다.
+3. `0001`에 `\f{TK}\f\f16\f`을 보내고 유효한 `0001` 응답을 기다립니다.
+4. `0002`에 `\f{CHATNO}\f{FTK}\f0\f\f\f`을 보냅니다.
 
-`createNodeChannelResolver`는 `AuthTicket`을 closure 메모리에 재사용하고, 매번 새로 조회한 `TK`·`FTK`를 내부 `WeakMap`에 연결해 공개 `ChannelInfo`·이벤트·JSON에 노출하지 않습니다. TTL과 무효화 응답·refresh 절차는 미확인이므로 자동 갱신이나 인증 실패 후 재로그인을 하지 않습니다. 만료 시 호출자가 인증 수명주기를 처리하고 resolver 또는 클라이언트를 다시 만듭니다.
+`AuthTicket`의 TTL, 무효화 응답과 refresh 절차는 확인되지 않았습니다. 자동 refresh나 인증 실패 후 재로그인을 합성하지 않고 호출자에게 오류를 전달합니다.
 
-서버 보조 브라우저 경로는 서버에 보관한 `AuthTicket`을 `resolveNodeChannel`의 `authentication`으로 전달해 `TK`·`FTK`만 있는 `AuthenticatedChannelInfo`를 받습니다. 브라우저는 이를 검증해 내부 메모리로 옮깁니다. 쿠키·오류 전달을 포함한 서버 계약은 [브라우저 가이드](browser.md)를 따르며 `AuthTicket`은 브라우저에 보내지 않습니다.
-
-연결 중 19금 적용을 알리는 전용 opcode는 관찰되지 않았고 기존 익명 연결은 유지됐습니다. resolver는 최초 연결과 재연결 때만 제한을 판정합니다. `followerTier`나 입장·퇴장 변화는 19금 제한 신호가 아닙니다. [관찰 근거](research/protocol-evidence.md#로그인과-19금-방)
+서버 보조 브라우저 경로는 `AuthTicket`을 서버에 보관하고 `AuthenticatedChannelInfo`의 단기 `TK`·`FTK`만 브라우저에 전달합니다. cookie와 오류 전달을 포함한 보안 계약은 [브라우저 리졸버 가이드](browser.md)를 따릅니다. [로그인 관찰 근거](research/protocol-evidence.md#로그인과-19금-방)
 
 ### 비밀번호 방
 
-1. 일반 라이브 정보 요청의 `pwd`로 비밀번호를 보내고 `BPWD=Y`를 확인합니다. 이때 `RESULT=1`만으로 정답을 판정하지 않습니다.
-2. 같은 API를 반환된 `BNO`와 `type=aid`, `bno`, `pwd`로 다시 요청합니다. 구현은 이 단계의 `RESULT`가 `1`이 아니면 `RestrictedRoomError("password")`로 처리합니다.
-3. `0002`의 추가 정보 필드에 `log`, `pwd`, 빈 `auth_info`, `pver=2`, `access_system=html5`를 넣습니다. 키·값은 `0x11`, 항목 끝은 `0x12`로 구분합니다.
+1. 일반 라이브 정보 요청의 `pwd`로 비밀번호를 보내고 `BPWD=Y`를 확인합니다. `RESULT=1`만으로 정답을 판정하지 않습니다.
+2. 반환된 `BNO`와 `type=aid`, `bno`, `pwd`로 같은 API를 다시 요청합니다. 이 단계의 `RESULT`가 `1`이 아니면 `RestrictedRoomError("password")`입니다.
+3. `0002`의 추가 정보 field에 `log`, `pwd`, 빈 `auth_info`, `pver=2`, `access_system=html5`를 넣습니다. key/value는 `0x11`, 항목 끝은 `0x12`로 구분합니다.
 
-방 비밀번호는 계정 로그인과 독립적인 `roomPassword`입니다. 로그인도 필요하면 두 API 요청에 `AuthTicket` 쿠키를 보내고 `TK`·`FTK`와 비밀번호 추가 정보를 함께 사용합니다. credential·비밀번호·티켓은 로그·URL·fixture에 기록하지 않습니다. [관찰 근거](research/protocol-evidence.md#비밀번호-방)
+방 비밀번호는 계정 인증과 독립적입니다. 두 제한이 함께 있으면 라이브 정보 요청의 `AuthTicket`과 비밀번호 handshake를 함께 사용합니다. [비밀번호 방 관찰 근거](research/protocol-evidence.md#비밀번호-방)
 
 ### 구독플러스 방
 
-라이브 정보 API의 `RESULT=-14`는 `RestrictedRoomError("subscriptionPlus")`로 분류합니다. 권한 계정의 `AuthTicket`으로 `TK`·`FTK`를 얻어 같은 최소 인증 handshake를 사용합니다.
+라이브 정보 API의 `RESULT=-14`는 `RestrictedRoomError("subscriptionPlus")`로 분류합니다. 권한 계정에서 받은 `TK`·`FTK`로 같은 인증 handshake를 사용합니다. 전용 채팅 opcode를 합성하지 않고 접근 제한은 연결 전 라이브 정보 API 결과로 판정합니다. [구독플러스 관찰 근거](research/protocol-evidence.md#구독플러스-방)
 
-구독플러스 전용 채팅 opcode는 관찰되지 않았습니다. `followerTier`는 사용자 상태이고 `adconEffect.isSubRoom`은 구독플러스 제한 여부가 아닙니다. 접근 제한은 연결 전 라이브 정보 API로 판정합니다. [관찰 근거](research/protocol-evidence.md#구독플러스-방)
+## 읽기 전용 정책
 
-### 채팅 전송
+현재 public API는 수신만 지원합니다. 채팅 전송은 인증된 입장 이후 `0005` 계열 payload를 사용하지만 다음 계약이 확인되지 않았습니다.
 
-전송은 인증된 입장 이후 `0005` 계열 payload를 사용합니다. 구현 전에 다음 항목을 확인해야 합니다.
+- 사용자 권한과 session field
+- 메시지 길이, 금칙어와 도배 제한
+- 채팅금지, 강퇴와 slow mode 오류
+- 재연결 중 중복 전송 방지
+- 귓속말과 일반 메시지의 권한 차이
 
-- 서버가 요구하는 사용자 플래그와 세션 필드
-- 메시지 길이·금칙어·도배 제한
-- 채금, 강퇴, 슬로우 모드 오류 응답
-- 전송 중 재연결됐을 때 중복 전송 방지
-- 귓속말 `0009`와 일반 메시지의 권한 차이
+이 조건을 검증하기 전에는 전송 메서드를 public API에 추가하지 않습니다.
 
-이 조건이 검증되기 전에는 채팅 전송 메서드를 공개 API에 미리 추가하지 않습니다.
+## wire-level 미확인 사항
+
+| 주제 | 미확인 범위 | 현재 동작 |
+|---|---|---|
+| `AuthTicket` | TTL, 무효화와 refresh | 자동 갱신 없이 오류 전달 |
+| 접근 제한 | 연결 뒤 제한 변경을 알리는 전용 wire 신호 | resolver 실행 시점의 API 결과만 사용 |
+| 채팅 전송 | 권한, 실패, 중복 방지 계약 | 읽기 전용 유지 |
+| 미해석 payload | 안정된 field 순서와 의미 | `raw.fields` 또는 원본 JSON 보존 |
+
+이벤트별 미확인 의미는 [이벤트 가이드](events.md), 그 판단의 표본과 반례는 [관찰 근거](research/protocol-evidence.md)에 둡니다.
