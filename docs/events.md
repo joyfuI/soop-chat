@@ -74,21 +74,21 @@ chat.on("sendBalloon", ({ data }) => {
 - `fanOrder`는 중복·건너뜀·수신 순서 역전이 있을 수 있습니다. 고유 ID, 정렬 또는 중복 제거에 사용하지 마세요.
 - `isDefault=false`만으로 시그니처 풍선이라고 판단하지 마세요. 라이브러리가 제공하는 `isSignatureBalloon`을 사용하세요.
 - `isSignatureBalloon=false`도 특정 풍선 종류를 단정하는 값이 아닙니다.
-- `ttsData`는 메시지 존재나 실제 음성 재생 여부를 뜻하지 않습니다.
+- `ttsData`의 유무·차이·일치만으로 목소리 종류, 메시지 존재 또는 실제 음성 재생 여부를 판정하지 마세요.
 
 `sendFanLetter`와 `sendFanLetterSub`는 공식 opcode 이름을 유지하지만 현재 제품에서는 스티커 후원으로 표시됩니다. `supporterOrder > 0`은 신규 서포터 가입과 함께 올 수 있지만 순번을 이벤트 ID로 사용하지 마세요.
 
-`adconEffect`의 `isSubRoom`은 플레이어의 서브 채널 flag이며 구독플러스 방 여부가 아닙니다. `videoBalloon`은 후원 사실을 나타낼 뿐 영상의 재생 여부나 시점을 뜻하지 않습니다. `vodBalloon`은 방송 밖에서 VOD에 받은 별풍선을 다음 라이브 입장 시 합계로 알립니다.
+`adconEffect`의 `isSubRoom`은 플레이어의 서브 채널 flag이며 구독플러스 방 여부가 아닙니다. `stationAdcon`의 발신자 ID와 닉네임은 빈 문자열일 수 있으며 플레이어도 제목으로 대체하지 않습니다. `videoBalloon`은 후원 사실을 나타낼 뿐 영상의 재생 여부나 시점을 뜻하지 않습니다. `vodBalloon`은 방송 밖에서 VOD에 받은 별풍선을 다음 라이브 입장 시 합계로 알립니다.
 
 후원 이벤트에서 플레이어가 생성하는 지역화 문구나 화면 상태를 별도 데이터로 추론하지 마세요.
 
 ### 구독과 선물
 
-`followItem`과 `followItemEffect`는 구독자가 방송 입장 뒤 보내는 세리머니입니다. 결제 시각, 신규·재구독 여부 또는 구독 상태 변경을 판정하지 마세요. `followItemEffect.month`는 화면의 연속 구독 개월이고 `subscriptionProduct.month`는 상품 기간이므로 서로 바꾸어 쓰지 않습니다.
+`followItem`과 `followItemEffect`는 구독자가 방송 입장 뒤 보내는 세리머니입니다. 결제 시각, 신규·재구독 여부 또는 구독 상태 변경을 판정하지 마세요. `followItemEffect.month`는 화면 문구와 개월별 이미지의 연속 구독 개월이고 `subscriptionProduct.month`는 상품 기간이므로 서로 바꾸어 쓰지 않습니다.
 
 `subscriptionProduct`는 공식 상품표에 연결한 메타데이터이며 일치하지 않으면 `null`입니다. 내부 `isGift`, `isCeremony`, `isTrial` flag 하나만으로 현재 이벤트의 취득 경로나 상태 변경을 판정하지 마세요. 원본 `itemType`은 항상 보존됩니다.
 
-`sendSubscription`과 `copySendSub`는 수신자별 이벤트입니다. 같은 내용도 별도 선물일 수 있으므로 묶거나 중복 제거하지 않습니다. `copySendSub`는 선물 수령 알림이고, `copySendQuick`은 field 의미가 확인되지 않아 원본만 제공합니다.
+`sendSubscription`, `sendQuickView`, `copySendSub`는 수신자별 이벤트입니다. 같은 발신자와 수신자에게 같은 내용이 반복돼도 별도 선물일 수 있으므로 묶거나 중복 제거하지 않습니다. `copySendSub`는 선물 수령 알림이고, `copySendQuick`은 field 의미가 확인되지 않아 원본만 제공합니다.
 
 `subRandomCeremony`와 `quickRandomCeremony`는 랜덤 선물의 발신자와 전체 개수를 알립니다. 수신자 목록이나 개별 지급 이벤트를 연결하는 key가 없으므로 `sendSubscription`, `sendQuickView`, `copySendSub`와 합산하거나 같은 선물로 묶지 마세요.
 
@@ -116,6 +116,8 @@ chat.on("sendBalloon", ({ data }) => {
 
 ### 상태와 moderation
 
+`sendAdminNotice`는 운영자 공지 본문만 제공합니다. 화면의 “SOOP 안내” 제목은 플레이어가 생성하므로 데이터에 합성하지 않습니다.
+
 `closeBroad`는 명시적 방송 종료입니다. 라이브러리는 이를 전달한 뒤 `ended: { reason: "offline" }`을 발생시키고 자동 재연결하지 않습니다. `setBjStat.status`는 방송 중에도 올 수 있는 미확인 원본 숫자이므로 종료·대기·화면 상태로 해석하지 마세요.
 
 `setDumb`는 채팅금지 대상, 초 단위 지속 시간, 누적 횟수와 명령 주체를 제공합니다. 화면 문구는 플레이어가 생성하므로 이벤트 데이터로 합성하지 않습니다.
@@ -130,7 +132,9 @@ chat.on("sendBalloon", ({ data }) => {
 
 `chuserExtend`는 입장 시점의 구독·퍼스널콘 메타데이터 batch입니다. `users` 배열 전체를 처리하고, 구독 변경 뒤 자동 갱신되는 최신 상태로 간주하지 마세요. 누락되거나 잘못된 숫자는 `null`, 서버의 `-1`은 원본 의미를 확정하지 않고 유지합니다.
 
-`ogqEmoticon`은 이미지 단독 또는 이미지와 text가 함께 있는 채팅입니다. `extension="png"`만으로 정지 이미지라고 판단하지 말고 `animation` 원본 값도 확인하세요. 알려지지 않은 animation 값이나 실제 파일 형식은 추측하지 않습니다.
+`ogqEmoticon`은 OGQ 이미지 단독 또는 이미지와 `message`가 함께 있는 채팅입니다. `message`에는 플레이어가 이미지로 변환하는 `/이모티콘이름/` 형식의 일반 이모티콘도 들어올 수 있으므로 항상 literal text라고 가정하지 마세요. 같은 발신자와 이미지가 반복돼도 각각 별도 채팅이므로 중복 제거하지 않습니다. `extension="png"`만으로 정지 이미지라고 판단하지 말고 `animation` 원본 값도 확인하세요. 알려지지 않은 animation 값이나 실제 파일 형식은 추측하지 않습니다.
+
+`emoticonTicket`은 공식 플레이어 enum에 없는 접속 초기 원본 필드입니다. 이름으로 이용권 상태나 화면 동작을 추론하지 마세요.
 
 `adInBroadJson`, `liveCaption`, `subtitleV2`는 내부 schema를 안정된 공개 타입으로 만들지 않고 검증한 JSON 객체를 보존합니다. 앱에서 사용할 때도 존재 여부와 타입을 직접 확인하세요.
 

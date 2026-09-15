@@ -427,7 +427,7 @@ export interface ManagerChatData {
 /** 정규화한 퀵뷰 상품 종류입니다. */
 export type QuickViewProduct = "quickView" | "quickViewPlus" | "unknown";
 
-/** 퀵뷰 선물의 발신자, 수신자, 상품과 기간입니다. */
+/** 수신자 한 명에 대한 퀵뷰 선물입니다. 같은 발신자·수신자의 반복 알림도 각각 별도 선물입니다. */
 export interface QuickViewGiftData {
   /** 퀵뷰를 선물한 사용자 ID입니다. */
   senderId: string;
@@ -608,7 +608,7 @@ export interface BalloonData {
   topFanLevel: number;
   /** `topFanLevel`이 `1`인지 나타냅니다. */
   becameTopFan: boolean;
-  /** TTS 목소리 선택 관련 원본 값. 메시지 포함이나 실제 재생 여부를 뜻하지 않습니다. */
+  /** TTS 관련 원본 값. 유무·차이·일치만으로 목소리 종류, 메시지 또는 실제 재생 여부를 판정하지 않습니다. */
   ttsData: string;
   /** 후원자 언어 관련 원본 값입니다. */
   senderLanguage: string;
@@ -733,7 +733,7 @@ export interface FollowItemEffectData {
   senderId: string;
   /** 구독자 닉네임입니다. */
   senderNickname: string;
-  /** 화면에 표시되는 “N개월째” 값입니다. */
+  /** 화면 문구와 개월별 이미지에 표시되는 연속 구독 개월입니다. */
   month: number;
   /** 채팅방 번호입니다. */
   chatNo: number;
@@ -841,15 +841,15 @@ export interface AdconEffectData {
 export interface StationAdconData {
   /** 방송인 ID입니다. */
   streamerId: string;
-  /** 발신자 ID입니다. */
+  /** 발신자 ID입니다. 서버가 빈 문자열을 보낼 수 있습니다. */
   senderId: string;
-  /** 발신자 닉네임입니다. */
+  /** 발신자 닉네임입니다. 빈 값이어도 제목으로 대체하지 않습니다. */
   senderNickname: string;
   /** 전송 개수입니다. */
   count: number;
   /** 표시할 이미지 URL입니다. */
   imageUrl: string;
-  /** 서버가 전달한 원본 제목이며 화면 문구보다 길 수 있습니다. */
+  /** 서버가 전달한 원본 제목이며 화면 문구보다 길 수 있습니다. 발신자 닉네임의 대체값이 아닙니다. */
   title: string;
   /** 채팅방 번호의 원본 문자열입니다. */
   chatNo: string;
@@ -1104,7 +1104,7 @@ export interface VideoBalloonData {
 export interface OgqEmoticonData {
   /** 채팅방 번호의 원본 문자열입니다. */
   chatNo: string;
-  /** 함께 표시할 text이며 이미지 전용이면 빈 문자열입니다. */
+  /** OGQ 이미지와 함께 렌더링할 원본입니다. 일반 text 또는 이미지로 변환되는 이모티콘 토큰일 수 있습니다. */
   message: string;
   /** OGQ 이모티콘 그룹 식별자입니다. */
   groupId: string;
