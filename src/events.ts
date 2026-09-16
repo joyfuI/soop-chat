@@ -1050,7 +1050,7 @@ export interface SubRandomCeremonyData {
   itemType: number;
   /** 선물 문맥으로 조회한 상품 메타데이터. 일치하는 상품이 없으면 `null`입니다. */
   subscriptionProduct: SubscriptionProduct | null;
-  /** 구독 선물 랭킹 원본 값. 공식 UI는 양수일 때만 랭킹 안내를 표시하며 관찰된 `-1`도 보존합니다. */
+  /** 알림 시점의 구독 선물 랭킹 원본 값입니다. 양수이면 공식 UI가 같은 순위의 랭킹 안내를 표시하고, `-1`이면 표시하지 않습니다. 집계 기간과 산정 방식은 확인되지 않았습니다. */
   rank: number;
 }
 

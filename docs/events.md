@@ -92,6 +92,8 @@ chat.on("sendBalloon", ({ data }) => {
 
 `subRandomCeremony`와 `quickRandomCeremony`는 랜덤 선물의 발신자와 전체 개수를 알립니다. 수신자 목록이나 개별 지급 이벤트를 연결하는 key가 없으므로 `sendSubscription`, `sendQuickView`, `copySendSub`와 합산하거나 같은 선물로 묶지 마세요.
 
+`subRandomCeremony.rank`가 양수이면 공식 UI는 같은 순위의 구독 선물 랭킹 안내를 추가로 표시하고, `-1`이면 표시하지 않습니다. 같은 발신자의 값도 이벤트마다 달라질 수 있으므로 사용자 속성이나 이벤트 ID로 사용하지 말고, 확인되지 않은 집계 기간과 산정 방식을 추론하지 마세요.
+
 ### 미션
 
 `mission`은 `MissionData` 판별 union입니다. 먼저 `missionKind`가 `challenge`, `battle`, `unknown` 중 무엇인지 확인하고, 이어서 `action`이 `gift`, `notice`, `settle` 중 무엇인지 분기하세요. 미확인 원본 JSON은 `payload`에 보존됩니다.
