@@ -88,7 +88,7 @@ chat.on("sendBalloon", ({ data }) => {
 
 `subscriptionProduct`는 공식 상품표에 연결한 메타데이터이며 일치하지 않으면 `null`입니다. 내부 `isGift`, `isCeremony`, `isTrial` flag 하나만으로 현재 이벤트의 취득 경로나 상태 변경을 판정하지 마세요. 원본 `itemType`은 항상 보존됩니다.
 
-`sendSubscription`, `sendQuickView`, `copySendSub`는 수신자별 이벤트입니다. 같은 발신자와 수신자에게 같은 내용이 반복돼도 별도 선물일 수 있으므로 묶거나 중복 제거하지 않습니다. `copySendSub`는 선물 수령 알림이고, `copySendQuick`은 field 의미가 확인되지 않아 원본만 제공합니다.
+`sendSubscription`, `sendQuickView`, `ogqEmoticonGift`, `copySendSub`는 수신자별 이벤트입니다. 같은 발신자와 수신자에게 같은 내용이 반복돼도 별도 선물일 수 있으므로 묶거나 중복 제거하지 않습니다. `ogqEmoticonGift`에는 전체 선물 개수나 묶음 식별자가 없으므로 같은 상품의 연속 이벤트를 한 번의 묶음 선물로 추론하지 마세요. `copySendSub`는 선물 수령 알림이고, `copySendQuick`은 field 의미가 확인되지 않아 원본만 제공합니다.
 
 `subRandomCeremony`와 `quickRandomCeremony`는 랜덤 선물의 발신자와 전체 개수를 알립니다. 수신자 목록이나 개별 지급 이벤트를 연결하는 key가 없으므로 `sendSubscription`, `sendQuickView`, `copySendSub`와 합산하거나 같은 선물로 묶지 마세요.
 
