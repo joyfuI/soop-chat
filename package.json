@@ -1,6 +1,6 @@
 {
   "name": "soop-chat",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Unofficial typed SOOP live chat reader for Node.js and browsers",
   "keywords": [
     "live-chat",
@@ -60,10 +60,10 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "@types/node": "^24.13.3",
+    "@types/node": "^24.13.4",
     "@types/ws": "^8.18.1",
-    "oxfmt": "0.66.0",
-    "oxlint": "1.81.0",
+    "oxfmt": "0.68.0",
+    "oxlint": "1.83.0",
     "oxlint-tsgolint": "7.0.2001",
     "typescript": "^7.0.2"
   },

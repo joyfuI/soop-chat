@@ -21,26 +21,26 @@ void test("entrypoints share events and errors but keep Node helpers out of the 
   }
 });
 
-// @ts-expect-error This implementation or duplicate type is not public in 0.5.0.
+// @ts-expect-error Internal or duplicate types are not exported from package entrypoints.
 assert.ok({} as node.WebSocketLike);
 
-// @ts-expect-error This implementation or duplicate type is not public in 0.5.0.
+// @ts-expect-error Internal or duplicate types are not exported from package entrypoints.
 assert.ok({} as node.WebSocketFactory);
 
-// @ts-expect-error This implementation or duplicate type is not public in 0.5.0.
+// @ts-expect-error Internal or duplicate types are not exported from package entrypoints.
 assert.ok({} as node.WebSocketMessageData);
 
-// @ts-expect-error This implementation or duplicate type is not public in 0.5.0.
+// @ts-expect-error Internal or duplicate types are not exported from package entrypoints.
 assert.ok({} as node.VodAdconData);
 
-// @ts-expect-error This implementation or duplicate type is not public in 0.5.0.
+// @ts-expect-error Internal or duplicate types are not exported from package entrypoints.
 assert.ok({} as browser.WebSocketLike);
 
-// @ts-expect-error This implementation or duplicate type is not public in 0.5.0.
+// @ts-expect-error Internal or duplicate types are not exported from package entrypoints.
 assert.ok({} as browser.WebSocketFactory);
 
-// @ts-expect-error This implementation or duplicate type is not public in 0.5.0.
+// @ts-expect-error Internal or duplicate types are not exported from package entrypoints.
 assert.ok({} as browser.WebSocketMessageData);
 
-// @ts-expect-error This implementation or duplicate type is not public in 0.5.0.
+// @ts-expect-error Internal or duplicate types are not exported from package entrypoints.
 assert.ok({} as browser.VodAdconData);
