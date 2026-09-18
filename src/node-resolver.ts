@@ -28,10 +28,14 @@ export interface SoopCredentials {
 
 /**
  * {@link authenticateNode}가 반환하는 Node 전용 계정 인증 정보입니다.
- * `AuthTicket`은 서버에만 보관하고 브라우저로 보내지 마세요.
+ * raw `AuthTicket`은 브라우저 JavaScript나 API 응답에 포함하지 마세요.
  */
 export interface SoopAuthentication {
-  /** 계정 session 티켓입니다. 서버 메모리에만 두고 로그나 영구 저장소에 남기지 마세요. */
+  /**
+   * 계정 session 티켓입니다. Node 기본 resolver는 프로세스 메모리에 보관합니다. 브라우저
+   * 애플리케이션 서버는 서버 측 session store에 보관하거나 인증된 암호화 방식의 opaque
+   * `HttpOnly` cookie로 봉인할 수 있습니다. raw 값은 로그나 영구 저장소에 남기지 마세요.
+   */
   authTicket: string;
 }
 
@@ -248,8 +252,9 @@ export async function authenticateNode(
 /**
  * Node.js에서 SOOP 라이브 정보 API를 통해 최신 채팅 접속 정보를 조회합니다.
  *
- * `authentication`은 신뢰할 수 있는 서버에서만 전달하세요. 인증 호출은 브라우저 클라이언트용
- * 단기 `TK`와 `FTK`를 반환하지만 계정 수준의 `AuthTicket`은 반환하지 않습니다.
+ * `authentication`은 신뢰할 수 있는 서버에서만 전달하세요. 인증 호출은 브라우저 클라이언트가
+ * WebSocket 입장에 사용하는 `TK`와 `FTK`를 반환하지만 계정 수준의 `AuthTicket`은 반환하지
+ * 않습니다.
  * 응답 본문 수신 중에도 `context.signal`이 중단되면 요청은 `AbortError`로 거부됩니다.
  *
  * @throws {BroadcastOfflineError} 방송 중이 아닐 때 발생합니다.
@@ -287,8 +292,9 @@ export async function resolveNodeChannel(
 /**
  * 인증이 필요한 방을 위한 Node.js resolver를 만듭니다.
  *
- * resolver는 처음 필요할 때 로그인하고 계정 정보와 `AuthTicket`을 closure에 보관해 재연결에
- * 재사용합니다. 티켓 만료를 추측하거나 실패한 인증을 자동 갱신하지 않습니다.
+ * resolver는 첫 resolve 호출에서 로그인하고 계정 정보와 `AuthTicket`을 closure에 보관해
+ * 재연결에 재사용합니다. 공개방을 익명 조회한 뒤 인증으로 fallback하지 않으며, 티켓 만료를
+ * 추측하거나 실패한 인증을 자동 갱신하지 않습니다.
  *
  * @throws {TypeError} 계정 ID나 비밀번호가 비어 있을 때 발생합니다.
  */

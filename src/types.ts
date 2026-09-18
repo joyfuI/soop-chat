@@ -14,7 +14,7 @@ export interface ChannelInfo {
 }
 
 /**
- * 인증 채널에 접속할 때 사용하는 단기 WebSocket 티켓입니다.
+ * 인증 채널의 WebSocket 입장에 사용하는 티켓입니다.
  *
  * 이 값은 메모리에만 두고 로그나 영구 저장소에 남기지 마세요.
  */
@@ -54,7 +54,7 @@ export type ChannelResolver = (
 
 /** 예기치 않은 transport 오류 뒤에 적용하는 지수 backoff 설정입니다. */
 export interface ReconnectOptions {
-  /** 자동 재연결 여부입니다. 기본값은 `true`입니다. */
+  /** 자동 재연결 여부입니다. 기본값은 `true`입니다. `false`이면 예기치 않은 transport close를 `error`로 전달하고 종료합니다. */
   enabled?: boolean;
   /** 0 이상인 첫 재시도 대기 시간(ms)입니다. 기본값은 `1_000`입니다. */
   initialDelayMs?: number;
@@ -70,7 +70,7 @@ export interface ReconnectOptions {
 export interface SoopChatOptions {
   /** 비어 있지 않은 SOOP 방송인 ID입니다. 앞뒤 공백은 제거됩니다. */
   streamerId: string;
-  /** 제어 문자가 없는 비밀번호 방의 비밀번호입니다. 재연결을 위해 메모리에 유지됩니다. */
+  /** 비어 있지 않고 제어 문자가 없는 비밀번호 방의 비밀번호입니다. 재연결을 위해 메모리에 유지됩니다. */
   roomPassword?: string;
   /** WebSocket 생성부터 유효한 `0002` 입장 응답까지의 제한 시간(ms). 양수이며 `2_147_483_647` 이하, 기본값은 30초입니다. */
   handshakeTimeoutMs?: number;

@@ -318,16 +318,18 @@ void test("passes a room password to the resolver and password join packet", asy
   );
   await client.disconnect();
 
-  assert.throws(
-    () =>
-      new SoopChatCore({
-        streamerId: "streamer",
-        roomPassword: "invalid\x0cpassword",
-        resolveChannel: async () => channel,
-        createWebSocket: () => new FakeSocket(),
-      }),
-    /roomPassword/,
-  );
+  for (const roomPassword of ["", "invalid\x0cpassword"]) {
+    assert.throws(
+      () =>
+        new SoopChatCore({
+          streamerId: "streamer",
+          roomPassword,
+          resolveChannel: async () => channel,
+          createWebSocket: () => new FakeSocket(),
+        }),
+      /roomPassword/,
+    );
+  }
 });
 
 void test("re-resolves channel information and reconnects after an unexpected close", async () => {
@@ -359,6 +361,27 @@ void test("re-resolves channel information and reconnects after an unexpected cl
   assert.deepEqual(reconnects, [1]);
   assert.equal(client.state, "connected");
   await client.disconnect();
+});
+
+void test("reports an unexpected close when automatic reconnect is disabled", async () => {
+  const socket = new FakeSocket();
+  const errors: string[] = [];
+  const reconnects: number[] = [];
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+    reconnect: false,
+  });
+  client.on("error", (error) => errors.push(error.message));
+  client.on("reconnecting", ({ attempt }) => reconnects.push(attempt));
+
+  await join(client, socket);
+  socket.closeFromServer(4001);
+
+  assert.equal(client.state, "closed");
+  assert.deepEqual(errors, ["SOOP WebSocket closed (4001: synthetic close)."]);
+  assert.deepEqual(reconnects, []);
 });
 
 void test("manual connect cancels a scheduled retry instead of opening a second session", async () => {

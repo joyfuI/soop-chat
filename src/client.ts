@@ -368,7 +368,9 @@ export class SoopChatCore {
         if (!joined) {
           fail(error);
         } else if (!this.#stopped) {
+          const reportError = !this.#reconnect.enabled;
           this.#recoverTransport(socket, error);
+          if (reportError) this.#emit("error", error);
         }
       };
     });

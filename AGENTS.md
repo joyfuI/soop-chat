@@ -30,8 +30,8 @@
 
 ## 인증과 데이터 안전
 
-- 계정 정보, 인증 티켓, 방 비밀번호를 로그·URL·fixture·저장소에 넣지 않고 필요한 수명 동안 메모리에만 둔다.
-- 계정 수준의 서버 전용 secret인 `AuthTicket`을 브라우저에 보내지 않는다. 서버·브라우저 계약은 [`docs/browser.md`](docs/browser.md)를 따른다.
+- Node 기본 경로의 계정 정보, `AuthTicket`, 방 비밀번호는 로그·URL·fixture·저장소에 넣지 않고 필요한 수명 동안 프로세스 메모리에만 둔다.
+- 브라우저 서버 경로에서는 raw credential과 `AuthTicket`을 브라우저 JavaScript나 API payload에 노출하지 않는다. `AuthTicket`은 서버 측 session store에 보관하거나 인증된 암호화 방식으로 봉인한 opaque `HttpOnly` cookie session으로 유지할 수 있으며, 자세한 계약은 [`docs/browser.md`](docs/browser.md)를 따른다.
 - Node 기본 경로의 인증 값을 공개 `ChannelInfo`나 이벤트에 노출하지 않는다.
 - 실제 사용자 ID, 닉네임, 메시지, credential 또는 복구 가능한 실방송 캡처를 커밋하지 않는다. 테스트는 합성 또는 복구 불가능하게 비식별화한 데이터만 사용한다.
 - 개인정보가 있을 수 있는 `raw` 이벤트를 명시적 보관 정책 없이 기록하지 않는다.
@@ -39,6 +39,7 @@
 ## 코드 지도
 
 - `src/client.ts`: 연결 상태, handshake, heartbeat와 reconnect 수명주기
+- `src/types.ts`: 공개 채널·resolver·reconnect·lifecycle 공통 타입
 - `src/protocol.ts`: framing, packet codec와 event decoder
 - `src/events.ts`: 공개 event/opcode catalog와 데이터 타입
 - `src/node-resolver.ts`: Node 라이브 정보 조회와 인증
@@ -63,15 +64,16 @@
 
 ## 필수 검증
 
-변경 후 다음을 실행하고, 실행하지 못한 항목은 이유를 남긴다.
+변경에 해당하는 행만 조합해 실행하고, 실행하지 못한 항목은 이유를 남긴다. 현재 문서 전용 링크 검사 script는 없으므로 docs-only 변경은 링크와 코드 예제를 직접 대조한다.
 
-```sh
-npm run format
-npm run check
-npm run test:browser
-npm run pack:check
-```
+| 변경 범위                   | 검증                                                         |
+| --------------------------- | ------------------------------------------------------------ |
+| 모든 변경                   | `npm run format`                                             |
+| docs-only                   | `npm run format:check`, 링크·예제와 Source of Truth 대조     |
+| `docs/events.md`            | `npm run test:unit`                                          |
+| 일반 TypeScript             | `npm run check`                                              |
+| browser 또는 core lifecycle | `npm run check`, `npm run test:browser`                      |
+| package exports·배포 파일   | `npm run check`, `npm run pack:check`                        |
+| protocol·resolver·인증 통합 | `npm run check`, browser 경계 변경 시 `npm run test:browser` |
 
-`npm run check`는 typecheck, lint, format check, 단위 테스트와 build를 실행한다. publish hook은 결정적 Node 검사와 package 내용 검사를 실행하고, 브라우저 검사는 브라우저 설치가 준비된 CI에서 별도로 실행한다.
-
-`npm run test:live`는 protocol·Node resolver·인증·실제 SOOP 연동을 바꾼 경우에만 고려한다. 필요한 환경변수와 credential이 이미 제공된 환경에서만 실행하며 새 credential을 요구하거나 기록하지 않는다.
+`npm run check`는 typecheck, lint, format check, 단위 테스트와 build를 실행한다. `npm run test:live`는 protocol·Node resolver·인증·실제 SOOP 연동을 바꾸고 필요한 환경변수와 credential이 이미 제공된 경우에만 고려하며 새 credential을 요구하거나 기록하지 않는다.

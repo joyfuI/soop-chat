@@ -84,7 +84,7 @@ Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용�
 
 `AuthTicket`의 TTL, 무효화 응답과 refresh 절차는 확인되지 않았습니다. 자동 refresh나 인증 실패 후 재로그인을 합성하지 않고 호출자에게 오류를 전달합니다.
 
-서버 보조 브라우저 경로는 `AuthTicket`을 서버에 보관하고 `AuthenticatedChannelInfo`의 단기 `TK`·`FTK`만 브라우저에 전달합니다. cookie와 오류 전달을 포함한 보안 계약은 [브라우저 리졸버 가이드](browser.md)를 따릅니다. [로그인 관찰 근거](research/protocol-evidence.md#로그인과-19금-방)
+서버 보조 브라우저 경로는 `AuthTicket`을 서버에 보관하고 `AuthenticatedChannelInfo`의 WebSocket 입장용 `TK`·`FTK`만 브라우저에 전달합니다. session과 오류 전달을 포함한 보안 계약은 [브라우저 리졸버 가이드](browser.md)를 따릅니다. [로그인 관찰 근거](research/protocol-evidence.md#로그인과-19금-방)
 
 ### 비밀번호 방
 

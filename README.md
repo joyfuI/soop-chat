@@ -32,6 +32,8 @@ await chat.connect();
 
 브라우저는 SOOP 라이브 정보 API를 직접 호출할 수 없으므로 애플리케이션 서버가 최신 채널 정보를 조회해야 합니다.
 
+다음은 공개·비밀번호 방의 최소 resolver 예제입니다.
+
 ```ts
 import { deserializeChannelResolutionError, SoopChat } from "soop-chat/browser";
 
@@ -41,7 +43,6 @@ const chat = new SoopChat({
     const response = await fetch("/api/soop-channel", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      credentials: "include",
       signal,
       body: JSON.stringify({ streamerId, roomPassword }),
     });
@@ -57,11 +58,11 @@ chat.on("chatMessage", ({ data }) => console.log(data.message));
 await chat.connect();
 ```
 
-서버 endpoint, 인증 쿠키와 오류 전달 계약은 [브라우저 리졸버 가이드](docs/browser.md)를 참고하세요.
+계정 로그인 session을 사용하는 endpoint에서 `401`을 단순 `Error`로 던지면 연결 후 재조회가 계속될 수 있습니다. 인증 쿠키와 session 만료 시 재연결 중단 패턴은 [브라우저 리졸버 가이드](docs/browser.md)를 참고하세요.
 
 ## 제한방과 인증
 
-`streamerId`는 모든 방송에서 필요합니다.
+`streamerId`는 모든 방송에서 필요합니다. 다음 표는 Node.js 기본 resolver 기준입니다.
 
 | 방 종류                | 추가로 필요한 옵션             |
 | ---------------------- | ------------------------------ |
@@ -71,7 +72,7 @@ await chat.connect();
 | 구독플러스 방          | 권한 있는 `credentials`        |
 | 로그인 제한 + 비밀번호 | `credentials` + `roomPassword` |
 
-`credentials`는 Node 기본 resolver에서만 사용합니다. credential과 비밀번호는 소스·로그·셸 이력·저장소에 남기지 말고 환경 변수나 secret store에서 읽으세요.
+브라우저에서는 `credentials` 대신 애플리케이션 서버의 resolver와 로그인 session을 사용합니다. credential과 비밀번호는 소스·로그·셸 이력·저장소에 남기지 말고 환경 변수나 secret store에서 읽으세요.
 
 ```ts
 const { SOOP_USERNAME: username, SOOP_PASSWORD: password } = process.env;
@@ -86,7 +87,7 @@ const chat = new SoopChat({
 await chat.connect();
 ```
 
-Node 기본 경로는 credential과 계정 인증 티켓을 프로세스 메모리에만 유지합니다. 브라우저 인증에서는 계정 credential과 `AuthTicket`을 서버 밖으로 보내지 마세요.
+`credentials`를 지정하면 내장 resolver는 첫 채널 조회 전에 로그인하며, 공개방을 먼저 익명 조회한 뒤 인증으로 fallback하지 않습니다. Node 기본 경로는 credential과 계정 인증 티켓을 프로세스 메모리에만 유지합니다. 브라우저 인증에서는 계정 credential과 raw `AuthTicket`을 서버 밖으로 보내지 않으며, 서버 session 보관 계약은 [브라우저 리졸버 가이드](docs/browser.md)를 따릅니다.
 
 ## 주요 이벤트
 
@@ -141,9 +142,9 @@ chat.on("ended", ({ reason, restriction }) => {
 });
 ```
 
-예기치 않은 transport 종료에는 기본적으로 채널 정보를 다시 조회해 지수 backoff로 재연결합니다. 명시적 방송 종료와 접근 제한에는 재연결하지 않습니다. 다음 방송을 읽으려면 `connect()`를 다시 호출하세요. 사용자 정의 `ChannelResolver`는 전달받은 `AbortSignal`을 따르고 방송별 `ChannelInfo`를 캐시하지 않아야 합니다.
+예기치 않은 transport 종료에는 기본적으로 채널 정보를 다시 조회해 지수 backoff로 재연결합니다. 최대 재시도 횟수 제한은 없으며, 명시적 방송 종료·접근 제한 또는 `disconnect()`까지 계속 시도합니다. 다음 방송을 읽으려면 `connect()`를 다시 호출하세요. 사용자 정의 `ChannelResolver`는 전달받은 `AbortSignal`을 따르고 방송별 `ChannelInfo`를 캐시하지 않아야 합니다.
 
-`connect()` 실패는 Promise 예외로 전달됩니다. 라이브러리 오류는 `SoopChatError`를 상속하며 `BroadcastOfflineError`, `RestrictedRoomError`, `AuthenticationError`, `BrowserResolverRequiredError`, `ChannelResolutionError`, `ProtocolError`로 구분할 수 있습니다.
+`connect()` 실패는 Promise 예외로 전달됩니다. 라이브러리 오류는 `SoopChatError`를 상속합니다. `AuthenticationError`는 Node 계정 인증, `BrowserResolverRequiredError`는 브라우저 resolver 누락에서 발생하며, `BroadcastOfflineError`, `RestrictedRoomError`, `ChannelResolutionError`, `ProtocolError`는 두 entrypoint가 공유합니다.
 
 ```ts
 import { RestrictedRoomError, SoopChatError } from "soop-chat";
