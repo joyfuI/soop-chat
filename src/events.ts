@@ -1138,7 +1138,7 @@ export interface OgqEmoticonData {
   accumulatedSubscriptionMonth: string;
   /** 대표 구독 퍼스널콘 선택에 쓰이는 원본 개월 값입니다. */
   representativePersonalconMonth: string;
-  /** 애니메이션 관련 원본 값. `"0"` 표본은 정지 이미지, `"1"` 표본은 움직이는 이미지와 대조됐습니다. */
+  /** 플레이어가 애니메이션 설정이 켜진 비-Chromecast 환경에서 `"1"`이면 WebP, 그 밖에는 PNG를 선택하는 원본 값입니다. */
   animation: string;
   /** 응원팀 번호입니다. field가 없으면 `-1`입니다. */
   cheerTeamNumber: number;
