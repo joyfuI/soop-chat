@@ -55,7 +55,7 @@ framing을 복구하며 버린 byte는 `ProtocolError.discarded`로 제공합니
 4. 유효한 서버 `0002` 응답 뒤 연결 완료
 5. 연결 중 60초마다 `0000` keepalive 전송
 
-handshake 응답도 일반 이벤트 디코더의 field 검증을 통과해야 합니다. 잘못된 응답은 `protocolError`로 보존하며 다음 단계로 진행하지 않습니다. `0001` 이전의 `0002`로 연결을 완료하거나 heartbeat를 시작하지 않고, 중복 `0001`로 입장 요청을 반복하지 않습니다.
+handshake 응답도 일반 이벤트 디코더의 field 검증을 통과해야 합니다. 잘못된 응답은 `protocolError`로 보존하며 다음 단계로 진행하지 않습니다. `0001` 이전의 `0002`로 연결을 완료하거나 heartbeat를 시작하지 않고, 중복 `0001`로 입장 요청을 반복하지 않습니다. `0002` 응답의 `chatNo`가 방금 조회한 `CHATNO`와 다르면 handshake를 실패시킵니다.
 
 입장 완료 전 명시적 방송 종료가 오면 대기 중인 `connect()`를 `BroadcastOfflineError`로 즉시 거부합니다. WebSocket 생성부터 유효한 `0002`까지 timeout을 적용합니다.
 
@@ -89,7 +89,7 @@ Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용�
 ### 비밀번호 방
 
 1. 일반 라이브 정보 요청의 `pwd`로 비밀번호를 보내고 `BPWD=Y`를 확인합니다. `RESULT=1`만으로 정답을 판정하지 않습니다.
-2. 반환된 `BNO`와 `type=aid`, `bno`, `pwd`로 같은 API를 다시 요청합니다. 이 단계의 `RESULT`가 `1`이 아니면 `RestrictedRoomError("password")`입니다.
+2. 반환된 `BNO`와 `type=aid`, `bno`, `pwd`로 같은 API를 다시 요청합니다. 확인된 오답인 `RESULT=0`은 `RestrictedRoomError("password")`로 분류하고, 누락·형식 오류·그 밖의 값은 `ChannelResolutionError`로 전달합니다.
 3. `0002`의 추가 정보 field에 `log`, `pwd`, 빈 `auth_info`, `pver=2`, `access_system=html5`를 넣습니다. key/value는 `0x11`, 항목 끝은 `0x12`로 구분합니다.
 
 방 비밀번호는 계정 인증과 독립적입니다. 두 제한이 함께 있으면 라이브 정보 요청의 `AuthTicket`과 비밀번호 handshake를 함께 사용합니다. [비밀번호 방 관찰 근거](research/protocol-evidence.md#비밀번호-방)

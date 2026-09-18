@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SoopChatCore, type WebSocketLike } from "../src/client.js";
-import { deserializeChannelResolutionError } from "../src/errors.js";
+import { deserializeChannelResolutionError, ProtocolError } from "../src/errors.js";
 import { encodePacket, PacketStreamParser } from "../src/protocol.js";
 import type { AuthenticatedChannelInfo, ChannelInfo } from "../src/types.js";
 
@@ -106,7 +106,11 @@ function sentOpcodes(socket: FakeSocket): string[] {
   return socket.sent.flatMap((packet) => parser.push(packet).packets.map((raw) => raw.opcode));
 }
 
-async function join(client: SoopChatCore, socket: FakeSocket): Promise<void> {
+async function join(
+  client: SoopChatCore,
+  socket: FakeSocket,
+  response = joinResponse,
+): Promise<void> {
   const connecting = client.connect();
   await turn();
   socket.open();
@@ -114,7 +118,7 @@ async function join(client: SoopChatCore, socket: FakeSocket): Promise<void> {
   socket.receive(loginResponse);
   await turn();
   assert.deepEqual(sentOpcodes(socket), ["0001", "0002"]);
-  socket.receive(joinResponse);
+  socket.receive(response);
   await connecting;
 }
 
@@ -147,6 +151,28 @@ void test("only valid ordered handshake replies can connect and start heartbeat"
   socket.receive(joinResponse);
   await settlesWithin(connecting);
   assert.equal(client.state, "connected");
+});
+
+void test("rejects a join response for a different resolved channel", async () => {
+  const socket = new FakeSocket();
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => channel,
+    createWebSocket: () => socket,
+  });
+
+  const connecting = client.connect();
+  await turn();
+  socket.open();
+  socket.receive(loginResponse);
+  await turn();
+  socket.receive(
+    encodePacket("0002", "\x0c999\x0cstreamer\x0c1\x0c10\x0c2]family\x0cignored\x0c16|0"),
+  );
+
+  await assert.rejects(connecting, ProtocolError);
+  assert.equal(socket.readyState, 3);
+  assert.equal(client.state, "closed");
 });
 
 void test("an old unsubscribe cannot remove a newer listener set", () => {
@@ -361,6 +387,39 @@ void test("re-resolves channel information and reconnects after an unexpected cl
   assert.deepEqual(reconnects, [1]);
   assert.equal(client.state, "connected");
   await client.disconnect();
+});
+
+void test("emits a reconnect handshake failure once", async () => {
+  const firstSocket = new FakeSocket();
+  const secondSocket = new FakeSocket();
+  const sockets = [firstSocket, secondSocket];
+  const errors: string[] = [];
+  let resolverCalls = 0;
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => {
+      resolverCalls += 1;
+      return channel;
+    },
+    createWebSocket: () => sockets.shift()!,
+    reconnect: { initialDelayMs: 20, maxDelayMs: 20, jitter: 0 },
+  });
+  client.on("error", (error) => errors.push(error.message));
+
+  try {
+    await join(client, firstSocket);
+    firstSocket.closeFromServer();
+    await waitFor(() => resolverCalls === 2);
+    secondSocket.open();
+    secondSocket.throwOnSend = true;
+    secondSocket.receive(loginResponse);
+    await waitFor(() => errors.length > 0);
+    await turn();
+
+    assert.deepEqual(errors, ["synthetic send failure"]);
+  } finally {
+    await client.disconnect();
+  }
 });
 
 void test("reports an unexpected close when automatic reconnect is disabled", async () => {
@@ -942,7 +1001,11 @@ void test("closes on broadcast end and re-resolves a later manual connection", a
   client.on("ended", (event) => ended.push(event.reason));
   client.on("reconnecting", (event) => reconnects.push(event.attempt));
 
-  await join(client, firstSocket);
+  await join(
+    client,
+    firstSocket,
+    encodePacket("0002", "\x0c1\x0cstreamer\x0c1\x0c10\x0c2]family\x0cignored\x0c16|0"),
+  );
   firstSocket.receive(encodePacket("0088", ""));
   await turn();
 

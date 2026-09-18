@@ -30,7 +30,7 @@
 
 ## 인증과 데이터 안전
 
-- Node 기본 경로의 계정 정보, `AuthTicket`, 방 비밀번호는 로그·URL·fixture·저장소에 넣지 않고 필요한 수명 동안 프로세스 메모리에만 둔다.
+- Node 기본 경로의 계정 정보, `AuthTicket`, 방 비밀번호는 로그·URL·fixture·소스나 일반 설정 저장소에 넣지 않는다. credential은 환경 변수나 secret manager에서 주입하고, 런타임에는 필요한 수명 동안만 프로세스 메모리에 둔다.
 - 브라우저 서버 경로에서는 raw credential과 `AuthTicket`을 브라우저 JavaScript나 API payload에 노출하지 않는다. `AuthTicket`은 서버 측 session store에 보관하거나 인증된 암호화 방식으로 봉인한 opaque `HttpOnly` cookie session으로 유지할 수 있으며, 자세한 계약은 [`docs/browser.md`](docs/browser.md)를 따른다.
 - Node 기본 경로의 인증 값을 공개 `ChannelInfo`나 이벤트에 노출하지 않는다.
 - 실제 사용자 ID, 닉네임, 메시지, credential 또는 복구 가능한 실방송 캡처를 커밋하지 않는다. 테스트는 합성 또는 복구 불가능하게 비식별화한 데이터만 사용한다.

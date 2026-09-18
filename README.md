@@ -72,7 +72,7 @@ await chat.connect();
 | 구독플러스 방          | 권한 있는 `credentials`        |
 | 로그인 제한 + 비밀번호 | `credentials` + `roomPassword` |
 
-브라우저에서는 `credentials` 대신 애플리케이션 서버의 resolver와 로그인 session을 사용합니다. credential과 비밀번호는 소스·로그·셸 이력·저장소에 남기지 말고 환경 변수나 secret store에서 읽으세요.
+브라우저에서는 `credentials` 대신 애플리케이션 서버의 resolver와 로그인 session을 사용합니다. credential과 비밀번호는 소스·로그·셸 이력·일반 설정 저장소에 남기지 말고 환경 변수나 secret manager에서 주입하세요.
 
 ```ts
 const { SOOP_USERNAME: username, SOOP_PASSWORD: password } = process.env;

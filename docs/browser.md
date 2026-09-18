@@ -179,8 +179,9 @@ return channelResolutionResponse(() =>
 
 ## 보안 계약
 
-- raw 계정 credential, 방 비밀번호, `AuthTicket`, `TK`, `FTK`를 URL, 로그, fixture 또는 영구 저장소에 넣지 않습니다.
-- `AuthTicket`은 서버 측 session store에 보관하거나 인증된 암호화 방식으로 봉인한 opaque `HttpOnly` cookie session으로 유지할 수 있습니다. 계정 비밀번호는 cookie에 넣지 않습니다.
+- raw 계정 credential과 방 비밀번호는 URL, 로그, fixture, 소스나 일반 데이터 저장소에 넣지 않고 환경 변수나 secret manager에서 주입합니다.
+- `AuthTicket`은 서버 측 session store에 보관하거나 인증된 암호화 방식으로 봉인한 opaque `HttpOnly` cookie session으로 유지할 수 있습니다. 계정 비밀번호는 cookie에 넣지 않고, `AuthTicket`은 애플리케이션 session 수명보다 오래 보관하지 않습니다.
+- WebSocket 입장용 `TK`·`FTK`는 로그나 영구 저장소에 넣지 않습니다.
 - 계정 credential과 raw `AuthTicket`은 브라우저 JavaScript나 API payload로 보내지 않습니다.
 - 인증 채널 응답에는 `Cache-Control: no-store`를 적용합니다.
 - 연결과 재연결마다 서버에서 최신 채널 정보와 WebSocket 입장용 `TK`·`FTK`를 조회합니다.

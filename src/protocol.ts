@@ -429,7 +429,7 @@ function jsonBoolean(record: Readonly<Record<string, unknown>>, key: string): bo
 
 function bgrColor(value: string | undefined): string {
   const number = Number(value);
-  if (!Number.isFinite(number) || number === 0) return "";
+  if (!Number.isInteger(number) || number <= 0 || number > 0xffffff) return "";
   const hex = number.toString(16).padStart(6, "0").toUpperCase();
   return `#${hex.slice(4, 6)}${hex.slice(2, 4)}${hex.slice(0, 2)}`;
 }

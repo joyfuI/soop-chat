@@ -5,6 +5,7 @@ import {
   authenticateNode,
   AuthenticationError,
   BroadcastOfflineError,
+  ChannelResolutionError,
   createNodeChannelResolver,
   resolveNodeChannel,
   RestrictedRoomError,
@@ -157,6 +158,28 @@ void test("distinguishes offline and restricted rooms", async (context) => {
   );
 });
 
+void test("does not classify missing or malformed live results as offline", async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  for (const body of [{}, { CHANNEL: {} }, { CHANNEL: { RESULT: "invalid" } }]) {
+    globalThis.fetch = async () => new Response(JSON.stringify(body));
+    await assert.rejects(
+      resolveNodeChannel("streamer", { signal: new AbortController().signal }),
+      ChannelResolutionError,
+    );
+  }
+
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ CHANNEL: { REASON: "not streaming" } }));
+  await assert.rejects(
+    resolveNodeChannel("streamer", { signal: new AbortController().signal }),
+    BroadcastOfflineError,
+  );
+});
+
 void test("validates password rooms independently of account authentication", async (context) => {
   const originalFetch = globalThis.fetch;
   context.after(() => {
@@ -164,6 +187,7 @@ void test("validates password rooms independently of account authentication", as
   });
   const requests: Array<{ type: string | null; password: string | null; cookie: string | null }> =
     [];
+  let aidResponse: object | undefined;
   globalThis.fetch = async (_input, init) => {
     assert.ok(init?.body instanceof URLSearchParams);
     const body = init.body;
@@ -175,9 +199,11 @@ void test("validates password rooms independently of account authentication", as
     if (body.get("type") === "aid") {
       assert.equal(body.get("bno"), "10");
       return new Response(
-        JSON.stringify({
-          CHANNEL: { RESULT: body.get("pwd") === "synthetic-room-password" ? 1 : 0 },
-        }),
+        JSON.stringify(
+          aidResponse ?? {
+            CHANNEL: { RESULT: body.get("pwd") === "synthetic-room-password" ? 1 : 0 },
+          },
+        ),
       );
     }
     return new Response(
@@ -226,6 +252,13 @@ void test("validates password rooms independently of account authentication", as
       error.reason === "password" &&
       error.message === "SOOP rejected the room password.",
   );
+
+  for (aidResponse of [{ CHANNEL: {} }, { CHANNEL: { RESULT: "invalid" } }]) {
+    await assert.rejects(
+      resolveNodeChannel("streamer", { signal, roomPassword: "synthetic-room-password" }),
+      ChannelResolutionError,
+    );
+  }
 });
 
 void test("authenticates once and keeps chat tickets out of channel data", async (context) => {

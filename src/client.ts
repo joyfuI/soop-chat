@@ -334,6 +334,11 @@ export class SoopChatCore {
                 joinSent = true;
               }
               if (!joined && joinSent && event?.type === "joinChannel") {
+                if (event.data.chatNo !== channel.chatNo) {
+                  throw new ProtocolError(
+                    "SOOP join response does not match the resolved channel.",
+                  );
+                }
                 joined = true;
                 this.#reconnectAttempt = 0;
                 this.#setState("connected");
@@ -352,8 +357,8 @@ export class SoopChatCore {
           .catch((cause) => {
             if (this.#socket !== socket || (settled && !joined)) return;
             const error = cause instanceof Error ? cause : new Error(String(cause));
-            this.#emit("error", error);
-            fail(error);
+            if (joined) this.#emit("error", error);
+            else fail(error);
           });
       };
 

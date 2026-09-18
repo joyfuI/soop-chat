@@ -18,7 +18,7 @@ import type {
 const LIVE_API = "https://live.sooplive.com/afreeca/player_live_api.php";
 const LOGIN_API = "https://login.sooplive.com/app/LoginAction.php";
 
-/** Node 전용 SOOP 계정 정보입니다. 메모리에만 두고 로그나 영구 저장소에 남기지 마세요. */
+/** Node 전용 SOOP 계정 정보입니다. 환경 변수나 secret manager에서 주입하고 로그나 일반 저장소에 남기지 마세요. */
 export interface SoopCredentials {
   /** SOOP 계정 ID입니다. */
   username: string;
@@ -34,7 +34,8 @@ export interface SoopAuthentication {
   /**
    * 계정 session 티켓입니다. Node 기본 resolver는 프로세스 메모리에 보관합니다. 브라우저
    * 애플리케이션 서버는 서버 측 session store에 보관하거나 인증된 암호화 방식의 opaque
-   * `HttpOnly` cookie로 봉인할 수 있습니다. raw 값은 로그나 영구 저장소에 남기지 마세요.
+   * `HttpOnly` cookie로 봉인할 수 있습니다. raw 값은 로그에 남기거나 애플리케이션 session
+   * 수명보다 오래 보관하지 마세요.
    */
   authTicket: string;
 }
@@ -57,6 +58,17 @@ function record(value: unknown): Record<string, unknown> | undefined {
 
 function text(value: unknown): string {
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
+
+function resultCode(
+  root: Readonly<Record<string, unknown>>,
+  channel: Readonly<Record<string, unknown>>,
+): number | undefined {
+  const value = channel.RESULT ?? root.RESULT;
+  if (typeof value === "number") return Number.isSafeInteger(value) ? value : undefined;
+  if (typeof value !== "string" || !/^-?\d+$/.test(value.trim())) return undefined;
+  const result = Number(value);
+  return Number.isSafeInteger(result) ? result : undefined;
 }
 
 function restrictionFromReason(reason: string): RestrictedRoomReason {
@@ -189,8 +201,12 @@ async function resolveChannel(
   };
 
   const { root, channel } = await request("live");
-  const result = Number(channel.RESULT ?? root.RESULT ?? 0);
+  const result = resultCode(root, channel);
   const reason = text(channel.REASON ?? root.REASON);
+  if (result === undefined) {
+    if (/offline|not.?stream/i.test(reason)) throw new BroadcastOfflineError(streamerId);
+    throw new ChannelResolutionError(reason || "SOOP live-info API returned an invalid RESULT.");
+  }
   if (result !== 1) {
     if (result === 0 || /offline|not.?stream/i.test(reason))
       throw new BroadcastOfflineError(streamerId);
@@ -220,9 +236,16 @@ async function resolveChannel(
   if (text(channel.BPWD).toUpperCase() === "Y") {
     if (!roomPassword) throw new RestrictedRoomError("password");
     const passwordCheck = await request("aid", info.broadcastNo);
-    if (Number(passwordCheck.channel.RESULT ?? passwordCheck.root.RESULT ?? 0) !== 1) {
+    const passwordResult = resultCode(passwordCheck.root, passwordCheck.channel);
+    if (passwordResult === 0) {
       throw new RestrictedRoomError("password", "SOOP rejected the room password.");
     }
+    if (passwordResult !== 1)
+      throw new ChannelResolutionError(
+        passwordResult === undefined
+          ? "SOOP password validation returned an invalid RESULT."
+          : `SOOP password validation returned RESULT=${passwordResult}.`,
+      );
   }
   if (authTicket) {
     const ticket = text(channel.TK);
@@ -259,7 +282,7 @@ export async function authenticateNode(
  *
  * @throws {BroadcastOfflineError} 방송 중이 아닐 때 발생합니다.
  * @throws {RestrictedRoomError} 비밀번호나 계정 권한이 필요한 방일 때 발생합니다.
- * @throws {AuthenticationError} 전달된 인증 티켓이 유효하지 않을 때 발생합니다.
+ * @throws {AuthenticationError} 전달된 인증 티켓이 로컬 형식 검증에 실패할 때 발생합니다.
  * @throws {TypeError} 방송인 ID가 비어 있거나 방 비밀번호에 제어 문자가 있을 때 발생합니다.
  * @throws {ChannelResolutionError} SOOP이 유효한 채널 정보를 제공하지 못할 때 발생합니다.
  */

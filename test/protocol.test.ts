@@ -968,6 +968,17 @@ void test("decodes every field-reading official player branch", () => {
       cheerTeamNumber: 7,
     });
 
+  for (const color of ["-1", "1.5", "16777216", "invalid"]) {
+    const invalidColor = decodePacket(
+      rawPacket(
+        "0005",
+        `${separator}message${separator}sender${separator}${color}${separator}0${separator}3${separator}nickname${separator}16|0${separator}0`,
+      ),
+    );
+    assert.equal(invalidColor.type, "chatMessage");
+    if (invalidColor.type === "chatMessage") assert.equal(invalidColor.data.color, "");
+  }
+
   const follow = decodePacket(
     rawPacket(
       "0091",
