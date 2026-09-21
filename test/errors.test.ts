@@ -12,7 +12,7 @@ import {
 void test("serializes and restores channel resolution error classes", () => {
   const serialized: SerializedChannelResolutionError[] = [
     serializeChannelResolutionError(new BroadcastOfflineError("streamer")),
-    serializeChannelResolutionError(new RestrictedRoomError("adult")),
+    serializeChannelResolutionError(new RestrictedRoomError("region")),
     serializeChannelResolutionError(new ChannelResolutionError("Synthetic resolver failure.")),
   ];
   const [offline, restricted, failed] = serialized.map((error) =>
@@ -21,7 +21,7 @@ void test("serializes and restores channel resolution error classes", () => {
 
   assert.ok(offline instanceof BroadcastOfflineError);
   assert.ok(restricted instanceof RestrictedRoomError);
-  assert.equal(restricted.reason, "adult");
+  assert.equal(restricted.reason, "region");
   assert.ok(failed instanceof ChannelResolutionError);
 });
 

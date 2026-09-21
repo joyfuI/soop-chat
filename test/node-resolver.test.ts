@@ -142,6 +142,16 @@ void test("distinguishes offline and restricted rooms", async (context) => {
       error.message === "SOOP rejected the room password.",
   );
 
+  globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -2 } }));
+  await assert.rejects(
+    resolveNodeChannel("region-restricted", { signal: new AbortController().signal }),
+    (error) =>
+      error instanceof RestrictedRoomError &&
+      error.reason === "region" &&
+      error.message ===
+        "This broadcast is unavailable in the current region due to copyright restrictions.",
+  );
+
   globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -6 } }));
   await assert.rejects(
     resolveNodeChannel("adult", { signal: new AbortController().signal }),

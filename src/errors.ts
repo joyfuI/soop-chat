@@ -29,11 +29,12 @@ export class BroadcastOfflineError extends SoopChatError {
 export type RestrictedRoomReason =
   | "password"
   | "adult"
+  | "region"
   | "subscriptionPlus"
   | "loginRequired"
   | "unknown";
 
-/** 채팅방에 비밀번호, 로그인, 성인 인증 또는 구독 권한이 필요할 때 발생합니다. */
+/** 채팅방에 비밀번호, 로그인, 성인 인증, 구독 권한이 필요하거나 지역 제한이 있을 때 발생합니다. */
 export class RestrictedRoomError extends SoopChatError {
   readonly reason: RestrictedRoomReason;
 
@@ -104,6 +105,7 @@ function isRestrictedRoomReason(value: unknown): value is RestrictedRoomReason {
   return (
     value === "password" ||
     value === "adult" ||
+    value === "region" ||
     value === "subscriptionPlus" ||
     value === "loginRequired" ||
     value === "unknown"

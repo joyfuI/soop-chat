@@ -71,6 +71,10 @@ Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용�
 
 `0007 setBjStat`의 원본 숫자는 방송 중에도 올 수 있어 종료로 해석하지 않습니다. 이벤트 의미와 그 밖의 상태 관련 caveat는 [이벤트 가이드](events.md)를 참고하세요. [방송 종료 관찰 근거](research/protocol-evidence.md#방송-종료)
 
+## 지역 제한
+
+라이브 정보 API의 `RESULT=-2`는 저작권에 따른 현재 지역 시청 제한이며 `RestrictedRoomError("region")`으로 분류합니다. 접근 제한이므로 자동 재연결하지 않습니다. [공식 플레이어 근거](research/protocol-evidence.md#지역-제한)
+
 ## 인증 handshake
 
 ### 로그인과 19금 방

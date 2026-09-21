@@ -414,6 +414,10 @@ animation, cheerTeamNumber
 
 `13:45:22.018`의 100개 후원은 닉네임·개수와 함께 화면의 3,785번째 팬클럽 가입 안내가 `fanOrder=3785`, `becameFanClub=true`와 일치했습니다. 1ms 뒤 같은 사용자의 `0012`에서 `isFan`도 거짓에서 참으로 바뀌었습니다. 위 후원 표본들의 실제 ID·닉네임과 파일명은 기록하지 않습니다.
 
+## 지역 제한
+
+[공식 `LivePlayer.js`](https://static.sooplive.com/asset/app/liveplayer/player/dist/LivePlayer.js?_=202609011100) 빌드 `202609011100`은 라이브 정보 API의 `RESULT=-2`를 “본 방송은 저작권 보호를 위해 현재 지역에서 시청할 수 없습니다.”로 처리합니다. 라이브러리는 이를 `RestrictedRoomError("region")`으로 분류합니다. 서로 다른 지역에서 실제 응답을 대조하지는 않았으므로 `RESULT` 외의 응답 필드는 확정하지 않습니다.
+
 ## 인증 연결
 
 ### 로그인과 19금 방
