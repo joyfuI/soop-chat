@@ -30,11 +30,15 @@ export type RestrictedRoomReason =
   | "password"
   | "adult"
   | "region"
+  | "blacklisted"
+  | "kicked"
+  | "suspended"
+  | "ticketRequired"
   | "subscriptionPlus"
   | "loginRequired"
   | "unknown";
 
-/** 채팅방에 비밀번호, 로그인, 성인 인증, 구독 권한이 필요하거나 지역 제한이 있을 때 발생합니다. */
+/** SOOP이 확인된 접근 제한으로 채팅방 입장을 거부할 때 발생합니다. */
 export class RestrictedRoomError extends SoopChatError {
   readonly reason: RestrictedRoomReason;
 
@@ -106,6 +110,10 @@ function isRestrictedRoomReason(value: unknown): value is RestrictedRoomReason {
     value === "password" ||
     value === "adult" ||
     value === "region" ||
+    value === "blacklisted" ||
+    value === "kicked" ||
+    value === "suspended" ||
+    value === "ticketRequired" ||
     value === "subscriptionPlus" ||
     value === "loginRequired" ||
     value === "unknown"

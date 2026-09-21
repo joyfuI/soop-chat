@@ -73,13 +73,19 @@ Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용�
 
 ## 지역 제한
 
-라이브 정보 API의 `RESULT=-2`는 저작권에 따른 현재 지역 시청 제한이며 `RestrictedRoomError("region")`으로 분류합니다. 접근 제한이므로 자동 재연결하지 않습니다. [공식 플레이어 근거](research/protocol-evidence.md#지역-제한)
+라이브 정보 API의 `RESULT=-2`는 저작권에 따른 현재 지역 시청 제한, `RESULT=-13`은 해당 국가의 유료 방송 참여 제한이며 둘 다 `RestrictedRoomError("region")`으로 분류합니다. 접근 제한이므로 자동 재연결하지 않습니다. [공식 플레이어 근거](research/protocol-evidence.md#지역-제한)
+
+## 계정 제재와 유료 방송 제한
+
+라이브 정보 API의 `RESULT=-3`, `-4`, `-5`는 각각 스트리머 블랙리스트, 강제퇴장 후 재입장 제한, SOOP 서비스 이용 정지이며 `RestrictedRoomError`의 `blacklisted`, `kicked`, `suspended` 사유로 분류합니다.
+
+`RESULT=-10`과 `-12`는 유료 방송 티켓이 필요한 `ticketRequired`, `RESULT=-11`은 로그인이 필요한 `loginRequired`로 분류합니다. 모두 자동 재연결하지 않습니다. 실제 제한 응답과 성공한 유료 방송 채팅 입장은 아직 대조하지 않았습니다. [공식 플레이어 근거](research/protocol-evidence.md#추가-접근-제한)
 
 ## 인증 handshake
 
 ### 로그인과 19금 방
 
-라이브 정보 API의 `RESULT=-6`은 `RestrictedRoomError("adult")`로 분류합니다. 권한 있는 계정은 다음 순서로 연결합니다.
+라이브 정보 API의 `RESULT=-6`과 `-8`은 `RestrictedRoomError("adult")`로 분류합니다. 권한 있는 계정은 다음 순서로 연결합니다.
 
 1. `LoginAction.php`에 계정 정보를 전송해 `AuthTicket`을 받습니다.
 2. 라이브 정보 API에 `AuthTicket` cookie를 보내 채널 정보와 `TK`·`FTK`를 받습니다.
@@ -120,6 +126,7 @@ Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용�
 |---|---|---|
 | `AuthTicket` | TTL, 무효화와 refresh | 자동 갱신 없이 오류 전달 |
 | 접근 제한 | 연결 뒤 제한 변경을 알리는 전용 wire 신호 | resolver 실행 시점의 API 결과만 사용 |
+| P2P 이용 동의 | `RESULT=-15`가 채팅 전용 resolver에도 적용되는지 여부 | 별도 제한으로 추정하지 않고 `ChannelResolutionError` 전달 |
 | 채팅 전송 | 권한, 실패, 중복 방지 계약 | 읽기 전용 유지 |
 | 미해석 payload | 안정된 field 순서와 의미 | `raw.fields` 또는 원본 JSON 보존 |
 

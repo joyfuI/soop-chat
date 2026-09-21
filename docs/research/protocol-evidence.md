@@ -416,7 +416,22 @@ animation, cheerTeamNumber
 
 ## 지역 제한
 
-[공식 `LivePlayer.js`](https://static.sooplive.com/asset/app/liveplayer/player/dist/LivePlayer.js?_=202609011100) 빌드 `202609011100`은 라이브 정보 API의 `RESULT=-2`를 “본 방송은 저작권 보호를 위해 현재 지역에서 시청할 수 없습니다.”로 처리합니다. 라이브러리는 이를 `RestrictedRoomError("region")`으로 분류합니다. 서로 다른 지역에서 실제 응답을 대조하지는 않았으므로 `RESULT` 외의 응답 필드는 확정하지 않습니다.
+[공식 `LivePlayer.js`](https://static.sooplive.com/asset/app/liveplayer/player/dist/LivePlayer.js?_=202609011100) 빌드 `202609011100`은 라이브 정보 API의 `RESULT=-2`를 저작권에 따른 현재 지역 시청 제한, `RESULT=-13`을 해당 국가의 유료 방송 참여 제한으로 처리합니다. 라이브러리는 둘 다 `RestrictedRoomError("region")`으로 분류합니다. 서로 다른 지역에서 실제 응답을 대조하지는 않았으므로 `RESULT` 외의 응답 필드는 확정하지 않습니다.
+
+## 추가 접근 제한
+
+같은 공식 플레이어의 라이브 정보 결과 분기는 다음 접근 제한을 처리합니다. 이 표의 결과는 공식 코드 근거이며 실제 제한 응답이나 성공한 유료 방송 채팅 입장과 대조한 표본은 아닙니다.
+
+| `RESULT` | 공식 플레이어 처리 | 라이브러리 분류 |
+|---|---|---|
+| `-3` | 스트리머 블랙리스트 | `RestrictedRoomError("blacklisted")` |
+| `-4` | 강제퇴장 후 재입장 제한 | `RestrictedRoomError("kicked")` |
+| `-5` | 운영원칙 위반에 따른 서비스 이용 정지 | `RestrictedRoomError("suspended")` |
+| `-6`, `-8` | 성인 인증 필요 | `RestrictedRoomError("adult")` |
+| `-10`, `-12` | 유료 방송 티켓 필요 | `RestrictedRoomError("ticketRequired")` |
+| `-11` | 유료 방송 로그인 필요 | `RestrictedRoomError("loginRequired")` |
+
+공식 플레이어는 `RESULT=-15`를 GDPR 지역의 P2P 미디어 플레이어 이용 동의로 처리하고 [공식 `LiveView.js`](https://static.sooplive.com/asset/app/liveplayer/view/dist/LiveView.js?_=202609011100)에서 동의 UI를 표시합니다. 이 라이브러리는 영상이나 P2P 미디어 플레이어를 사용하지 않고 채팅 전용 요청에서 실제 `-15` 응답을 확인하지 않았으므로 별도 제한 사유를 만들지 않으며 기존 `ChannelResolutionError`로 전달합니다.
 
 ## 인증 연결
 

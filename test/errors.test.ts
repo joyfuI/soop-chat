@@ -23,6 +23,14 @@ void test("serializes and restores channel resolution error classes", () => {
   assert.ok(restricted instanceof RestrictedRoomError);
   assert.equal(restricted.reason, "region");
   assert.ok(failed instanceof ChannelResolutionError);
+
+  for (const reason of ["blacklisted", "kicked", "suspended", "ticketRequired"] as const) {
+    const restored = deserializeChannelResolutionError(
+      serializeChannelResolutionError(new RestrictedRoomError(reason)),
+    );
+    assert.ok(restored instanceof RestrictedRoomError);
+    assert.equal(restored.reason, reason);
+  }
 });
 
 void test("falls back safely for unknown or malformed serialized errors", () => {

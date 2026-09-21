@@ -222,7 +222,34 @@ async function resolveChannel(
         "This broadcast is unavailable in the current region due to copyright restrictions.",
       );
     }
-    if (result === -6) throw new RestrictedRoomError("adult");
+    if (result === -3) {
+      throw new RestrictedRoomError("blacklisted", "The broadcaster has blacklisted this viewer.");
+    }
+    if (result === -4) {
+      throw new RestrictedRoomError(
+        "kicked",
+        "Access to this broadcast was revoked after a forced removal.",
+      );
+    }
+    if (result === -5) {
+      throw new RestrictedRoomError(
+        "suspended",
+        "SOOP has suspended access to the service for a policy violation.",
+      );
+    }
+    if (result === -6 || result === -8) throw new RestrictedRoomError("adult");
+    if (result === -10 || result === -12) {
+      throw new RestrictedRoomError("ticketRequired", "This paid broadcast requires a ticket.");
+    }
+    if (result === -11) {
+      throw new RestrictedRoomError("loginRequired", "This paid broadcast requires login.");
+    }
+    if (result === -13) {
+      throw new RestrictedRoomError(
+        "region",
+        "This paid broadcast is unavailable in the current region.",
+      );
+    }
     if (result === -14) throw new RestrictedRoomError("subscriptionPlus");
     const restriction = restrictionFromReason(reason);
     if (restriction !== "unknown") throw new RestrictedRoomError(restriction, reason || undefined);
@@ -287,7 +314,7 @@ export async function authenticateNode(
  * 응답 본문 수신 중에도 `context.signal`이 중단되면 요청은 `AbortError`로 거부됩니다.
  *
  * @throws {BroadcastOfflineError} 방송 중이 아닐 때 발생합니다.
- * @throws {RestrictedRoomError} 비밀번호, 계정 권한 또는 지역 제한으로 접근할 수 없을 때 발생합니다.
+ * @throws {RestrictedRoomError} SOOP이 확인된 접근 제한으로 채팅방 입장을 거부할 때 발생합니다.
  * @throws {AuthenticationError} 전달된 인증 티켓이 로컬 형식 검증에 실패할 때 발생합니다.
  * @throws {TypeError} 방송인 ID가 비어 있거나 방 비밀번호에 제어 문자가 있을 때 발생합니다.
  * @throws {ChannelResolutionError} SOOP이 유효한 채널 정보를 제공하지 못할 때 발생합니다.

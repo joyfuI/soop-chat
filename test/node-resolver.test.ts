@@ -142,33 +142,35 @@ void test("distinguishes offline and restricted rooms", async (context) => {
       error.message === "SOOP rejected the room password.",
   );
 
-  globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -2 } }));
-  await assert.rejects(
-    resolveNodeChannel("region-restricted", { signal: new AbortController().signal }),
-    (error) =>
-      error instanceof RestrictedRoomError &&
-      error.reason === "region" &&
-      error.message ===
-        "This broadcast is unavailable in the current region due to copyright restrictions.",
-  );
-
-  globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -6 } }));
-  await assert.rejects(
-    resolveNodeChannel("adult", { signal: new AbortController().signal }),
-    (error) =>
-      error instanceof RestrictedRoomError &&
-      error.reason === "adult" &&
-      error.message === "Access to this room is restricted (adult).",
-  );
-
-  globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -14 } }));
-  await assert.rejects(
-    resolveNodeChannel("subscription-plus", { signal: new AbortController().signal }),
-    (error) => error instanceof RestrictedRoomError && error.reason === "subscriptionPlus",
-  );
+  for (const [result, reason, message] of [
+    [
+      -2,
+      "region",
+      "This broadcast is unavailable in the current region due to copyright restrictions.",
+    ],
+    [-3, "blacklisted", "The broadcaster has blacklisted this viewer."],
+    [-4, "kicked", "Access to this broadcast was revoked after a forced removal."],
+    [-5, "suspended", "SOOP has suspended access to the service for a policy violation."],
+    [-6, "adult", "Access to this room is restricted (adult)."],
+    [-8, "adult", "Access to this room is restricted (adult)."],
+    [-10, "ticketRequired", "This paid broadcast requires a ticket."],
+    [-11, "loginRequired", "This paid broadcast requires login."],
+    [-12, "ticketRequired", "This paid broadcast requires a ticket."],
+    [-13, "region", "This paid broadcast is unavailable in the current region."],
+    [-14, "subscriptionPlus", "Access to this room is restricted (subscriptionPlus)."],
+  ] as const) {
+    globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: result } }));
+    await assert.rejects(
+      resolveNodeChannel(`restricted-${result}`, { signal: new AbortController().signal }),
+      (error) =>
+        error instanceof RestrictedRoomError &&
+        error.reason === reason &&
+        error.message === message,
+    );
+  }
 });
 
-void test("does not classify missing or malformed live results as offline", async (context) => {
+void test("does not classify missing, malformed, or unhandled live results as offline", async (context) => {
   const originalFetch = globalThis.fetch;
   context.after(() => {
     globalThis.fetch = originalFetch;
@@ -187,6 +189,14 @@ void test("does not classify missing or malformed live results as offline", asyn
   await assert.rejects(
     resolveNodeChannel("streamer", { signal: new AbortController().signal }),
     BroadcastOfflineError,
+  );
+
+  globalThis.fetch = async () => new Response(JSON.stringify({ CHANNEL: { RESULT: -15 } }));
+  await assert.rejects(
+    resolveNodeChannel("streamer", { signal: new AbortController().signal }),
+    (error) =>
+      error instanceof ChannelResolutionError &&
+      error.message === "SOOP live-info API returned RESULT=-15.",
   );
 });
 
