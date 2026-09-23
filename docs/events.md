@@ -14,7 +14,7 @@ Markdown에 필드 사전을 복제하지 않습니다. 아래에는 발생 상�
 | `followItem` | `FollowItemData` | 구독 세리머니 | 결제나 신규 구독 발생 이벤트가 아님 |
 | `sendSubscription` | `GiftSubscriptionData` | 수신자별 구독 선물 | 전체 선물 개수를 뜻하지 않음 |
 | `mission` | `MissionData` | 도전·대결미션 | `missionKind`와 `action`으로 먼저 분기 |
-| `closeBroad` | `FieldEventData` | 명시적 방송 종료 | 이어서 `ended`가 발생하고 재연결하지 않음 |
+| `closeBroad` | `FieldEventData` | 명시적 방송 종료 | listener가 연결을 중단하지 않으면 `ended`가 발생하고 재연결하지 않음 |
 
 ```ts
 chat.on("chatMessage", ({ data }) => {
@@ -120,7 +120,7 @@ chat.on("sendBalloon", ({ data }) => {
 
 `sendAdminNotice`는 운영자 공지 본문만 제공합니다. 화면의 “SOOP 안내” 제목은 플레이어가 생성하므로 데이터에 합성하지 않습니다.
 
-`closeBroad`는 명시적 방송 종료입니다. 라이브러리는 이를 전달한 뒤 `ended: { reason: "offline" }`을 발생시키고 자동 재연결하지 않습니다. `setBjStat.status`는 방송 중에도 올 수 있는 미확인 원본 숫자이므로 종료·대기·화면 상태로 해석하지 마세요.
+`closeBroad`는 명시적 방송 종료입니다. listener가 연결을 중단하지 않으면 이어서 `ended: { reason: "offline" }`이 발생하고 자동 재연결하지 않습니다. listener가 연결을 변경하는 경우의 이벤트 순서는 [프로토콜 계약](protocol.md#종료와-reconnect)을 참고하세요. `setBjStat.status`는 방송 중에도 올 수 있는 미확인 원본 숫자이므로 종료·대기·화면 상태로 해석하지 마세요.
 
 `setDumb`는 채팅금지 대상, 초 단위 지속 시간, 누적 횟수와 명령 주체를 제공합니다. 화면 문구는 플레이어가 생성하므로 이벤트 데이터로 합성하지 않습니다.
 

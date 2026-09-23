@@ -15,6 +15,7 @@
 - `package.json`의 `exports`가 public API 경계다. 기존 API와 Node/browser 경계를 불필요하게 깨지 않는다.
 - 새 의존성보다 표준 API와 기존 코드를 우선한다.
 - 프로토콜 관련 코드를 수정하기 전에 [`docs/protocol.md`](docs/protocol.md)를 읽는다. 세부 근거가 필요할 때만 [`docs/research/protocol-evidence.md`](docs/research/protocol-evidence.md)를 읽는다.
+- 실방송 패킷을 분석할 때 WebSocket message와 완성된 protocol packet의 최대 byte 길이 및 표본 수를 측정해 research 문서에 기록한다. 개인정보나 원본 내용은 저장하지 않는다.
 - `AGENTS.md`는 작업 규칙, 아키텍처 또는 high-risk invariant가 바뀔 때만 갱신한다. 조사 기록을 누적하지 않는다.
 
 ## High-risk invariant

@@ -91,15 +91,15 @@ await chat.connect();
 
 ## 주요 이벤트
 
-| 이벤트             | 사용할 때          | 주의사항                                   |
-| ------------------ | ------------------ | ------------------------------------------ |
-| `chatMessage`      | 일반 채팅 메시지   | 첫 사용에 권장                             |
-| `chatUser`         | 사용자 입장·퇴장   | 입장은 여러 사용자의 batch일 수 있음       |
-| `sendBalloon`      | 별풍선 후원        | `fanOrder`는 고유 ID나 정렬 키가 아님      |
-| `followItem`       | 구독 세리머니      | 결제 시각이나 신규 구독 발생을 뜻하지 않음 |
-| `sendSubscription` | 수신자별 구독 선물 | 전체 선물 개수 이벤트가 아님               |
-| `mission`          | 도전·대결미션      | `missionKind`와 `action`으로 먼저 분기     |
-| `closeBroad`       | 명시적 방송 종료   | 이어서 `ended: { reason: "offline" }` 발생 |
+| 이벤트             | 사용할 때          | 주의사항                                              |
+| ------------------ | ------------------ | ----------------------------------------------------- |
+| `chatMessage`      | 일반 채팅 메시지   | 첫 사용에 권장                                        |
+| `chatUser`         | 사용자 입장·퇴장   | 입장은 여러 사용자의 batch일 수 있음                  |
+| `sendBalloon`      | 별풍선 후원        | `fanOrder`는 고유 ID나 정렬 키가 아님                 |
+| `followItem`       | 구독 세리머니      | 결제 시각이나 신규 구독 발생을 뜻하지 않음            |
+| `sendSubscription` | 수신자별 구독 선물 | 전체 선물 개수 이벤트가 아님                          |
+| `mission`          | 도전·대결미션      | `missionKind`와 `action`으로 먼저 분기                |
+| `closeBroad`       | 명시적 방송 종료   | listener가 연결을 중단하지 않으면 이어서 `ended` 발생 |
 
 모든 프로토콜 이벤트에는 `type`, `opcode`, `receivedAt`, `raw`, `data`가 있습니다. 이벤트 선택과 해석상 주의사항, 전체 색인은 [이벤트 가이드](docs/events.md)를 참고하세요.
 
@@ -143,6 +143,8 @@ chat.on("ended", ({ reason, restriction }) => {
 ```
 
 예기치 않은 transport 종료에는 기본적으로 채널 정보를 다시 조회해 지수 backoff로 재연결합니다. 최대 재시도 횟수 제한은 없으며, 명시적 방송 종료·접근 제한 또는 `disconnect()`까지 계속 시도합니다. 다음 방송을 읽으려면 `connect()`를 다시 호출하세요. 사용자 정의 `ChannelResolver`는 전달받은 `AbortSignal`을 따르고 방송별 `ChannelInfo`를 캐시하지 않아야 합니다.
+
+채널 조회는 기본 30초의 `resolverTimeoutMs`로 제한되며, WebSocket 입장에는 별도의 `handshakeTimeoutMs`가 적용됩니다. 두 옵션의 계약은 [`src/types.ts`](src/types.ts)를 참고하세요.
 
 `connect()` 실패는 Promise 예외로 전달됩니다. 라이브러리 오류는 `SoopChatError`를 상속합니다. `AuthenticationError`는 Node 계정 인증, `BrowserResolverRequiredError`는 브라우저 resolver 누락에서 발생하며, `BroadcastOfflineError`, `RestrictedRoomError`, `ChannelResolutionError`, `ProtocolError`는 두 entrypoint가 공유합니다.
 

@@ -27,6 +27,8 @@ Sec-WebSocket-Protocol: chat
 
 방송 인스턴스가 바뀌면 `chatNo`와 인증 연결 정보도 달라질 수 있습니다. 최초 연결, 재연결과 다음 방송 연결마다 resolver를 다시 호출하며 방송 간에 응답을 캐시하지 않습니다.
 
+채널 조회 전체에는 `resolverTimeoutMs`(기본 30초)를 적용합니다. 시간 초과 시 취소 신호를 보내고, resolver가 신호를 무시해도 해당 연결 시도를 끝냅니다. WebSocket 생성 이후에는 별도의 `handshakeTimeoutMs`를 적용합니다. 정확한 옵션 계약은 [`SoopChatOptions`](../src/types.ts)를 따릅니다.
+
 브라우저에서는 라이브 정보 API의 CORS 제한 때문에 애플리케이션 서버가 조회를 대신합니다. 서버·브라우저 경계는 [브라우저 리졸버 가이드](browser.md)가 기준입니다.
 
 TLS 검증은 비활성화하지 않습니다. 인증서 문제는 환경의 CA 설정을 고치거나 호출자에게 오류로 전달합니다.
@@ -65,7 +67,9 @@ Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용�
 
 정상 종료에는 WebSocket code `1000`, handshake 실패에는 `3000`, transport 실패에는 `3001`을 사용합니다. 클라이언트가 보낼 수 없는 예약 code는 사용하지 않습니다.
 
-`0088 closeBroad`는 명시적 방송 종료입니다. 라이브러리는 `closeBroad`를 먼저 전달하고 `ended: { reason: "offline" }`을 한 번 발생시킨 뒤 정상 종료하며 자동 재연결하지 않습니다. 이후 수동 `connect()`는 resolver부터 다시 실행합니다.
+`0088 closeBroad`는 명시적 방송 종료입니다. listener가 연결을 변경하지 않으면 라이브러리는 `closeBroad`를 먼저 전달하고 `ended: { reason: "offline" }`을 한 번 발생시킨 뒤 정상 종료하며 자동 재연결하지 않습니다. 이후 수동 `connect()`는 resolver부터 다시 실행합니다.
+
+패킷은 `raw`, 타입별 이벤트(또는 `unknown`), 공통 `event` 순서로 전달합니다. listener가 `disconnect()` 등으로 현재 연결을 중단하거나 교체하면 이전 소켓의 남은 이벤트 전달을 중단합니다. 따라서 `closeBroad` listener나 그 공통 `event` listener가 연결을 변경하면 자동 종료 처리와 `ended`도 생략될 수 있습니다. 수동 `disconnect()`는 `ended`를 발생시키지 않습니다.
 
 일반 transport 종료에는 채널 정보를 다시 조회한 뒤 지수 backoff로 재연결합니다. 접근 제한과 명시적 방송 종료는 재시도하지 않습니다. retry 중 수동 연결, timeout과 상태 전이의 정확한 공개 계약은 [`SoopChatOptions`](../src/types.ts)와 `src/client.ts`가 기준입니다.
 
