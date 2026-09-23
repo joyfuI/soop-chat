@@ -40,6 +40,7 @@ const DEFAULT_RECONNECT: Required<ReconnectOptions> = {
   jitter: 0.2,
 };
 const DEFAULT_HANDSHAKE_TIMEOUT_MS = 30_000;
+const DEFAULT_RESOLVER_TIMEOUT_MS = 30_000;
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 interface CoreOptions extends SoopChatOptions {
@@ -121,6 +122,7 @@ export class SoopChatCore {
   #roomPassword: string;
   #reconnect: Required<ReconnectOptions>;
   #handshakeTimeoutMs: number;
+  #resolverTimeoutMs: number;
   #heartbeatIntervalMs: number;
   #random: () => number;
   #socket: WebSocketLike | undefined;
@@ -145,6 +147,12 @@ export class SoopChatCore {
     }
     if (this.#handshakeTimeoutMs > MAX_TIMER_DELAY_MS)
       throw new RangeError(`handshakeTimeoutMs must not exceed ${MAX_TIMER_DELAY_MS}ms.`);
+    this.#resolverTimeoutMs = options.resolverTimeoutMs ?? DEFAULT_RESOLVER_TIMEOUT_MS;
+    if (!Number.isFinite(this.#resolverTimeoutMs) || this.#resolverTimeoutMs <= 0) {
+      throw new RangeError("resolverTimeoutMs must be a positive finite number.");
+    }
+    if (this.#resolverTimeoutMs > MAX_TIMER_DELAY_MS)
+      throw new RangeError(`resolverTimeoutMs must not exceed ${MAX_TIMER_DELAY_MS}ms.`);
     this.#heartbeatIntervalMs = options.heartbeatIntervalMs ?? 60_000;
     this.#random = options.random ?? Math.random;
   }
@@ -178,7 +186,7 @@ export class SoopChatCore {
    * 현재 채널 정보를 조회하고 서버가 채팅 입장을 확인하면 완료됩니다.
    *
    * 동시에 호출하면 하나의 연결 시도를 공유합니다. 재시도 대기 중 호출하면 즉시 시작합니다.
-   * resolver, 검증, 접근 제한, transport와 handshake timeout 오류는 Promise rejection으로
+   * resolver, 검증, 접근 제한, transport와 resolver/handshake timeout 오류는 Promise rejection으로
    * 전달됩니다. 연결 도중 `disconnect()`를 호출하면 `AbortError`로 거부됩니다.
    */
   async connect(): Promise<void> {
@@ -244,12 +252,34 @@ export class SoopChatCore {
     if (this.#stopped || this.#abortController !== controller) {
       throw new DOMException("Connection was aborted.", "AbortError");
     }
-    const channel = validateChannel(
-      await this.#resolveChannel(this.streamerId, {
-        signal: controller.signal,
-        ...(this.#roomPassword ? { roomPassword: this.#roomPassword } : {}),
-      }),
+    let rejectOnAbort!: (reason: unknown) => void;
+    const aborted = new Promise<never>((_, reject) => {
+      rejectOnAbort = reject;
+    });
+    const onAbort = () => rejectOnAbort(controller.signal.reason);
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+    const timeout = setTimeout(
+      () =>
+        controller.abort(
+          new Error(`SOOP channel resolution timed out after ${this.#resolverTimeoutMs}ms.`),
+        ),
+      this.#resolverTimeoutMs,
     );
+    let channel: ChannelInfo;
+    try {
+      channel = validateChannel(
+        await Promise.race([
+          this.#resolveChannel(this.streamerId, {
+            signal: controller.signal,
+            ...(this.#roomPassword ? { roomPassword: this.#roomPassword } : {}),
+          }),
+          aborted,
+        ]),
+      );
+    } finally {
+      clearTimeout(timeout);
+      controller.signal.removeEventListener("abort", onAbort);
+    }
     if (this.#stopped || this.#abortController !== controller) {
       throw new DOMException("Connection was aborted.", "AbortError");
     }

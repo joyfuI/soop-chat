@@ -9,6 +9,7 @@ import {
   createNodeChannelResolver,
   resolveNodeChannel,
   RestrictedRoomError,
+  SoopChat,
 } from "../src/node.js";
 import { createConnectPacket, createJoinPacket, PacketStreamParser } from "../src/protocol.js";
 
@@ -34,6 +35,28 @@ void test("preserves request cancellation while reading login and live-info resp
     );
     await assert.rejects(request(controller.signal), { name: "AbortError" });
   }
+});
+
+void test("bounds a pending Node live-info request", async (context) => {
+  let aborted = false;
+  context.mock.method(globalThis, "fetch", (_input: RequestInfo | URL, init?: RequestInit) => {
+    const signal = init?.signal;
+    assert.ok(signal instanceof AbortSignal);
+    return new Promise<Response>((_resolve, reject) => {
+      signal.addEventListener(
+        "abort",
+        () => {
+          aborted = true;
+          reject(signal.reason);
+        },
+        { once: true },
+      );
+    });
+  });
+
+  const client = new SoopChat({ streamerId: "streamer", resolverTimeoutMs: 5 });
+  await assert.rejects(client.connect(), /channel resolution timed out after 5ms/);
+  assert.equal(aborted, true);
 });
 
 void test("resolves and validates SOOP channel information", async (context) => {

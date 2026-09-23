@@ -74,6 +74,8 @@ export interface SoopChatOptions {
   roomPassword?: string;
   /** WebSocket 생성부터 유효한 `0002` 입장 응답까지의 제한 시간(ms). 양수이며 `2_147_483_647` 이하, 기본값은 30초입니다. */
   handshakeTimeoutMs?: number;
+  /** 연결·재연결 시 채널 조회 전체의 제한 시간(ms). 양수이며 `2_147_483_647` 이하, 기본값은 30초입니다. */
+  resolverTimeoutMs?: number;
   /** 자동 재연결 설정입니다. 기본적으로 지수 backoff 재연결을 사용합니다. */
   reconnect?: boolean | ReconnectOptions;
   /**

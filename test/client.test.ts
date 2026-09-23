@@ -826,6 +826,75 @@ void test("times out and cleans up a stalled WebSocket handshake", async () => {
   assert.equal(client.state, "closed");
 });
 
+void test("times out a stalled resolver even when it ignores cancellation", async () => {
+  let release!: (channel: ChannelInfo) => void;
+  const pending = new Promise<ChannelInfo>((resolve) => {
+    release = resolve;
+  });
+  let signal: AbortSignal | undefined;
+  let socketCalls = 0;
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async (_streamerId, context) => {
+      signal = context.signal;
+      return pending;
+    },
+    createWebSocket: () => {
+      socketCalls += 1;
+      return new FakeSocket();
+    },
+    resolverTimeoutMs: 5,
+  });
+
+  await assert.rejects(settlesWithin(client.connect()), /channel resolution timed out after 5ms/);
+  assert.equal(signal?.aborted, true);
+  assert.equal(client.state, "closed");
+  assert.equal(socketCalls, 0);
+  release(channel);
+  await turn();
+  assert.equal(socketCalls, 0);
+});
+
+void test("disconnect settles a pending resolver that ignores cancellation", async () => {
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => new Promise<ChannelInfo>(() => {}),
+    createWebSocket: () => assert.fail("Cancelled resolution reached the transport."),
+  });
+
+  const connecting = client.connect();
+  await waitFor(() => client.state === "resolving");
+  await client.disconnect();
+  await assert.rejects(settlesWithin(connecting), { name: "AbortError" });
+});
+
+void test("retries after a reconnect resolver timeout", async () => {
+  const firstSocket = new FakeSocket();
+  let resolverCalls = 0;
+  let socketCalls = 0;
+  const reconnectErrors: string[] = [];
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => {
+      resolverCalls += 1;
+      return resolverCalls === 2 ? new Promise<ChannelInfo>(() => {}) : channel;
+    },
+    createWebSocket: () => (++socketCalls === 1 ? firstSocket : new FakeSocket()),
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+    resolverTimeoutMs: 5,
+  });
+  client.on("reconnecting", ({ error }) => reconnectErrors.push(error.message));
+
+  try {
+    await join(client, firstSocket);
+    firstSocket.closeFromServer();
+    await waitFor(() => resolverCalls >= 3);
+    assert.ok(reconnectErrors.some((message) => message.includes("channel resolution timed out")));
+  } finally {
+    await client.disconnect();
+  }
+});
+
 void test("ignores handshake data that finishes decoding after timeout", async () => {
   const socket = new FakeSocket();
   const delayed = delayedMessage();
@@ -874,7 +943,7 @@ void test("retries when a reconnect handshake times out", async () => {
   await client.disconnect();
 });
 
-void test("rejects non-finite reconnect options and invalid handshake timeouts", () => {
+void test("rejects non-finite reconnect options and invalid timeouts", () => {
   const create = (options: Partial<ConstructorParameters<typeof SoopChatCore>[0]>) =>
     new SoopChatCore({
       streamerId: "streamer",
@@ -894,7 +963,11 @@ void test("rejects non-finite reconnect options and invalid handshake timeouts",
   for (const handshakeTimeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
     assert.throws(() => create({ handshakeTimeoutMs }), /positive finite number/);
   }
+  for (const resolverTimeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => create({ resolverTimeoutMs }), /positive finite number/);
+  }
   assert.throws(() => create({ handshakeTimeoutMs: 2_147_483_648 }), /must not exceed/);
+  assert.throws(() => create({ resolverTimeoutMs: 2_147_483_648 }), /must not exceed/);
   assert.throws(() => create({ reconnect: { maxDelayMs: 2_147_483_648 } }), /must not exceed/);
 });
 
