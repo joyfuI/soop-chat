@@ -138,7 +138,7 @@ export const EVENT_CATALOG = {
   "0143": {
     type: "quickRandomCeremony",
     description: "Random Quick View Gift",
-    provenance: "player",
+    provenance: "observed",
   },
   "0144": { type: "copySendSub", description: "Subscription Gift Receipt", provenance: "player" },
   "0145": { type: "copySendQuick", description: "Copy Send Quick", provenance: "player" },

@@ -73,7 +73,7 @@ chat.on("sendBalloon", ({ data }) => {
 
 - `fanOrder`는 중복·건너뜀·수신 순서 역전이 있을 수 있습니다. 고유 ID, 정렬 또는 중복 제거에 사용하지 마세요.
 - `isDefault=false`만으로 시그니처 풍선이라고 판단하지 마세요. 라이브러리가 제공하는 `isSignatureBalloon`을 사용하세요.
-- `isSignatureBalloon=false`도 특정 풍선 종류를 단정하는 값이 아닙니다.
+- `isDefault`와 `isSignatureBalloon`이 모두 거짓인 표본에는 스타즈 별풍선과 카테고리별 이미지가 모두 있었습니다. 이미지 종류를 개수나 두 flag만으로 판정할 수 없습니다.
 - `ttsData`의 유무·차이·일치만으로 목소리 종류, 메시지 존재 또는 실제 음성 재생 여부를 판정하지 마세요.
 
 `sendFanLetter`와 `sendFanLetterSub`는 공식 opcode 이름을 유지하지만 현재 제품에서는 스티커 후원으로 표시됩니다. `supporterOrder > 0`은 신규 서포터 가입과 함께 올 수 있지만 순번을 이벤트 ID로 사용하지 마세요.
@@ -250,7 +250,7 @@ chat.on("sendBalloon", ({ data }) => {
 | `0140` | `cheerTeamChange` | 응원팀 변경 | object | player |
 | `0141` | `nightbotTimeout` | Nightbot 타임아웃 | object | player |
 | `0142` | `subRandomCeremony` | 랜덤 구독 선물 알림 | object | observed |
-| `0143` | `quickRandomCeremony` | 랜덤 퀵뷰 선물 알림 | object | player |
+| `0143` | `quickRandomCeremony` | 랜덤 퀵뷰 선물 알림 | object | observed |
 | `0144` | `copySendSub` | 구독 선물 수령 알림 | object | player |
 | `0145` | `copySendQuick` | 퀵뷰 복사 알림 원본 | fields | player |
 | future | `unknown` | 카탈로그에 없는 네 자리 opcode | fields | runtime |
