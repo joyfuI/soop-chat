@@ -120,11 +120,13 @@ async function authenticate(credentials: SoopCredentials, signal: AbortSignal): 
         referer: "https://play.sooplive.com/",
       },
       body,
+      redirect: "error",
       signal,
     });
   } catch (cause) {
+    signal.throwIfAborted();
     if (cause instanceof Error && cause.name === "AbortError") throw cause;
-    throw new AuthenticationError("Failed to call the SOOP login API.", { cause });
+    throw new AuthenticationError("Failed to call the SOOP login API.");
   }
   if (!response.ok)
     throw new AuthenticationError(`SOOP login API returned HTTP ${response.status}.`);
@@ -133,8 +135,9 @@ async function authenticate(credentials: SoopCredentials, signal: AbortSignal): 
   try {
     root = record(await response.json()) ?? {};
   } catch (cause) {
+    signal.throwIfAborted();
     if (cause instanceof Error && cause.name === "AbortError") throw cause;
-    throw new AuthenticationError("SOOP login API returned invalid JSON.", { cause });
+    throw new AuthenticationError("SOOP login API returned invalid JSON.");
   }
   if (Number(root.RESULT) !== 1)
     throw new AuthenticationError("SOOP rejected the supplied credentials.");
@@ -181,11 +184,13 @@ async function resolveChannel(
           ...(authTicket ? { cookie: `AuthTicket=${authTicket}` } : {}),
         },
         body,
+        redirect: "error",
         signal,
       });
     } catch (cause) {
+      signal.throwIfAborted();
       if (cause instanceof Error && cause.name === "AbortError") throw cause;
-      throw new ChannelResolutionError("Failed to call the SOOP live-info API.", { cause });
+      throw new ChannelResolutionError("Failed to call the SOOP live-info API.");
     }
     if (!response.ok) {
       throw new ChannelResolutionError(`SOOP live-info API returned HTTP ${response.status}.`);
@@ -195,8 +200,9 @@ async function resolveChannel(
       const root = record(await response.json()) ?? {};
       return { root, channel: record(root.CHANNEL) ?? root };
     } catch (cause) {
+      signal.throwIfAborted();
       if (cause instanceof Error && cause.name === "AbortError") throw cause;
-      throw new ChannelResolutionError("SOOP live-info API returned invalid JSON.", { cause });
+      throw new ChannelResolutionError("SOOP live-info API returned invalid JSON.");
     }
   };
 
@@ -205,7 +211,7 @@ async function resolveChannel(
   const reason = text(channel.REASON ?? root.REASON);
   if (result === undefined) {
     if (/offline|not.?stream/i.test(reason)) throw new BroadcastOfflineError(streamerId);
-    throw new ChannelResolutionError(reason || "SOOP live-info API returned an invalid RESULT.");
+    throw new ChannelResolutionError("SOOP live-info API returned an invalid RESULT.");
   }
   if (result !== 1) {
     if (result === 0 || /offline|not.?stream/i.test(reason))
@@ -252,8 +258,8 @@ async function resolveChannel(
     }
     if (result === -14) throw new RestrictedRoomError("subscriptionPlus");
     const restriction = restrictionFromReason(reason);
-    if (restriction !== "unknown") throw new RestrictedRoomError(restriction, reason || undefined);
-    throw new ChannelResolutionError(reason || `SOOP live-info API returned RESULT=${result}.`);
+    if (restriction !== "unknown") throw new RestrictedRoomError(restriction);
+    throw new ChannelResolutionError(`SOOP live-info API returned RESULT=${result}.`);
   }
   const info: ChannelInfo = {
     broadcastNo: text(channel.BNO),

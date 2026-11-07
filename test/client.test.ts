@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SoopChatCore, type WebSocketLike } from "../src/client.js";
-import { deserializeChannelResolutionError, ProtocolError } from "../src/errors.js";
+import {
+  BroadcastOfflineError,
+  deserializeChannelResolutionError,
+  ProtocolError,
+  RestrictedRoomError,
+} from "../src/errors.js";
 import { encodePacket, PacketStreamParser } from "../src/protocol.js";
 import type { AuthenticatedChannelInfo, ChannelInfo } from "../src/types.js";
 
@@ -101,9 +106,14 @@ function delayedMessage(): { data: Blob; resolve(bytes: Uint8Array<ArrayBuffer>)
   };
 }
 
+function sentPacket(data: Uint8Array) {
+  const [packet] = new PacketStreamParser().push(data);
+  assert.ok(packet && !(packet instanceof ProtocolError));
+  return packet;
+}
+
 function sentOpcodes(socket: FakeSocket): string[] {
-  const parser = new PacketStreamParser();
-  return socket.sent.flatMap((packet) => parser.push(packet).packets.map((raw) => raw.opcode));
+  return socket.sent.map((data) => sentPacket(data).opcode);
 }
 
 async function join(
@@ -306,10 +316,10 @@ void test("uses and validates serialized browser channel authentication", async 
   });
 
   await join(client, socket);
-  const connect = new PacketStreamParser().push(socket.sent[0]!).packets[0];
-  const joinPacket = new PacketStreamParser().push(socket.sent[1]!).packets[0];
-  assert.equal(connect?.fields[0], "browser-ticket");
-  assert.equal(joinPacket?.fields[1], "browser-fan-ticket");
+  const connect = sentPacket(socket.sent[0]!);
+  const joinPacket = sentPacket(socket.sent[1]!);
+  assert.equal(connect.fields[0], "browser-ticket");
+  assert.equal(joinPacket.fields[1], "browser-fan-ticket");
   await client.disconnect();
 
   const invalidClient = new SoopChatCore({
@@ -336,10 +346,10 @@ void test("passes a room password to the resolver and password join packet", asy
   });
 
   await join(client, socket);
-  const packet = new PacketStreamParser().push(socket.sent[1]!).packets[0];
-  assert.deepEqual(packet?.fields.slice(0, 4), ["2", "", "0", ""]);
+  const packet = sentPacket(socket.sent[1]!);
+  assert.deepEqual(packet.fields.slice(0, 4), ["2", "", "0", ""]);
   assert.equal(
-    packet?.fields[4],
+    packet.fields[4],
     "log\x11\x12pwd\x11synthetic-room-password\x12auth_info\x11\x12pver\x112\x12access_system\x11html5\x12",
   );
   await client.disconnect();
@@ -856,16 +866,63 @@ void test("times out a stalled resolver even when it ignores cancellation", asyn
 });
 
 void test("disconnect settles a pending resolver that ignores cancellation", async () => {
+  let resolverCalls = 0;
   const client = new SoopChatCore({
     streamerId: "streamer",
-    resolveChannel: async () => new Promise<ChannelInfo>(() => {}),
+    resolveChannel: async () => {
+      if (++resolverCalls === 1) return new Promise<ChannelInfo>(() => {});
+      throw new BroadcastOfflineError("streamer");
+    },
     createWebSocket: () => assert.fail("Cancelled resolution reached the transport."),
   });
 
-  const connecting = client.connect();
-  await waitFor(() => client.state === "resolving");
-  await client.disconnect();
-  await assert.rejects(settlesWithin(connecting), { name: "AbortError" });
+  const cancelled = assert.rejects(settlesWithin(client.connect()), { name: "AbortError" });
+  await waitFor(() => resolverCalls === 1);
+  const disconnecting = client.disconnect();
+  await assert.rejects(settlesWithin(client.connect()), BroadcastOfflineError);
+  await disconnecting;
+  await cancelled;
+  assert.equal(resolverCalls, 2);
+  assert.equal(client.state, "closed");
+});
+
+void test("handles a synchronous resolver that disconnects and then throws", async () => {
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: () => {
+      void client.disconnect();
+      throw new Error("synthetic resolver failure");
+    },
+    createWebSocket: () => assert.fail("Cancelled resolution reached the transport."),
+  });
+
+  await assert.rejects(client.connect(), { name: "AbortError" });
+  assert.equal(client.state, "closed");
+});
+
+void test("keeps the client closed when a retry error listener disconnects", async () => {
+  const socket = new FakeSocket();
+  let resolverCalls = 0;
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => {
+      if (++resolverCalls > 1) throw new Error("synthetic retry failure");
+      return channel;
+    },
+    createWebSocket: () => socket,
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+  });
+  let reported = false;
+  client.on("error", () => {
+    reported = true;
+    void client.disconnect();
+  });
+
+  await join(client, socket);
+  socket.closeFromServer();
+  await waitFor(() => reported);
+  assert.equal(client.state, "closed");
+  assert.equal(resolverCalls, 2);
 });
 
 void test("retries after a reconnect resolver timeout", async () => {
@@ -1073,13 +1130,17 @@ void test("closes on broadcast end and re-resolves a later manual connection", a
   client.on("closeBroad", (event) => closeEvents.push(event.opcode));
   client.on("ended", (event) => ended.push(event.reason));
   client.on("reconnecting", (event) => reconnects.push(event.attempt));
+  client.on("protocolError", () => void client.disconnect());
 
   await join(
     client,
     firstSocket,
     encodePacket("0002", "\x0c1\x0cstreamer\x0c1\x0c10\x0c2]family\x0cignored\x0c16|0"),
   );
-  firstSocket.receive(encodePacket("0088", ""));
+  const end = encodePacket("0088", "");
+  const message = new Uint8Array(end.length + 2);
+  message.set(end);
+  firstSocket.receive(message);
   await turn();
 
   assert.deepEqual(closeEvents, ["0088"]);
@@ -1089,10 +1150,48 @@ void test("closes on broadcast end and re-resolves a later manual connection", a
   assert.equal(client.state, "closed");
 
   await join(client, secondSocket);
-  const secondJoin = new PacketStreamParser().push(secondSocket.sent[1]!).packets[0];
+  const secondJoin = sentPacket(secondSocket.sent[1]!);
   assert.equal(resolverCalls, 2);
-  assert.equal(secondJoin?.fields[0], "2");
+  assert.equal(secondJoin.fields[0], "2");
   await client.disconnect();
+});
+
+void test("stops reconnecting on a confirmed own kick during a retry handshake", async () => {
+  const firstSocket = new FakeSocket();
+  const retrySocket = new FakeSocket();
+  let resolverCalls = 0;
+  const client = new SoopChatCore({
+    streamerId: "streamer",
+    resolveChannel: async () => {
+      resolverCalls += 1;
+      return channel;
+    },
+    createWebSocket: () => (resolverCalls === 1 ? firstSocket : retrySocket),
+    reconnect: { initialDelayMs: 1, maxDelayMs: 1, jitter: 0 },
+  });
+  const events: string[] = [];
+  client.on("quitChannel", ({ data }) => events.push(data.actor));
+  client.on("ended", ({ reason, restriction }) => events.push(`${reason}:${restriction}`));
+
+  await join(client, firstSocket);
+  firstSocket.receive(encodePacket("0003", "\x0c\x0c\x0c0\x0c0\x0c\x0c\x0c"));
+  await waitFor(() => events.length === 1);
+  assert.equal(client.state, "connected");
+  firstSocket.closeFromServer();
+  await waitFor(() => client.state === "connecting");
+  const connecting = assert.rejects(
+    client.connect(),
+    (error) => error instanceof RestrictedRoomError && error.reason === "kicked",
+  );
+  retrySocket.open();
+  retrySocket.receive(encodePacket("0003", "\x0c\x0c\x0c1\x0c0\x0c\x0c\x0c"));
+  await connecting;
+  await turn();
+
+  assert.deepEqual(events, ["unknown", "streamer", "restricted:kicked"]);
+  assert.equal(retrySocket.readyState, 3);
+  assert.equal(client.state, "closed");
+  assert.equal(resolverCalls, 2);
 });
 
 void test("disconnect rejects an in-flight connect and leaves no pending session", async () => {

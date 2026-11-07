@@ -45,7 +45,9 @@ opcode·length·flags는 각각 4·6·2자리 숫자입니다. payload length는
 
 WebSocket message 경계와 protocol packet 경계가 같다고 가정하지 않습니다. 하나의 message에 여러 packet이 들어오거나 하나의 packet이 여러 message로 나뉠 수 있으므로 byte stream에서 완성된 packet만 꺼냅니다.
 
-framing을 복구하며 버린 byte는 `ProtocolError.discarded`로 제공합니다. decoding에 실패한 packet은 관련 `RawPacket`과 함께 `protocolError`로 전달하고, 알 수 없는 opcode는 `unknown` 이벤트로 원본을 보존합니다.
+framing을 복구하며 버린 byte는 `ProtocolError.discarded`로 제공합니다. 같은 WebSocket message에서 나온 framing 오류와 정상 packet은 byte 순서대로 처리합니다. decoding에 실패한 packet은 관련 `RawPacket`과 함께 `protocolError`로 전달하고, 알 수 없는 opcode는 `unknown` 이벤트로 원본을 보존합니다.
+
+공식 플레이어 번들의 50 byte 헤더와 라이브러리 접속 경로에서 관찰된 14 byte 헤더의 차이는 [공식 플레이어 채팅 프로토콜 대조](research/protocol-evidence.md#공식-플레이어-채팅-프로토콜-대조)에 기록했습니다.
 
 ## 입장 handshake와 heartbeat
 
@@ -69,7 +71,9 @@ Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용�
 
 `0088 closeBroad`는 명시적 방송 종료입니다. listener가 연결을 변경하지 않으면 라이브러리는 `closeBroad`를 먼저 전달하고 `ended: { reason: "offline" }`을 한 번 발생시킨 뒤 정상 종료하며 자동 재연결하지 않습니다. 이후 수동 `connect()`는 resolver부터 다시 실행합니다.
 
-패킷은 `raw`, 타입별 이벤트(또는 `unknown`), 공통 `event` 순서로 전달합니다. listener가 `disconnect()` 등으로 현재 연결을 중단하거나 교체하면 이전 소켓의 남은 이벤트 전달을 중단합니다. 따라서 `closeBroad` listener나 그 공통 `event` listener가 연결을 변경하면 자동 종료 처리와 `ended`도 생략될 수 있습니다. 수동 `disconnect()`는 `ended`를 발생시키지 않습니다.
+`0003 quitChannel`의 확인된 본인 강퇴 유형(1~5)도 재연결 없이 종료합니다. `quitChannel` 뒤 `ended: { reason: "restricted", restriction: "kicked" }`를 한 번 전달하고, 입장 진행 중에는 대기 중인 `connect()`를 `RestrictedRoomError("kicked")`로 거부합니다. [공식 플레이어 근거](research/protocol-evidence.md#공식-플레이어-채팅-프로토콜-대조)
+
+패킷은 `raw`, 타입별 이벤트(또는 `unknown`), 공통 `event` 순서로 전달합니다. listener가 `disconnect()` 등으로 현재 연결을 중단하거나 교체하면 이전 소켓의 남은 이벤트 전달을 중단합니다. 따라서 `closeBroad`나 `quitChannel`을 처리하는 listener가 연결을 변경하면 자동 종료 처리와 `ended`도 생략될 수 있습니다. 수동 `disconnect()`는 `ended`를 발생시키지 않습니다.
 
 일반 transport 종료에는 채널 정보를 다시 조회한 뒤 지수 backoff로 재연결합니다. 접근 제한과 명시적 방송 종료는 재시도하지 않습니다. retry 중 수동 연결, timeout과 상태 전이의 정확한 공개 계약은 [`SoopChatOptions`](../src/types.ts)와 `src/client.ts`가 기준입니다.
 
@@ -97,6 +101,8 @@ Node는 SOOP 서버의 연결 요청 header 호환성을 위해 `ws`를 사용�
 4. `0002`에 `\f{CHATNO}\f{FTK}\f0\f\f\f`을 보냅니다.
 
 `AuthTicket`의 TTL, 무효화 응답과 refresh 절차는 확인되지 않았습니다. 자동 refresh나 인증 실패 후 재로그인을 합성하지 않고 호출자에게 오류를 전달합니다.
+
+Node의 로그인과 라이브 정보 요청은 고정된 SOOP API 주소를 사용하고 HTTP redirect를 거부합니다. 오류에는 라이브 정보의 `REASON` 원문과 JSON 파싱 과정에서 드러날 수 있는 응답 본문을 포함하지 않습니다.
 
 서버 보조 브라우저 경로는 `AuthTicket`을 서버에 보관하고 `AuthenticatedChannelInfo`의 WebSocket 입장용 `TK`·`FTK`만 브라우저에 전달합니다. session과 오류 전달을 포함한 보안 계약은 [브라우저 리졸버 가이드](browser.md)를 따릅니다. [로그인 관찰 근거](research/protocol-evidence.md#로그인과-19금-방)
 

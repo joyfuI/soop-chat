@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { EVENT_CATALOG } from "../src/events.js";
+import { ProtocolError } from "../src/errors.js";
+import { EVENT_CATALOG, type RawPacket } from "../src/events.js";
 import {
   decodePacket,
   encodePacket,
@@ -13,10 +14,11 @@ const separator = "\x0c";
 
 function rawPacket(opcode: string, payload: string) {
   const parser = new PacketStreamParser();
-  const batch = parser.push(encodePacket(opcode, payload));
-  assert.equal(batch.errors.length, 0);
-  assert.equal(batch.packets.length, 1);
-  return batch.packets[0]!;
+  const result = parser.push(encodePacket(opcode, payload));
+  assert.equal(result.length, 1);
+  const [packet] = result;
+  assert.ok(packet && !(packet instanceof ProtocolError));
+  return packet;
 }
 
 void test("uses UTF-8 byte lengths and parses split packets", () => {
@@ -28,27 +30,30 @@ void test("uses UTF-8 byte lengths and parses split packets", () => {
   );
 
   const parser = new PacketStreamParser();
-  assert.equal(parser.push(encoded.slice(0, 7)).packets.length, 0);
-  assert.equal(parser.push(encoded.slice(7, 16)).packets.length, 0);
-  const result = parser.push(encoded.slice(16));
-  assert.equal(result.packets[0]?.fields[0], "한글😀");
+  assert.equal(parser.push(encoded.slice(0, 7)).length, 0);
+  assert.equal(parser.push(encoded.slice(7, 16)).length, 0);
+  const [packet] = parser.push(encoded.slice(16));
+  assert.ok(packet && !(packet instanceof ProtocolError));
+  assert.equal(packet.fields[0], "한글😀");
 });
 
 void test("parses multiple packets and recovers after garbage", () => {
   const first = encodePacket("0000");
   const second = encodePacket("9999", `${separator}future`);
   const combined = new Uint8Array(3 + first.length + second.length);
-  combined.set([1, 2, 3]);
-  combined.set(first, 3);
+  combined.set(first);
+  combined.set([1, 2, 3], first.length);
   combined.set(second, 3 + first.length);
 
   const result = new PacketStreamParser().push(combined);
-  assert.equal(result.errors.length, 1);
-  assert.deepEqual(
-    result.packets.map((packet) => packet.opcode),
-    ["0000", "9999"],
-  );
-  assert.equal(decodePacket(result.packets[1]!).type, "unknown");
+  assert.equal(result.length, 3);
+  const [keepAlive, error, unknown] = result;
+  assert.ok(keepAlive && !(keepAlive instanceof ProtocolError));
+  assert.equal(keepAlive.opcode, "0000");
+  assert.ok(error instanceof ProtocolError);
+  assert.deepEqual(error.discarded, new Uint8Array([1, 2, 3]));
+  assert.ok(unknown && !(unknown instanceof ProtocolError));
+  assert.equal(decodePacket(unknown).type, "unknown");
 });
 
 void test("rejects non-numeric header flags and recovers at the next packet", () => {
@@ -60,11 +65,41 @@ void test("rejects non-numeric header flags and recovers at the next packet", ()
   combined.set(valid, invalid.length);
 
   const result = new PacketStreamParser().push(combined);
-  assert.ok(result.errors.some((error) => error.message === "Invalid SOOP packet header."));
+  assert.ok(
+    result.some(
+      (entry) => entry instanceof ProtocolError && entry.message === "Invalid SOOP packet header.",
+    ),
+  );
   assert.deepEqual(
-    result.packets.map(({ opcode }) => opcode),
+    result
+      .filter((entry): entry is RawPacket => !(entry instanceof ProtocolError))
+      .map(({ opcode }) => opcode),
     ["0001"],
   );
+});
+
+void test("keeps a partial UTF-8 packet after a merged batch without mutating emitted bytes", () => {
+  const first = encodePacket("9998", `${separator}first`);
+  const next = encodePacket("9999", `${separator}한글😀`);
+  const parser = new PacketStreamParser();
+  const partialLength = next.length - 2;
+  const merged = new Uint8Array(first.length * 256 + partialLength);
+  for (let offset = 0; offset < first.length * 256; offset += first.length) {
+    merged.set(first, offset);
+  }
+  merged.set(next.subarray(0, partialLength), first.length * 256);
+
+  const initial = parser.push(merged);
+  assert.equal(initial.length, 256);
+  assert.ok(initial.every((entry) => !(entry instanceof ProtocolError)));
+  const final = parser.push(next.subarray(partialLength));
+  assert.equal(final.length, 1);
+  const [packet] = final;
+  assert.ok(packet && !(packet instanceof ProtocolError));
+  assert.equal(packet.text, `${separator}한글😀`);
+  const [firstPacket] = initial;
+  assert.ok(firstPacket && !(firstPacket instanceof ProtocolError));
+  assert.deepEqual(firstPacket.payload, first.slice(14));
 });
 
 void test("accepts every WebSocket message data representation", async () => {

@@ -113,11 +113,6 @@ export function isValidProtocolField(value: unknown): value is string {
   return true;
 }
 
-export interface ParseBatch {
-  packets: RawPacket[];
-  errors: ProtocolError[];
-}
-
 function concatenate(first: Uint8Array, second: Uint8Array): Uint8Array<ArrayBuffer> {
   if (first.length === 0) return new Uint8Array(second);
   if (second.length === 0) return new Uint8Array(first);
@@ -127,7 +122,7 @@ function concatenate(first: Uint8Array, second: Uint8Array): Uint8Array<ArrayBuf
   return result;
 }
 
-function findPrefix(bytes: Uint8Array, from = 0): number {
+function findPrefix(bytes: Uint8Array, from: number): number {
   for (let index = from; index < bytes.length - 1; index += 1) {
     if (bytes[index] === ESC && bytes[index + 1] === TAB) return index;
   }
@@ -146,55 +141,68 @@ function packetFields(text: string): readonly string[] {
 }
 
 export class PacketStreamParser {
-  #buffer: Uint8Array<ArrayBufferLike> = new Uint8Array();
+  #buffer = new Uint8Array();
+  #size = 0;
 
   reset(): void {
     this.#buffer = new Uint8Array();
+    this.#size = 0;
   }
 
-  push(chunk: Uint8Array): ParseBatch {
-    this.#buffer = concatenate(this.#buffer, chunk);
-    const packets: RawPacket[] = [];
-    const errors: ProtocolError[] = [];
-
-    while (this.#buffer.length >= 2) {
-      if (this.#buffer[0] !== ESC || this.#buffer[1] !== TAB) {
-        const prefix = findPrefix(this.#buffer, 1);
-        const keepFrom =
-          prefix >= 0
-            ? prefix
-            : this.#buffer.at(-1) === ESC
-              ? this.#buffer.length - 1
-              : this.#buffer.length;
-        const discarded = this.#buffer.slice(0, keepFrom);
-        this.#buffer = this.#buffer.slice(keepFrom);
-        errors.push(new ProtocolError("Discarded bytes before the SOOP packet prefix.", discarded));
+  push(chunk: Uint8Array): Array<RawPacket | ProtocolError> {
+    const size = this.#size + chunk.length;
+    if (size > this.#buffer.length) {
+      const buffer = new Uint8Array(Math.max(size, this.#buffer.length * 2));
+      buffer.set(this.#buffer.subarray(0, this.#size));
+      this.#buffer = buffer;
+    }
+    this.#buffer.set(chunk, this.#size);
+    const bytes = this.#buffer.subarray(0, size);
+    const results: Array<RawPacket | ProtocolError> = [];
+    let offset = 0;
+    while (size - offset >= 2) {
+      if (bytes[offset] !== ESC || bytes[offset + 1] !== TAB) {
+        const prefix = findPrefix(bytes, offset + 1);
+        const keepFrom = prefix >= 0 ? prefix : bytes[size - 1] === ESC ? size - 1 : size;
+        const discarded = bytes.slice(offset, keepFrom);
+        results.push(
+          new ProtocolError("Discarded bytes before the SOOP packet prefix.", discarded),
+        );
+        offset = keepFrom;
         continue;
       }
 
-      if (this.#buffer.length < HEADER_SIZE) break;
-      const opcode = ascii(this.#buffer.slice(2, 6));
-      const lengthText = ascii(this.#buffer.slice(6, 12));
-      const flags = ascii(this.#buffer.slice(12, 14));
+      if (size - offset < HEADER_SIZE) break;
+      const opcode = ascii(bytes.subarray(offset + 2, offset + 6));
+      const lengthText = ascii(bytes.subarray(offset + 6, offset + 12));
+      const flags = ascii(bytes.subarray(offset + 12, offset + 14));
 
       if (!/^\d{4}$/.test(opcode) || !/^\d{6}$/.test(lengthText) || !/^\d{2}$/.test(flags)) {
-        const discarded = this.#buffer.slice(0, 2);
-        this.#buffer = this.#buffer.slice(2);
-        errors.push(new ProtocolError("Invalid SOOP packet header.", discarded));
+        const discarded = bytes.slice(offset, offset + 2);
+        results.push(new ProtocolError("Invalid SOOP packet header.", discarded));
+        offset += 2;
         continue;
       }
 
-      const payloadLength = Number(lengthText);
-      const packetLength = HEADER_SIZE + payloadLength;
-      if (this.#buffer.length < packetLength) break;
+      const payloadStart = offset + HEADER_SIZE;
+      const packetEnd = payloadStart + Number(lengthText);
+      if (size < packetEnd) break;
 
-      const payload = this.#buffer.slice(HEADER_SIZE, packetLength);
+      const payload = bytes.slice(payloadStart, packetEnd);
       const text = decoder.decode(payload);
-      packets.push({ opcode, flags, payload, text, fields: packetFields(text) });
-      this.#buffer = this.#buffer.slice(packetLength);
+      results.push({ opcode, flags, payload, text, fields: packetFields(text) });
+      offset = packetEnd;
     }
 
-    return { packets, errors };
+    if (offset === size) this.reset();
+    else {
+      this.#size = size - offset;
+      if (offset > 0) {
+        if (this.#size <= this.#buffer.length / 4) this.#buffer = bytes.slice(offset);
+        else this.#buffer.copyWithin(0, offset, size);
+      }
+    }
+    return results;
   }
 }
 

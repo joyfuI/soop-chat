@@ -120,7 +120,7 @@ chat.on("sendBalloon", ({ data }) => {
 
 `sendAdminNotice`는 운영자 공지 본문만 제공합니다. 화면의 “SOOP 안내” 제목은 플레이어가 생성하므로 데이터에 합성하지 않습니다.
 
-`closeBroad`는 명시적 방송 종료입니다. listener가 연결을 중단하지 않으면 이어서 `ended: { reason: "offline" }`이 발생하고 자동 재연결하지 않습니다. listener가 연결을 변경하는 경우의 이벤트 순서는 [프로토콜 계약](protocol.md#종료와-reconnect)을 참고하세요. `setBjStat.status`는 방송 중에도 올 수 있는 미확인 원본 숫자이므로 종료·대기·화면 상태로 해석하지 마세요.
+`closeBroad`는 명시적 방송 종료이며 이어지는 `ended`의 사유는 `offline`입니다. 본인 강퇴를 나타내는 `quitChannel`의 유형 1~5도 연결을 종료하며 `ended`에 `restricted`와 `kicked`를 전달합니다. 두 경우 모두 자동 재연결을 중단합니다. listener가 연결을 변경하는 경우의 이벤트 순서는 [프로토콜 계약](https://github.com/joyfuI/soop-chat/blob/main/docs/protocol.md#종료와-reconnect)을 참고하세요. `setBjStat.status`는 방송 중에도 올 수 있는 미확인 원본 숫자이므로 종료·대기·화면 상태로 해석하지 마세요.
 
 `setDumb`는 채팅금지 대상, 초 단위 지속 시간, 누적 횟수와 명령 주체를 제공합니다. 화면 문구는 플레이어가 생성하므로 이벤트 데이터로 합성하지 않습니다.
 

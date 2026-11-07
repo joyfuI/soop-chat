@@ -19,6 +19,7 @@ import type {
   ChannelAuthentication,
   ChannelResolver,
   ConnectionState,
+  EndedEvent,
   ReconnectOptions,
   SoopChatEventMap,
   SoopChatEventType,
@@ -197,17 +198,21 @@ export class SoopChatCore {
 
     this.#stopped = false;
     this.#reconnectAttempt = 0;
+    const pending = this.#startSession();
+    const controller = this.#abortController;
     try {
-      await this.#startSession();
+      await pending;
     } catch (cause) {
-      if (!this.#stopped) await this.disconnect();
+      if (!this.#stopped && this.#abortController === controller) await this.disconnect();
       throw cause;
     }
   }
 
   #startSession(): Promise<void> {
     if (this.#connectPromise) return this.#connectPromise;
-    const promise = Promise.resolve().then(() => this.#openSession());
+    const controller = new AbortController();
+    this.#abortController = controller;
+    const promise = Promise.resolve().then(() => this.#openSession(controller));
     this.#connectPromise = promise;
     const clear = () => {
       if (this.#connectPromise === promise) this.#connectPromise = undefined;
@@ -221,11 +226,13 @@ export class SoopChatCore {
    * 여러 번 호출해도 안전하며 수동 종료는 `ended` 이벤트를 발생시키지 않습니다.
    */
   async disconnect(): Promise<void> {
+    this.#stop();
+  }
+
+  #stop(error?: BroadcastOfflineError | RestrictedRoomError): void {
     this.#stopped = true;
-    this.#abortController?.abort();
+    const controller = this.#abortController;
     this.#abortController = undefined;
-    this.#cancelPendingSession?.();
-    this.#cancelPendingSession = undefined;
     this.#clearHeartbeat();
     if (this.#retryTimer) clearTimeout(this.#retryTimer);
     this.#retryTimer = undefined;
@@ -238,16 +245,25 @@ export class SoopChatCore {
       socket.onmessage = null;
       socket.onclose = null;
       socket.onerror = null;
-      if (socket.readyState < 2) socket.close(1000, "Client disconnect");
+      if (socket.readyState < 2) {
+        const reason =
+          error instanceof BroadcastOfflineError
+            ? "Broadcast ended"
+            : error
+              ? "Room restricted"
+              : "Client disconnect";
+        socket.close(1000, reason);
+      }
     }
+    this.#cancelPendingSession?.(error);
+    this.#cancelPendingSession = undefined;
+    this.#connectPromise = undefined;
     this.#setState("closed");
+    controller?.abort();
   }
 
-  async #openSession(): Promise<void> {
-    if (this.#stopped) throw new DOMException("Connection was aborted.", "AbortError");
-    this.#abortController?.abort();
-    const controller = new AbortController();
-    this.#abortController = controller;
+  async #openSession(controller: AbortController): Promise<void> {
+    controller.signal.throwIfAborted();
     this.#setState("resolving");
     if (this.#stopped || this.#abortController !== controller) {
       throw new DOMException("Connection was aborted.", "AbortError");
@@ -269,9 +285,12 @@ export class SoopChatCore {
     try {
       channel = validateChannel(
         await Promise.race([
-          this.#resolveChannel(this.streamerId, {
-            signal: controller.signal,
-            ...(this.#roomPassword ? { roomPassword: this.#roomPassword } : {}),
+          Promise.resolve().then(() => {
+            controller.signal.throwIfAborted();
+            return this.#resolveChannel(this.streamerId, {
+              signal: controller.signal,
+              ...(this.#roomPassword ? { roomPassword: this.#roomPassword } : {}),
+            });
           }),
           aborted,
         ]),
@@ -345,13 +364,13 @@ export class SoopChatCore {
           .then(async () => {
             const bytes = await messageDataToBytes(message.data);
             if (this.#socket !== socket || (settled && !joined)) return;
-            const batch = this.#parser.push(bytes);
-            for (const error of batch.errors) {
-              this.#emit("protocolError", { error });
-              if (this.#socket !== socket || this.#stopped) return;
-            }
-            for (const raw of batch.packets) {
-              const event = this.#handlePacket(raw, socket);
+            for (const result of this.#parser.push(bytes)) {
+              if (result instanceof ProtocolError) {
+                this.#emit("protocolError", { error: result });
+                if (this.#socket !== socket || this.#stopped) return;
+                continue;
+              }
+              const event = this.#handlePacket(result, socket);
               if (this.#socket !== socket || this.#stopped) return;
               if (!joinSent && event?.type === "login") {
                 socket.send(
@@ -427,32 +446,29 @@ export class SoopChatCore {
       return;
     }
 
+    const end =
+      event.type === "closeBroad"
+        ? "offline"
+        : event.type === "quitChannel" && event.data.actor !== "unknown"
+          ? "kicked"
+          : undefined;
     if (event.type === "unknown") this.#emit("unknown", event);
     else this.#emitListeners(event.type, event);
     if (this.#socket !== socket || this.#stopped) return;
     this.#emit("event", event);
     if (this.#socket !== socket || this.#stopped) return;
-    if (event.type === "closeBroad") this.#finishBroadcast(socket);
+    if (end === "offline") this.#end(new BroadcastOfflineError(this.streamerId));
+    if (end === "kicked") this.#end(new RestrictedRoomError("kicked"));
     return event;
   }
 
-  #finishBroadcast(socket: WebSocketLike): void {
-    if (this.#stopped) return;
-    this.#stopped = true;
-    this.#abortController?.abort();
-    this.#abortController = undefined;
-    this.#clearHeartbeat();
-    if (this.#retryTimer) clearTimeout(this.#retryTimer);
-    this.#retryTimer = undefined;
-    if (this.#socket === socket) this.#socket = undefined;
-    socket.onopen = null;
-    socket.onmessage = null;
-    socket.onclose = null;
-    socket.onerror = null;
-    if (socket.readyState < 2) socket.close(1000, "Broadcast ended");
-    this.#setState("closed");
-    this.#emit("ended", { reason: "offline" });
-    this.#cancelPendingSession?.(new BroadcastOfflineError(this.streamerId));
+  #end(error: BroadcastOfflineError | RestrictedRoomError): void {
+    const event: EndedEvent =
+      error instanceof RestrictedRoomError
+        ? { reason: "restricted", restriction: error.reason }
+        : { reason: "offline" };
+    this.#stop(error);
+    this.#emit("ended", event);
   }
 
   #emitListeners(type: string, event: unknown): void {
@@ -517,6 +533,7 @@ export class SoopChatCore {
   }
 
   #scheduleReconnect(error: Error): void {
+    if (this.#stopped || this.#connectPromise) return;
     if (!this.#reconnect.enabled) {
       this.#setState("closed");
       return;
@@ -542,21 +559,18 @@ export class SoopChatCore {
     this.#retryTimer = setTimeout(() => {
       this.#retryTimer = undefined;
       if (this.#stopped) return;
-      void this.#startSession().catch((cause: unknown) => {
+      const pending = this.#startSession();
+      const controller = this.#abortController;
+      void pending.catch((cause: unknown) => {
+        if (this.#stopped || this.#abortController !== controller) return;
         const nextError = cause instanceof Error ? cause : new Error(String(cause));
-        if (nextError instanceof BroadcastOfflineError) {
-          this.#stopped = true;
-          this.#setState("closed");
-          this.#emit("ended", { reason: "offline" });
+        if (
+          nextError instanceof BroadcastOfflineError ||
+          nextError instanceof RestrictedRoomError
+        ) {
+          this.#end(nextError);
           return;
         }
-        if (nextError instanceof RestrictedRoomError) {
-          this.#stopped = true;
-          this.#setState("closed");
-          this.#emit("ended", { reason: "restricted", restriction: nextError.reason });
-          return;
-        }
-        if (nextError.name === "AbortError" && this.#stopped) return;
         this.#emit("error", nextError);
         this.#scheduleReconnect(nextError);
       });

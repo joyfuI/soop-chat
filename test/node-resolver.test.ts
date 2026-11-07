@@ -13,6 +13,39 @@ import {
 } from "../src/node.js";
 import { createConnectPacket, createJoinPacket, PacketStreamParser } from "../src/protocol.js";
 
+void test("keeps login and live-info response bodies out of public errors", async (context) => {
+  const signal = new AbortController().signal;
+  let body = "synthetic-secret";
+  context.mock.method(
+    globalThis,
+    "fetch",
+    async (_input: RequestInfo | URL, init?: RequestInit) => {
+      assert.equal(init?.redirect, "error");
+      return new Response(body);
+    },
+  );
+
+  await assert.rejects(
+    authenticateNode({ username: "synthetic-user", password: body }, { signal }),
+    (error) =>
+      error instanceof AuthenticationError &&
+      error.message === "SOOP login API returned invalid JSON." &&
+      error.cause === undefined,
+  );
+  await assert.rejects(
+    resolveNodeChannel("streamer", { signal }),
+    (error) =>
+      error instanceof ChannelResolutionError &&
+      error.message === "SOOP live-info API returned invalid JSON." &&
+      error.cause === undefined,
+  );
+  body = JSON.stringify({ CHANNEL: { RESULT: -1, REASON: "password: synthetic-secret" } });
+  await assert.rejects(resolveNodeChannel("streamer", { signal }), {
+    name: "RestrictedRoomError",
+    message: "Access to this room is restricted (password).",
+  });
+});
+
 void test("preserves request cancellation while reading login and live-info response bodies", async (context) => {
   for (const request of [
     (signal: AbortSignal) =>
@@ -358,8 +391,9 @@ void test("authenticates once and keeps chat tickets out of channel data", async
   });
 
   const parser = new PacketStreamParser();
-  const connect = parser.push(createConnectPacket("synthetic-ticket")).packets[0]!;
-  const join = parser.push(createJoinPacket("20", "synthetic-fan-ticket")).packets[0]!;
+  const [connect] = parser.push(createConnectPacket("synthetic-ticket"));
+  const [join] = parser.push(createJoinPacket("20", "synthetic-fan-ticket"));
+  assert.ok(connect && "fields" in connect && join && "fields" in join);
   assert.deepEqual(connect.fields, ["synthetic-ticket", "", "16", ""]);
   assert.deepEqual(join.fields, ["20", "synthetic-fan-ticket", "0", "", "", ""]);
 
