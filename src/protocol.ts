@@ -54,6 +54,7 @@ import {
   type SavvyNoticeData,
   type SetDumbData,
   type SetSubBjData,
+  type SetTopFanData,
   type SetUserFlagData,
   type SoopEvent,
   type SlowModeData,
@@ -61,6 +62,7 @@ import {
   type SubscriptionCeremonyButtonData,
   type SubscriptionProduct,
   type SubRandomCeremonyData,
+  type TopFanRankData,
   type TranslationData,
   type UnknownSoopEvent,
   type UserStatus,
@@ -289,7 +291,7 @@ function followerTier(flag2: number): 0 | 1 | 2 | 3 {
         : 0;
 }
 
-function decodeUserStatus(userFlag: string): UserStatus {
+function decodeUserStatus(userFlag: string, extension?: string): UserStatus {
   const { primary: flag1, secondary: flag2 } = userFlags(userFlag);
   const tier = followerTier(flag2);
   return {
@@ -314,6 +316,7 @@ function decodeUserStatus(userFlag: string): UserStatus {
     isEmployee: (flag2 & 1024) !== 0,
     isEmployeeAdminChat: (flag2 & 8192) !== 0,
     isCleanAti: (flag2 & 2048) !== 0,
+    ...(extension ? monthlyTopFanFields(new URLSearchParams(extension)) : {}),
   };
 }
 
@@ -459,7 +462,7 @@ function joinChannel(raw: RawPacket): JoinChannelData {
     familyNickname,
     familyNicknamePosition: integer(position),
     userFlag,
-    userStatus: decodeUserStatus(userFlag),
+    userStatus: decodeUserStatus(userFlag, fields[7]),
   };
 }
 
@@ -494,7 +497,7 @@ function chatMessage(raw: RawPacket): ChatMessageData {
     chatLanguage: integer(fields[4]),
     senderNickname: fields[5] ?? "",
     senderFlag,
-    senderStatus: decodeUserStatus(senderFlag),
+    senderStatus: decodeUserStatus(senderFlag, fields[14]),
     subscriptionMonth: fields[7] ?? "",
     nicknameColor: fields[8] ?? "",
     nicknameColorDark: fields[9] ?? "",
@@ -576,7 +579,7 @@ function setUserFlag(raw: RawPacket): SetUserFlagData {
   const fields = requireFields(raw, 6);
   const userFlag = fields[0] ?? "";
   const previousUserFlag = fields[5] ?? "";
-  const userStatus = decodeUserStatus(userFlag);
+  const userStatus = decodeUserStatus(userFlag, fields[6]);
   const previousUserStatus = decodeUserStatus(previousUserFlag);
   return {
     userId: fields[1] ?? "",
@@ -1082,7 +1085,7 @@ function ogqEmoticon(raw: RawPacket): OgqEmoticonData {
     senderId: fields[5] ?? "",
     senderNickname: fields[6] ?? "",
     senderFlag,
-    senderStatus: decodeUserStatus(senderFlag),
+    senderStatus: decodeUserStatus(senderFlag, fields[19]),
     color: bgrColor(fields[8]),
     chatLanguage: integer(fields[9]),
     emoticonType: integer(fields[10]),
@@ -1125,6 +1128,13 @@ function queryNumber(params: URLSearchParams, key: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function monthlyTopFanFields(params: URLSearchParams): Pick<UserStatus, "monthlyTopFan"> {
+  const month = Number(params.get("tfm")?.trim() || NaN);
+  const rank = Number(params.get("tfr")?.trim() || NaN);
+  if (!Number.isSafeInteger(month) || !Number.isSafeInteger(rank)) return {};
+  return { monthlyTopFan: { month, rank } };
+}
+
 function chatUserExtend(raw: RawPacket): ChatUserExtendData {
   const fields = requireFields(raw, 2);
   const users = [];
@@ -1135,6 +1145,7 @@ function chatUserExtend(raw: RawPacket): ChatUserExtendData {
       representativePersonalconMonth: queryNumber(params, "p"),
       subscriptionMonth: queryNumber(params, "fw"),
       accumulatedSubscriptionMonth: queryNumber(params, "afw"),
+      ...monthlyTopFanFields(params),
     });
   }
   return { users };
@@ -1145,18 +1156,56 @@ function bjNotice(raw: RawPacket): BjNoticeData {
   return { show: integer(fields[1]), message: fields[3] ?? "" };
 }
 
-function jsonObject(raw: RawPacket): Readonly<Record<string, unknown>> {
-  const fields = requireFields(raw, 1);
-  let payload: unknown;
+function jsonField(raw: RawPacket, value: string | undefined): unknown {
   try {
-    payload = JSON.parse(fields[0] ?? "");
+    return JSON.parse(value ?? "") as unknown;
   } catch (cause) {
     throw new ProtocolError(`Opcode ${raw.opcode} contains invalid JSON.`, undefined, { cause });
   }
+}
+
+function jsonObject(raw: RawPacket): Readonly<Record<string, unknown>> {
+  const fields = requireFields(raw, 1);
+  const payload = jsonField(raw, fields[0]);
   if (payload === null || Array.isArray(payload) || typeof payload !== "object") {
     throw new ProtocolError(`Opcode ${raw.opcode} payload must be a JSON object.`);
   }
   return payload as Record<string, unknown>;
+}
+
+function topFanRank(raw: RawPacket): TopFanRankData {
+  const fields = requireFields(raw, 3);
+  const payload = jsonField(raw, fields[2]);
+  if (!Array.isArray(payload)) {
+    throw new ProtocolError(`Opcode ${raw.opcode} ranking preview must be a JSON array.`);
+  }
+  const entries = (payload as unknown[]).map((item, index) => {
+    if (item === null || Array.isArray(item) || typeof item !== "object") {
+      throw new ProtocolError(`Opcode ${raw.opcode} ranking entry must be a JSON object.`);
+    }
+    const record = item as Record<string, unknown>;
+    const rank = jsonNumber(record, "rank");
+    return {
+      rank: Number.isSafeInteger(rank) && rank > 0 ? rank : index + 1,
+      userId: jsonString(record, "user_id") || jsonString(record, "uid"),
+      nickname: jsonString(record, "user_nick") || jsonString(record, "nick"),
+    };
+  });
+  return { chatNo: fields[0] ?? "", month: integer(fields[1]), entries };
+}
+
+function setTopFan(raw: RawPacket): SetTopFanData {
+  const fields = requireFields(raw, 8);
+  return {
+    chatNo: fields[0] ?? "",
+    userId: fields[1] ?? "",
+    nickname: fields[2] ?? "",
+    previousCumulativeRank: integer(fields[3]),
+    cumulativeRank: integer(fields[4]),
+    previousMonthlyRank: integer(fields[5]),
+    monthlyRank: integer(fields[6]),
+    month: integer(fields[7]),
+  };
 }
 
 function mission(raw: RawPacket): MissionData {
@@ -1477,6 +1526,10 @@ function decodedData(raw: RawPacket): object {
       return subRandomCeremony(raw);
     case "0143":
       return quickRandomCeremony(raw);
+    case "0147":
+      return topFanRank(raw);
+    case "0148":
+      return setTopFan(raw);
     default:
       return { fields: raw.fields };
   }

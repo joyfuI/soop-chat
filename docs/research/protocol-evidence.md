@@ -53,6 +53,25 @@
 - 10월 22일 `02:50:43.498`부터 약 48초 동안, 1개 별풍선 여섯 건은 같은 형식의 숫자와 밑줄로 된 파일명을 가졌고 두 flag(`isDefault`, `isSignatureBalloon`)는 모두 거짓이었습니다. 사용자 다시보기에서 리그 오브 레전드 카테고리의 1개 표본은 평소와 다른 이미지를 표시했고 2개 별풍선과 애드벌룬 이미지는 평소와 같았습니다. 공식 `LiveView.js`는 선물 UI에서 `categoryBalloons` 목록을 사용하고, 수신된 별풍선의 채팅 이미지는 패킷의 `fileName`으로 선택합니다. 파일명 형식만으로 카테고리를 판별하는 규칙은 확인되지 않았습니다.
 - `0125` 39건은 모두 같은 방송 레코드 내 `0121 CHALLENGE_SETTLE`과 `uuid`가 일치했고 참여자는 패킷당 최대 40명이었습니다.
 
+## 2026-10~11 월간 열혈팬과 채팅 수집
+
+2026-11-24 [공식 플레이어 HTML](https://play.sooplive.com/live.html)이 참조한 `/build/` 경로의 두 배포본은 모두 URL 쿼리 `202610201100`을 썼습니다. 실제 파일의 SHA-256은 LivePlayer가 `a848361e046bf639f59368a8ca1fac36b16cfb84bc46ecf2fb4dd66fea477ee9`, LiveView가 `867a19fb1e278a5915d8e23efca9bdd6e680ae3681633e0eba5401c043387f9e`입니다. 채팅 enum 107개에서 새 수신 분기 `0147 SVC_TOPFAN_RANK`와 `0148 SVC_SET_TOPFAN`을 확인했습니다. `0116 SVC_JOIN_COMPLETE`는 공식 클라이언트의 송신 경로에서 사용됩니다. [LivePlayer.js](https://static.sooplive.com/build/liveplayer-core/dist/LivePlayer.js?_=202610201100), [LiveView.js](https://static.sooplive.com/build/liveplayer-view/dist/LiveView.js?_=202610201100)
+
+2026-10-25~11-24(한국 시각) SQLite DB 8개를 WAL을 포함해 읽기 전용으로 열고 방송 레코드 155개의 완성 패킷 4,127,037개(41종)를 전량 재해석했습니다. 변경 전 디코더의 오류, UTF-8 오류와 저장된 이벤트 종류·데이터와의 차이는 모두 0건이었습니다. 미등록 패킷 1,803개는 아래 두 opcode였습니다. 가장 큰 완성 패킷은 `0004`로 헤더 포함 1,558 byte였습니다. DB에는 분리된 완성 패킷의 payload와 header flag가 저장되어 당시 WebSocket message 표본 수·최대 byte 길이와 분할·병합 여부는 산출할 수 없습니다.
+
+변경 후 같은 전체 표본을 다시 처리했습니다. 두 opcode와 월간 순위 확장 필드가 모두 예상대로 해석됐고, 미등록 opcode·디코딩 오류·기존 필드 값의 차이는 0건이었습니다.
+
+| opcode | 필드 및 관찰 |
+| --- | --- |
+| `0147` | 채팅방 번호, 집계 월, JSON 배열. 32개 방송의 221건에서 집계 월은 모두 `11`이었고, 목록 길이는 2명 1건과 3명 220건이었습니다. 각 항목은 문자열 `uid`와 `nick`을 가졌고 배열 순서가 순위입니다. 공식 View는 `MONTH=0`을 누적, 현재 KST 월을 월간으로 사용하고 별도 순위가 없으면 배열 위치를 사용합니다. |
+| `0148` | 채팅방 번호, 사용자 ID, 닉네임, 변경 전·후 누적 순위, 변경 전·후 월간 순위, 집계 월. 55개 방송의 1,582건에서 집계 월은 모두 `11`이었고, 월간 20위에서 순위권 밖(`0`)으로 바뀐 표본은 453건이었습니다. 공식 View는 최초 6~20위 진입에 일반 안내를, 최초 1~5위 진입이나 1~5위로 순위가 상승할 때 세리머니를 선택합니다. |
+
+공식 Player의 `tfm`·`tfr` 위치는 0부터 세어 `0002`의 7번, `0005`의 14번, `0012`의 6번, `0109`의 19번 field와 `0127`의 사용자별 확장 field입니다. 두 값이 함께 들어온 표본은 일반 채팅 219,834건, OGQ 2,282건, 상태 변경 1,295건, 사용자 확장 항목 5,184개였습니다. 이 표본의 월은 모두 `11`, 순위는 1~20위였습니다. `0002`에는 공식 코드에서 위치를 확인했고 158개 응답의 월간 순위 표본은 0건이었습니다. `0012` 1,243건은 변경 전후 복합 flag가 동일해도 월간 순위를 전달했습니다. 월간 순위가 있는 일반 채팅 107,582건은 누적 열혈팬 비트가 꺼져 있었고 112,252건은 켜져 있었습니다. [LivePlayer.js](https://static.sooplive.com/build/liveplayer-core/dist/LivePlayer.js?_=202610201100), [LiveView.js](https://static.sooplive.com/build/liveplayer-view/dist/LiveView.js?_=202610201100)
+
+공식 공지는 최초 월간 집계를 11월 17일 10:30(KST)으로 안내했습니다. 수집에서는 11월 11일부터 월간 순위 확장 필드, 11월 13일부터 두 새 opcode가 관찰됐습니다. 공지 시각 이전의 표본은 wire에 먼저 등장한 시점을 보여줍니다. 당시 화면 노출 시점은 확인되지 않았습니다. 현재 VOD 채팅 배포본은 녹화된 확장 필드의 순위를 읽고, 녹화기 버전 1.1 이상에서 녹화된 `setfan` 순위 변경을 표시하는 분기를 둡니다. [SOOP 공식 공지](https://sotong.sooplive.com/?b_no=10221&board_type=servicenotice&work=view), [VOD 채팅 번들](https://static.sooplive.com/build/vodchat/public/chat.min.js)
+
+별도로 `0007` 59,500건은 값 `0` 29,915건, 값 `1` 29,585건이었고 해당 방송 레코드의 `0088` 뒤에는 한 건도 없었습니다. `0144`와 `0130`은 각각 한 건이며 시각은 [이전 선물 조사](#선물과-미션)의 표본과 같습니다. 공식 View에서 `0144`는 라이브 구독 선물 수령 레이어로, `0130`은 현재 시청자의 구독 세리머니 보내기 배너로 연결됩니다. [LivePlayer.js](https://static.sooplive.com/build/liveplayer-core/dist/LivePlayer.js?_=202610201100), [LiveView.js](https://static.sooplive.com/build/liveplayer-view/dist/LiveView.js?_=202610201100)
+
 ## 공식 플레이어 채팅 프로토콜 대조
 
 2026-11-08 [공식 플레이어 HTML](https://play.sooplive.com/live.html)이 참조한 빌드 `202610201100`의 [LivePlayer.js](https://static.sooplive.com/asset/app/liveplayer/player/dist/LivePlayer.js?_=202610201100)와 [LiveView.js](https://static.sooplive.com/asset/app/liveplayer/view/dist/LiveView.js?_=202610201100)를 다시 확인했습니다. 현재 CDN은 과거 빌드 번호 `202609011100`을 쿼리에 붙여도 각 파일에 동일한 바이트를 반환했습니다. 아래 정적 관찰은 현재 내려받은 파일에 해당합니다.

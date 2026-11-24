@@ -67,6 +67,13 @@ chat.on("sendBalloon", ({ data }) => {
 
 `managerChat`, `directChat`, `ogqEmoticon`은 일반 채팅과 별도 이벤트입니다. 모든 채팅을 받으려면 필요한 종류를 각각 구독하거나 공통 `event` 스트림에서 분기하세요.
 
+### 열혈팬
+
+- `UserStatus.isTopFan`은 누적 열혈팬 비트입니다. 월간 열혈팬 순위는 `chatMessage`, `ogqEmoticon`, `setUserFlag`, `joinChannel`의 해당 사용자 상태 또는 `chuserExtend`의 사용자별 `monthlyTopFan`에서 읽을 수 있습니다. 두 자격은 동시에 성립할 수 있습니다.
+- `monthlyTopFan`은 현재 패킷의 월·순위입니다. 생략된 패킷에서는 월간 자격을 판정할 수 없습니다. 라이브 플레이어는 순위 1~20위와 해당 KST 월을 배지 조건으로 사용합니다. 수집 데이터를 재생할 때는 기록 시점의 월을 기준으로 읽으세요.
+- `topFanRank`는 채팅창에 표시하는 열혈팬 상위 랭킹 미리보기를 갱신합니다. 공식 플레이어는 상위 3명을 표시하며 전체 순위는 별도로 조회합니다.
+- `setTopFan`은 누적·월간 순위의 변경을 알립니다. 순위권 이탈이나 안내 배너가 표시되지 않는 순위 변경도 포함합니다. 실제 표시 여부는 플레이어가 순위 변동과 채팅창 상태를 보고 결정합니다.
+
 ### 후원
 
 `sendBalloon`은 별풍선 후원이며 타입은 `BalloonData`입니다.
@@ -132,7 +139,7 @@ chat.on("sendBalloon", ({ data }) => {
 
 ### 사용자 메타데이터와 미디어
 
-`chuserExtend`는 입장 시점의 구독·퍼스널콘 메타데이터 batch입니다. `users` 배열 전체를 처리하고, 구독 변경 뒤 자동 갱신되는 최신 상태로 간주하지 마세요. 누락되거나 잘못된 숫자는 `null`, 서버의 `-1`은 원본 의미를 확정하지 않고 유지합니다.
+`chuserExtend`는 입장 시점의 확장 메타데이터 batch입니다. `users` 배열 전체를 처리하고, 입장 이후의 구독 상태는 해당 변경 이벤트에서 확인하세요. 구독·퍼스널콘 숫자가 누락되거나 잘못되면 `null`을 제공하고, 서버의 `-1`은 원본 값으로 유지합니다.
 
 `ogqEmoticon`은 OGQ 이미지 단독 또는 이미지와 `message`가 함께 있는 채팅입니다. `message`에는 플레이어가 이미지로 변환하는 `/이모티콘이름/` 형식의 일반 이모티콘도 들어올 수 있으므로 항상 literal text라고 가정하지 마세요. 같은 발신자와 이미지가 반복돼도 각각 별도 채팅이므로 중복 제거하지 않습니다. `extension="png"`만으로 정지 이미지라고 판단하지 마세요. 공식 플레이어는 애니메이션 설정이 켜진 비-Chromecast 환경에서 `animation="1"`일 때 WebP를 요청하고, 그 밖에는 PNG를 사용합니다. 알려지지 않은 `animation` 값은 추측하지 않습니다.
 
@@ -253,4 +260,6 @@ chat.on("sendBalloon", ({ data }) => {
 | `0143` | `quickRandomCeremony` | 랜덤 퀵뷰 선물 알림 | object | observed |
 | `0144` | `copySendSub` | 구독 선물 수령 알림 | object | player |
 | `0145` | `copySendQuick` | 퀵뷰 복사 알림 원본 | fields | player |
+| `0147` | `topFanRank` | 열혈팬 랭킹 미리보기 갱신 | object | observed |
+| `0148` | `setTopFan` | 누적·월간 열혈팬 순위 변경 | object | observed |
 | future | `unknown` | 카탈로그에 없는 네 자리 opcode | fields | runtime |

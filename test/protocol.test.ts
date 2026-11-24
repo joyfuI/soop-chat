@@ -21,6 +21,106 @@ function rawPacket(opcode: string, payload: string) {
   return packet;
 }
 
+void test("decodes top fan ranking previews and rank transitions", () => {
+  const preview = rawPacket(
+    "0147",
+    [
+      "",
+      "123",
+      "11",
+      '[{"uid":"one","nick":"닉네임"},{"user_id":"two","user_nick":"Second","rank":3}]',
+    ].join(separator),
+  );
+  const rank = decodePacket(preview);
+  assert.ok(rank.type === "topFanRank");
+  assert.equal(rank.raw, preview);
+  assert.deepEqual(rank.data, {
+    chatNo: "123",
+    month: 11,
+    entries: [
+      { rank: 1, userId: "one", nickname: "닉네임" },
+      { rank: 3, userId: "two", nickname: "Second" },
+    ],
+  });
+  const cumulative = decodePacket(rawPacket("0147", ["", "123", "0", "[]"].join(separator)));
+  assert.ok(cumulative.type === "topFanRank");
+  assert.deepEqual(cumulative.data, { chatNo: "123", month: 0, entries: [] });
+  assert.throws(
+    () => decodePacket(rawPacket("0147", ["", "123", "11", "{}"].join(separator))),
+    ProtocolError,
+  );
+
+  const change = decodePacket(
+    rawPacket("0148", ["", "123", "user", "nickname", "4", "3", "20", "0", "11"].join(separator)),
+  );
+  assert.ok(change.type === "setTopFan");
+  assert.deepEqual(change.data, {
+    chatNo: "123",
+    userId: "user",
+    nickname: "nickname",
+    previousCumulativeRank: 4,
+    cumulativeRank: 3,
+    previousMonthlyRank: 20,
+    monthlyRank: 0,
+    month: 11,
+  });
+});
+
+void test("reads monthly top fan metadata independently of cumulative flags", () => {
+  const metadata = "fw=-1&afw=-1&tfm=11&tfr=7";
+  const monthlyTopFan = { month: 11, rank: 7 };
+  const chatFields = ["hello", "user", "", "0", "0", "nick", "0|0", "", "", "", "", "", "", "-1"];
+  const chat = decodePacket(rawPacket("0005", ["", ...chatFields, metadata].join(separator)));
+  assert.ok(chat.type === "chatMessage");
+  assert.equal(chat.data.senderStatus.isTopFan, false);
+  assert.deepEqual(chat.data.senderStatus.monthlyTopFan, monthlyTopFan);
+
+  const ogq = decodePacket(
+    rawPacket(
+      "0109",
+      [
+        "",
+        "123",
+        "",
+        "group",
+        "sub",
+        "1",
+        "user",
+        "nick",
+        "32768|0",
+        ...Array<string>(11).fill(""),
+        metadata,
+      ].join(separator),
+    ),
+  );
+  assert.ok(ogq.type === "ogqEmoticon");
+  assert.equal(ogq.data.senderStatus.isTopFan, true);
+  assert.deepEqual(ogq.data.senderStatus.monthlyTopFan, monthlyTopFan);
+
+  const join = decodePacket(
+    rawPacket("0002", ["", "123", "streamer", "", "0", "", "", "0|0", metadata].join(separator)),
+  );
+  assert.ok(join.type === "joinChannel");
+  assert.deepEqual(join.data.userStatus.monthlyTopFan, monthlyTopFan);
+
+  const flags = decodePacket(
+    rawPacket("0012", ["", "0|0", "user", "nick", "", "", "0|0", metadata].join(separator)),
+  );
+  assert.ok(flags.type === "setUserFlag");
+  assert.equal(flags.data.userFlag, flags.data.previousUserFlag);
+  assert.deepEqual(flags.data.userStatus.monthlyTopFan, monthlyTopFan);
+  assert.equal(flags.data.previousUserStatus.monthlyTopFan, undefined);
+
+  const batch = decodePacket(
+    rawPacket("0127", ["", "first", metadata, "second", "tfm=11&tfr=bad"].join(separator)),
+  );
+  assert.ok(batch.type === "chuserExtend");
+  assert.deepEqual(
+    batch.data.users.map((user) => user.monthlyTopFan),
+    [monthlyTopFan, undefined],
+  );
+});
+
 void test("uses UTF-8 byte lengths and parses split packets", () => {
   const encoded = encodePacket("0005", `${separator}한글😀${separator}user`);
   const declaredLength = Number(new TextDecoder().decode(encoded.slice(6, 12)));
@@ -113,8 +213,8 @@ void test("accepts every WebSocket message data representation", async () => {
 
 void test("catalog and event documentation cover known opcodes and the unknown variant", () => {
   const definitions = Object.values(EVENT_CATALOG);
-  assert.equal(definitions.length, 105);
-  assert.equal(new Set(definitions.map((definition) => definition.type)).size, 105);
+  assert.equal(definitions.length, 107);
+  assert.equal(new Set(definitions.map((definition) => definition.type)).size, definitions.length);
 
   const specializedPayloads: Partial<Record<string, string>> = {
     "0001": `${separator}user${separator}16|0`,
@@ -182,6 +282,8 @@ void test("catalog and event documentation cover known opcodes and the unknown v
     "0142": `${separator}sender${separator}nickname${separator}123${separator}1${separator}21${separator}-1`,
     "0143": `${separator}sender${separator}nickname${separator}123${separator}5${separator}101`,
     "0144": `${separator}unused${separator}sender${separator}sNick${separator}receiver${separator}rNick${separator}streamer${separator}streamerNick${separator}11${separator}code${separator}0${separator}0${separator}${separator}0${separator}0`,
+    "0147": ["", "123", "11", "[]"].join(separator),
+    "0148": ["", "123", "user", "nickname", "0", "0", "7", "3", "11"].join(separator),
   };
 
   const expectedIndex = Object.entries(EVENT_CATALOG).map(([opcode, definition]) => {

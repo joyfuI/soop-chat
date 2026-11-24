@@ -142,6 +142,8 @@ export const EVENT_CATALOG = {
   },
   "0144": { type: "copySendSub", description: "Subscription Gift Receipt", provenance: "player" },
   "0145": { type: "copySendQuick", description: "Copy Send Quick", provenance: "player" },
+  "0147": { type: "topFanRank", description: "Top Fan Ranking Preview", provenance: "observed" },
+  "0148": { type: "setTopFan", description: "Top Fan Rank Change", provenance: "observed" },
 } as const satisfies Record<string, EventDefinition>;
 
 /** {@link EVENT_CATALOG}에 등록된 네 자리 opcode입니다. */
@@ -169,7 +171,15 @@ export interface FieldEventData {
   fields: readonly string[];
 }
 
-/** SOOP의 숫자 플래그 두 그룹에서 독립적으로 판정한 사용자 상태입니다. */
+/** 사용자 확장 필드에서 읽은 월간 열혈팬 순위입니다. */
+export interface MonthlyTopFanData {
+  /** `tfm`의 원본 숫자입니다. 실방송에서는 1~12월을 나타내는 값이 관찰됐습니다. */
+  month: number;
+  /** `tfr`의 원본 숫자입니다. 공식 플레이어의 월간 열혈팬 범위는 1~20위입니다. */
+  rank: number;
+}
+
+/** SOOP의 숫자 플래그와 패킷에 포함된 확장 메타데이터를 읽은 사용자 상태입니다. */
 export interface UserStatus {
   /** 첫 번째 원본 복합 flag 숫자입니다. */
   flag1: number;
@@ -183,8 +193,10 @@ export interface UserStatus {
   isManager: boolean;
   /** `flag1 & 64`인 고정 매니저 flag입니다. */
   isFixedManager: boolean;
-  /** `flag1 & 32768`인 열혈팬 flag입니다. */
+  /** `flag1 & 32768`인 누적 열혈팬 flag입니다. */
   isTopFan: boolean;
+  /** 이 패킷이 전달한 월간 열혈팬 순위입니다. 두 값 중 하나라도 유효한 정수가 아니면 생략됩니다. */
+  monthlyTopFan?: MonthlyTopFanData;
   /** `flag1 & 32`인 팬클럽 flag입니다. */
   isFan: boolean;
   /** `flag1 & (1 << 20)`인 서포터 flag입니다. */
@@ -534,7 +546,7 @@ export interface GemItemSendData {
   itemName: string;
 }
 
-/** 사용자 입장 시점의 구독과 퍼스널콘 메타데이터입니다. */
+/** 사용자 입장 시점의 구독, 퍼스널콘과 월간 열혈팬 메타데이터입니다. */
 export interface ChatUserExtendInfo {
   /** 확장 메타데이터 대상 사용자 ID입니다. */
   userId: string;
@@ -544,6 +556,8 @@ export interface ChatUserExtendInfo {
   subscriptionMonth: number | null;
   /** 누적 구독 개월입니다. */
   accumulatedSubscriptionMonth: number | null;
+  /** 이 패킷이 전달한 월간 열혈팬 순위입니다. 두 값 중 하나라도 유효한 정수가 아니면 생략됩니다. */
+  monthlyTopFan?: MonthlyTopFanData;
 }
 
 /** 입장 시점의 확장 사용자 메타데이터 batch입니다. */
@@ -1414,6 +1428,46 @@ export type NightbotTimeoutReason =
   | "repetitions"
   | "unknown";
 
+/** `0147` 열혈팬 랭킹 미리보기의 한 항목입니다. */
+export interface TopFanRankEntry {
+  /** 서버 순위입니다. 양수 순위 필드가 없으면 배열의 1부터 시작하는 위치를 사용합니다. */
+  rank: number;
+  /** 랭킹에 포함된 사용자 ID입니다. */
+  userId: string;
+  /** 랭킹에 포함된 사용자 닉네임입니다. */
+  nickname: string;
+}
+
+/** `0147` 열혈팬 랭킹 미리보기 갱신입니다. */
+export interface TopFanRankData {
+  /** 서버가 전달한 채팅방 번호입니다. */
+  chatNo: string;
+  /** `0`은 누적, `1`~`12`는 월간 랭킹의 해당 월입니다. */
+  month: number;
+  /** 랭킹 미리보기에 포함된 항목입니다. */
+  entries: readonly TopFanRankEntry[];
+}
+
+/** `0148` 사용자의 누적·월간 열혈팬 순위 변경입니다. 순위의 `0`은 순위권 밖을 나타냅니다. */
+export interface SetTopFanData {
+  /** 서버가 전달한 채팅방 번호입니다. */
+  chatNo: string;
+  /** 순위가 변경된 사용자의 ID입니다. */
+  userId: string;
+  /** 순위가 변경된 사용자의 닉네임입니다. */
+  nickname: string;
+  /** 변경 전 누적 열혈팬 순위입니다. */
+  previousCumulativeRank: number;
+  /** 변경 후 누적 열혈팬 순위입니다. */
+  cumulativeRank: number;
+  /** 변경 전 월간 열혈팬 순위입니다. */
+  previousMonthlyRank: number;
+  /** 변경 후 월간 열혈팬 순위입니다. */
+  monthlyRank: number;
+  /** 서버가 전달한 월간 랭킹 집계 월입니다. */
+  month: number;
+}
+
 interface DecodedDataByOpcode {
   "0001": LoginData;
   "0002": JoinChannelData;
@@ -1480,6 +1534,8 @@ interface DecodedDataByOpcode {
   "0142": SubRandomCeremonyData;
   "0143": QuickRandomCeremonyData;
   "0144": GiftSubscriptionData;
+  "0147": TopFanRankData;
+  "0148": SetTopFanData;
 }
 
 type DecodedData<O extends KnownSoopOpcode> = O extends keyof DecodedDataByOpcode
