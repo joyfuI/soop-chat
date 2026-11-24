@@ -1430,7 +1430,7 @@ export type NightbotTimeoutReason =
 
 /** `0147` 열혈팬 랭킹 미리보기의 한 항목입니다. */
 export interface TopFanRankEntry {
-  /** 서버 순위입니다. 양수 순위 필드가 없으면 배열의 1부터 시작하는 위치를 사용합니다. */
+  /** 서버 순위입니다. 유효한 양의 정수 순위가 없으면 배열의 1부터 시작하는 위치를 사용합니다. */
   rank: number;
   /** 랭킹에 포함된 사용자 ID입니다. */
   userId: string;

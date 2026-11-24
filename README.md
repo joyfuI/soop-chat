@@ -75,13 +75,17 @@ await chat.connect();
 브라우저에서는 `credentials` 대신 애플리케이션 서버의 resolver와 로그인 session을 사용합니다. credential과 비밀번호는 소스·로그·셸 이력·일반 설정 저장소에 남기지 말고 환경 변수나 secret manager에서 주입하세요.
 
 ```ts
-const { SOOP_USERNAME: username, SOOP_PASSWORD: password } = process.env;
+const {
+  SOOP_USERNAME: username,
+  SOOP_PASSWORD: password,
+  SOOP_ROOM_PASSWORD: roomPassword,
+} = process.env;
 if (!username || !password) throw new Error("SOOP credentials are required.");
 
 const chat = new SoopChat({
   streamerId: "soopId",
   credentials: { username, password },
-  roomPassword: process.env.SOOP_ROOM_PASSWORD,
+  ...(roomPassword === undefined ? {} : { roomPassword }),
 });
 
 await chat.connect();
@@ -103,17 +107,19 @@ await chat.connect();
 
 모든 프로토콜 이벤트에는 `type`, `opcode`, `receivedAt`, `raw`, `data`가 있습니다. 이벤트 선택과 해석상 주의사항, 전체 색인은 [이벤트 가이드](docs/events.md)를 참고하세요.
 
+월간 열혈팬 순위는 `chatMessage`의 `data.senderStatus.monthlyTopFan`에서 읽을 수 있습니다. 랭킹 미리보기는 `topFanRank`, 순위 변경은 `setTopFan`을 구독하세요. [열혈팬 이벤트 가이드](docs/events.md#열혈팬)
+
 공통 스트림도 구독할 수 있습니다.
 
 ```ts
 const off = chat.on("event", (event) => console.log(event.type, event.data));
 chat.on("unknown", (event) => console.log("새 opcode", event.opcode));
-chat.on("protocolError", ({ error }) => console.error(error));
+chat.on("protocolError", ({ error }) => console.error(error.code, error.message));
 
 off();
 ```
 
-`raw`에는 사용자 ID·닉네임·메시지 등 개인정보가 있을 수 있으므로 보관 정책 없이 기록하지 마세요.
+`raw`와 `protocolError`의 전체 오류 객체에는 사용자 ID·닉네임·메시지 등 개인정보가 있을 수 있으므로 보관 정책 없이 기록하지 마세요.
 
 ## 상세 레퍼런스
 

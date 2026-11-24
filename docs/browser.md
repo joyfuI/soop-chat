@@ -119,12 +119,12 @@ async function channelResolutionResponse(resolve: () => Promise<unknown>) {
 ```ts
 import { resolveNodeChannel } from "soop-chat";
 
-const input = validateChannelRequest(await readRequestJson(request)); // application code
+const { streamerId, roomPassword } = validateChannelRequest(await readRequestJson(request));
 
 return channelResolutionResponse(() =>
-  resolveNodeChannel(input.streamerId, {
+  resolveNodeChannel(streamerId, {
     signal: request.signal,
-    roomPassword: input.roomPassword,
+    ...(roomPassword === undefined ? {} : { roomPassword }),
   }),
 );
 ```
@@ -153,7 +153,7 @@ await sealIntoHttpOnlyCookie(authentication); // application code
 ```ts
 import { resolveNodeChannel } from "soop-chat";
 
-const input = validateChannelRequest(await readRequestJson(request)); // application code
+const { streamerId, roomPassword } = validateChannelRequest(await readRequestJson(request));
 const authentication = await readApplicationSession(request); // application code
 if (!authentication) {
   return jsonResponse(
@@ -163,9 +163,9 @@ if (!authentication) {
 }
 
 return channelResolutionResponse(() =>
-  resolveNodeChannel(input.streamerId, {
+  resolveNodeChannel(streamerId, {
     signal: request.signal,
-    roomPassword: input.roomPassword,
+    ...(roomPassword === undefined ? {} : { roomPassword }),
     authentication,
   }),
 );

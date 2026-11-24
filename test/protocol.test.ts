@@ -28,7 +28,11 @@ void test("decodes top fan ranking previews and rank transitions", () => {
       "",
       "123",
       "11",
-      '[{"uid":"one","nick":"닉네임"},{"user_id":"two","user_nick":"Second","rank":3}]',
+      JSON.stringify([
+        { uid: "one", nick: "닉네임" },
+        { user_id: "two", user_nick: "Second", rank: 4 },
+        { uid: "three", nick: "Third", rank: "8.5" },
+      ]),
     ].join(separator),
   );
   const rank = decodePacket(preview);
@@ -39,7 +43,8 @@ void test("decodes top fan ranking previews and rank transitions", () => {
     month: 11,
     entries: [
       { rank: 1, userId: "one", nickname: "닉네임" },
-      { rank: 3, userId: "two", nickname: "Second" },
+      { rank: 4, userId: "two", nickname: "Second" },
+      { rank: 3, userId: "three", nickname: "Third" },
     ],
   });
   const cumulative = decodePacket(rawPacket("0147", ["", "123", "0", "[]"].join(separator)));
@@ -47,6 +52,10 @@ void test("decodes top fan ranking previews and rank transitions", () => {
   assert.deepEqual(cumulative.data, { chatNo: "123", month: 0, entries: [] });
   assert.throws(
     () => decodePacket(rawPacket("0147", ["", "123", "11", "{}"].join(separator))),
+    ProtocolError,
+  );
+  assert.throws(
+    () => decodePacket(rawPacket("0147", ["", "123", "", "[]"].join(separator))),
     ProtocolError,
   );
 
@@ -64,6 +73,16 @@ void test("decodes top fan ranking previews and rank transitions", () => {
     monthlyRank: 0,
     month: 11,
   });
+  assert.throws(
+    () =>
+      decodePacket(
+        rawPacket(
+          "0148",
+          ["", "123", "user", "nickname", "4", "3", "20", "", "11"].join(separator),
+        ),
+      ),
+    ProtocolError,
+  );
 });
 
 void test("reads monthly top fan metadata independently of cumulative flags", () => {
@@ -112,12 +131,17 @@ void test("reads monthly top fan metadata independently of cumulative flags", ()
   assert.equal(flags.data.previousUserStatus.monthlyTopFan, undefined);
 
   const batch = decodePacket(
-    rawPacket("0127", ["", "first", metadata, "second", "tfm=11&tfr=bad"].join(separator)),
+    rawPacket(
+      "0127",
+      ["", "first", metadata, "second", "tfm=11&tfr=bad", "third", "tfm=11&tfr=0x7"].join(
+        separator,
+      ),
+    ),
   );
   assert.ok(batch.type === "chuserExtend");
   assert.deepEqual(
     batch.data.users.map((user) => user.monthlyTopFan),
-    [monthlyTopFan, undefined],
+    [monthlyTopFan, undefined, undefined],
   );
 });
 

@@ -64,13 +64,15 @@ test("browser entry imports without Node polyfills and requires a resolver", asy
     }
     return {
       state: client.state,
-      knownOpcodes: Object.keys(module.EVENT_CATALOG).length,
+      topFanRank: module.EVENT_CATALOG["0147"]?.type,
+      setTopFan: module.EVENT_CATALOG["0148"]?.type,
       missingResolverError,
     };
   });
   expect(result).toEqual({
     state: "idle",
-    knownOpcodes: 107,
+    topFanRank: "topFanRank",
+    setTopFan: "setTopFan",
     missingResolverError: "BrowserResolverRequiredError",
   });
 });

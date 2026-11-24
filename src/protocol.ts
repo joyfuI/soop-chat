@@ -276,6 +276,19 @@ function integer(value: string | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function decimalInteger(value: unknown): number | undefined {
+  if (typeof value === "string" && /^[+-]?\d+$/.test(value.trim())) value = Number(value);
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : undefined;
+}
+
+function requireIntegerField(raw: RawPacket, index: number): number {
+  const value = decimalInteger(raw.fields[index]);
+  if (value === undefined) {
+    throw new ProtocolError(`Opcode ${raw.opcode} field ${index} must be an integer.`);
+  }
+  return value;
+}
+
 function userFlags(value: string | undefined): { primary: number; secondary: number } {
   const [primary, secondary] = (value ?? "").split("|");
   return { primary: integer(primary), secondary: integer(secondary) };
@@ -1129,9 +1142,9 @@ function queryNumber(params: URLSearchParams, key: string): number | null {
 }
 
 function monthlyTopFanFields(params: URLSearchParams): Pick<UserStatus, "monthlyTopFan"> {
-  const month = Number(params.get("tfm")?.trim() || NaN);
-  const rank = Number(params.get("tfr")?.trim() || NaN);
-  if (!Number.isSafeInteger(month) || !Number.isSafeInteger(rank)) return {};
+  const month = decimalInteger(params.get("tfm"));
+  const rank = decimalInteger(params.get("tfr"));
+  if (month === undefined || rank === undefined) return {};
   return { monthlyTopFan: { month, rank } };
 }
 
@@ -1184,14 +1197,14 @@ function topFanRank(raw: RawPacket): TopFanRankData {
       throw new ProtocolError(`Opcode ${raw.opcode} ranking entry must be a JSON object.`);
     }
     const record = item as Record<string, unknown>;
-    const rank = jsonNumber(record, "rank");
+    const rank = decimalInteger(record.rank);
     return {
-      rank: Number.isSafeInteger(rank) && rank > 0 ? rank : index + 1,
+      rank: rank !== undefined && rank > 0 ? rank : index + 1,
       userId: jsonString(record, "user_id") || jsonString(record, "uid"),
       nickname: jsonString(record, "user_nick") || jsonString(record, "nick"),
     };
   });
-  return { chatNo: fields[0] ?? "", month: integer(fields[1]), entries };
+  return { chatNo: fields[0] ?? "", month: requireIntegerField(raw, 1), entries };
 }
 
 function setTopFan(raw: RawPacket): SetTopFanData {
@@ -1200,11 +1213,11 @@ function setTopFan(raw: RawPacket): SetTopFanData {
     chatNo: fields[0] ?? "",
     userId: fields[1] ?? "",
     nickname: fields[2] ?? "",
-    previousCumulativeRank: integer(fields[3]),
-    cumulativeRank: integer(fields[4]),
-    previousMonthlyRank: integer(fields[5]),
-    monthlyRank: integer(fields[6]),
-    month: integer(fields[7]),
+    previousCumulativeRank: requireIntegerField(raw, 3),
+    cumulativeRank: requireIntegerField(raw, 4),
+    previousMonthlyRank: requireIntegerField(raw, 5),
+    monthlyRank: requireIntegerField(raw, 6),
+    month: requireIntegerField(raw, 7),
   };
 }
 
